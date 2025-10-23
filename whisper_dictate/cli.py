@@ -5,19 +5,61 @@ import queue
 import sys
 import threading
 import time
+from typing import Optional
 
 import numpy as np
 import pyperclip
 import sounddevice as sd
 from faster_whisper import WhisperModel
 
-# Default config (can be overridden by CLI)
-DEFAULT_MODEL = "small"            # try "base.en" for faster starts on CPU
-DEFAULT_DEVICE = "cpu"             # "cpu" or "cuda"
-DEFAULT_COMPUTE = "int8_float32"   # "int8_float32" good on CPU; try "float16" on GPU
+# NEW: OpenAI-compatible client
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None  # we will check at runtime
+
+# Defaults
+DEFAULT_MODEL = "small"
+DEFAULT_DEVICE = "cpu"
+DEFAULT_COMPUTE = "int8"  # changed to a CPU-safe default
 SAMPLE_RATE = 16000
 INPUT_CHANNELS = 1
 CHUNK_MS = 50
+
+DEFAULT_LLM_PROMPT = '''
+You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.
+
+CRITICAL INSTRUCTION: Your response must ONLY contain the cleaned text. Nothing else.
+
+WHAT YOU DO:
+- Fix grammar, spelling, and punctuation
+- Remove speech artifacts ("um", "uh", false starts, repetitions)
+- Correct homophones and standardize numbers/dates
+- Break content into paragraphs, aim for 2-5 sentences per paragraph
+- Maintain the original tone and intent
+- Improve readability by splitting the text into paragraphs or sentences and questions onto new lines
+- Replace common emoji descriptions with the emoji itself smiley face -> 🙂
+- Keep the speaker’s wording and intent
+- Present lists as lists if you able to
+
+WHAT YOU NEVER DO:
+- Answer questions (only reformat the question itself)
+- Add new content not in the original message
+- Provide responses or solutions to requests
+- Add greetings, sign-offs, or explanations
+- Remove curse words or harsh language.
+- Remove names
+- Change facts
+- Rephrase unless the phrase is hard to read
+
+WRONG BEHAVIOR - DO NOT DO THIS:
+User: "what's the weather like"
+Wrong: I don't have access to current weather data, but you can check...
+Correct: What's the weather like?
+
+Remember: You are a text editor, NOT a conversational assistant. Only reformat, never respond. Output only the cleaned text with no commentary
+'''
+
 
 # Windows hotkey constants
 user32 = ctypes.windll.user32
@@ -39,10 +81,6 @@ buffer_lock = threading.Lock()
 stream = None
 
 def parse_hotkey_string(s: str):
-    """
-    Format example: 'CTRL+WIN+G' or 'CTRL+ALT+H'
-    The last token is the key, earlier tokens are modifiers.
-    """
     parts = [p.strip().upper() for p in s.split("+") if p.strip()]
     if not parts:
         raise ValueError("Empty hotkey string")
@@ -51,21 +89,16 @@ def parse_hotkey_string(s: str):
 
     mods = 0
     for m in mods_tokens:
-        if m == "CTRL":
-            mods |= MOD_CONTROL
-        elif m == "ALT":
-            mods |= MOD_ALT
-        elif m == "SHIFT":
-            mods |= MOD_SHIFT
-        elif m == "WIN":
-            mods |= MOD_WIN
-        else:
-            raise ValueError(f"Unknown modifier: {m}")
+        if m == "CTRL": mods |= MOD_CONTROL
+        elif m == "ALT": mods |= MOD_ALT
+        elif m == "SHIFT": mods |= MOD_SHIFT
+        elif m == "WIN": mods |= MOD_WIN
+        else: raise ValueError(f"Unknown modifier: {m}")
 
     if len(key) == 1 and key.isalpha():
         vk = VK[key]
     else:
-        raise ValueError("Only A–Z keys are supported in this minimal example")
+        raise ValueError("Only A–Z keys are supported")
 
     return mods, vk
 
@@ -80,6 +113,50 @@ def recorder_loop():
         chunk = audio_q.get()
         with buffer_lock:
             audio_buf.append(chunk)
+
+def normalize_compute_type(device: str, compute_type: str) -> str:
+    ct = compute_type
+    if device == "cpu" and "float16" in ct:
+        ct = "int8"
+    if device == "cuda" and ct in ("int8", "int8_float32", "float32"):
+        ct = "float16"
+    return ct
+
+# NEW: LLM cleaner
+def clean_with_llm(
+    raw_text: str,
+    endpoint: str,
+    model: str,
+    api_key: Optional[str],
+    prompt: str,
+    temperature: float,
+    timeout: float = 15.0,
+) -> Optional[str]:
+    """
+    Send raw_text to an OpenAI-compatible chat endpoint for cleanup.
+    Returns cleaned text or None on failure.
+    """
+    if OpenAI is None:
+        print("(LLM) openai client not available. Install with: uv add openai")
+        return None
+
+    try:
+        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key-needed")
+        # LM Studio is compatible with /v1/chat/completions
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": raw_text},
+            ],
+            temperature=temperature,
+            timeout=timeout,
+        )
+        choice = resp.choices[0].message.content.strip() if resp.choices else ""
+        return choice or None
+    except Exception as e:
+        print(f"(LLM) error: {e}")
+        return None
 
 def start_recording():
     global stream, recording, audio_buf
@@ -96,7 +173,7 @@ def start_recording():
     recording = True
     print("[REC] Speak now. Press the toggle hotkey again to stop.")
 
-def stop_recording_and_transcribe(model: WhisperModel):
+def stop_recording_and_transcribe(model: WhisperModel, args):
     global stream, recording
     if stream:
         stream.stop()
@@ -111,40 +188,60 @@ def stop_recording_and_transcribe(model: WhisperModel):
             return
         audio = np.concatenate(audio_buf).astype(np.float32)
 
-    segments, info = model.transcribe(
-        audio, beam_size=5, vad_filter=False, language="en"
-    )
+    segments, info = model.transcribe(audio, beam_size=5, vad_filter=False, language="en")
     text = "".join(s.text for s in segments).strip()
-    if text:
-        stamp = time.strftime("%H:%M:%S", time.localtime())
-        print(f"[{stamp}] {text}")
-        try:
-            pyperclip.copy(text)
-            print("(copied to clipboard)")
-        except Exception as e:
-            print("(clipboard copy failed)", e)
-    else:
-        print("(silence or no text)")
 
-def run(toggle_hotkey: str, quit_hotkey: str, model_size: str,
-        device: str, compute_type: str, input_device: str | None):
+    if not text:
+        print("(silence or no text)")
+        return
+
+    cleaned = text
+    if args.no_llm is False and args.llm_endpoint and args.llm_model:
+        print("(LLM) Cleaning with", args.llm_model, "via", args.llm_endpoint)
+        cleaned_try = clean_with_llm(
+            text,
+            endpoint=args.llm_endpoint,
+            model=args.llm_model,
+            api_key=args.llm_key,
+            prompt=args.llm_prompt,
+            temperature=args.llm_temp,
+        )
+        if cleaned_try:
+            cleaned = cleaned_try
+        else:
+            print("(LLM) Falling back to raw transcription")
+
+    stamp = time.strftime("%H:%M:%S", time.localtime())
+    print(f"[{stamp}] {cleaned}")
+    try:
+        pyperclip.copy(cleaned)
+        print("(copied to clipboard)")
+    except Exception as e:
+        print("(clipboard copy failed)", e)
+
+def run(toggle_hotkey, quit_hotkey, model_size, device, compute_type,
+        input_device, no_llm, llm_endpoint, llm_model, llm_key, llm_prompt, llm_temp):
+
     if input_device:
-        # Accept numeric index or case-insensitive name match
         try:
             sd.default.device = (int(input_device), None)
         except ValueError:
-            # name lookup
             devices = sd.query_devices()
             matches = [i for i, d in enumerate(devices) if input_device.lower() in d["name"].lower()]
             if not matches:
                 raise RuntimeError(f"Input device not found: {input_device}")
             sd.default.device = (matches[0], None)
 
-    print(f"Loading Whisper model: {model_size} on {device} ({compute_type})")
-    model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    ct = normalize_compute_type(device, compute_type)
+    print(f"Loading Whisper model: {model_size} on {device} ({ct})")
+    model = WhisperModel(model_size, device=device, compute_type=ct)
     print("Ready.")
     print(f"Toggle hotkey: {toggle_hotkey}")
     print(f"Quit hotkey:   {quit_hotkey}")
+    if no_llm:
+        print("(LLM) disabled")
+    elif llm_endpoint and llm_model:
+        print(f"(LLM) enabled: {llm_model} @ {llm_endpoint}")
 
     t = threading.Thread(target=recorder_loop, daemon=True)
     t.start()
@@ -171,7 +268,7 @@ def run(toggle_hotkey: str, quit_hotkey: str, model_size: str,
                     if not recording:
                         start_recording()
                     else:
-                        stop_recording_and_transcribe(model)
+                        stop_recording_and_transcribe(model, args=arg_holder)  # see below
                 elif msg.wParam == QUIT_ID:
                     print("Quitting.")
                     break
@@ -182,28 +279,48 @@ def run(toggle_hotkey: str, quit_hotkey: str, model_size: str,
         user32.UnregisterHotKey(None, QUIT_ID)
         if recording:
             try:
-                stop_recording_and_transcribe(model)
+                stop_recording_and_transcribe(model, args=arg_holder)
             except Exception:
                 pass
 
 def main():
     p = argparse.ArgumentParser(
         prog="dictate",
-        description="Local Whisper dictation with a global hotkey on Windows"
+        description="Local Whisper dictation with optional LLM cleanup"
     )
-    p.add_argument("--toggle", default="CTRL+WIN+G",
-                   help="Global hotkey to start/stop recording, for example CTRL+WIN+G")
-    p.add_argument("--quit", default="CTRL+WIN+X",
-                   help="Global hotkey to quit, for example CTRL+WIN+X")
-    p.add_argument("--model", default=DEFAULT_MODEL,
-                   help="Whisper model size, for example base.en, small, medium")
-    p.add_argument("--device", default=DEFAULT_DEVICE, choices=["cpu", "cuda"],
-                   help="Inference device")
-    p.add_argument("--compute-type", default=DEFAULT_COMPUTE,
-                   help="faster-whisper compute_type, for example int8_float16, int8, float16")
-    p.add_argument("--input-device", default=None,
-                   help="Input device index or substring of device name")
+    p.add_argument("--toggle", default="CTRL+WIN+G", help="Global hotkey to start/stop recording")
+    p.add_argument("--quit", default="CTRL+WIN+X", help="Global hotkey to quit")
+    p.add_argument("--model", default=DEFAULT_MODEL, help="Whisper model size (base.en, small, medium, large-v3)")
+    p.add_argument("--device", default=DEFAULT_DEVICE, choices=["cpu", "cuda"], help="Inference device")
+    p.add_argument("--compute-type", default=DEFAULT_COMPUTE, help="CTranslate2 compute_type")
+    p.add_argument("--input-device", default=None, help="Input device index or name substring")
+
+    # Presets
+    p.add_argument("--preset", choices=["cpu-fast", "gpu-fast"])
+    # LLM cleanup options
+    p.add_argument("--no-llm", action="store_true", help="Disable LLM cleanup entirely")
+    p.add_argument("--llm-endpoint", default="http://localhost:1234/v1", help="OpenAI-compatible base URL, for example http://localhost:1234/v1")
+    p.add_argument("--llm-model", default="openai/gpt-oss-20b", help="Model name served by your endpoint")
+    p.add_argument("--llm-key", default="lmstudiokey", help="API key if your endpoint requires one")
+    p.add_argument("--llm-prompt", default=DEFAULT_LLM_PROMPT,
+                   help="System prompt to control cleanup behavior")
+    p.add_argument("--llm-temp", type=float, default=0.1, help="Temperature for the cleanup request")
+
     args = p.parse_args()
+
+    # presets
+    if args.preset == "cpu-fast":
+        args.device = "cpu"
+        args.compute_type = "int8"
+        if args.model == DEFAULT_MODEL:
+            args.model = "base.en"
+    elif args.preset == "gpu-fast":
+        args.device = "cuda"
+        args.compute_type = "float16"
+
+    # hold args globally for the hotkey handler
+    global arg_holder
+    arg_holder = args
 
     run(
         toggle_hotkey=args.toggle,
@@ -212,6 +329,12 @@ def main():
         device=args.device,
         compute_type=args.compute_type,
         input_device=args.input_device,
+        no_llm=args.no_llm,
+        llm_endpoint=args.llm_endpoint,
+        llm_model=args.llm_model,
+        llm_key=args.llm_key,
+        llm_prompt=args.llm_prompt,
+        llm_temp=args.llm_temp,
     )
 
 if __name__ == "__main__":

@@ -1,69 +1,129 @@
-import threading
-import queue
-import time
+# whisper_dictate/gui.py
+# GUI dictation with optional LLM cleanup (OpenAI-compatible endpoint, e.g., LM Studio)
+
 import ctypes
 import ctypes.wintypes
+import threading
+import time
+import queue
 import sys
-import tkinter as tk
-from tkinter import ttk, messagebox
+from typing import Optional
 
 import numpy as np
 import sounddevice as sd
 import pyperclip
+from tkinter import Tk, Toplevel, StringVar, BooleanVar, DoubleVar, Text, END
+from tkinter import messagebox
+from tkinter import ttk
+
 from faster_whisper import WhisperModel
 
-# Defaults shared with the CLI
-DEFAULT_MODEL = "small"
-DEFAULT_DEVICE = "cpu"          # use "cuda" if your GPU stack is set up
-DEFAULT_COMPUTE = "int8_float16"
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None  # will handle gracefully if missing
+
+# ----- Defaults you can tweak -----
 SAMPLE_RATE = 16000
 INPUT_CHANNELS = 1
 CHUNK_MS = 50
 
-# Global hotkey (Windows)
+DEFAULT_MODEL = "small"          # whisper model: base.en, small, medium, large-v3
+DEFAULT_DEVICE = "cpu"           # cpu or cuda
+DEFAULT_COMPUTE = "int8"         # good CPU default; GUI will coerce to float16 on cuda
+
+DEFAULT_LLM_ENABLED = False
+DEFAULT_LLM_ENDPOINT = "http://localhost:1234/v1"  # LM Studio default
+DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"
+DEFAULT_LLM_KEY = ""             # LM Studio usually does not require a key
+DEFAULT_LLM_PROMPT = '''
+You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.
+
+CRITICAL INSTRUCTION: Your response must ONLY contain the cleaned text. Nothing else.
+
+WHAT YOU DO:
+- Fix grammar, spelling, and punctuation
+- Remove speech artifacts ("um", "uh", false starts, repetitions)
+- Correct homophones and standardize numbers/dates
+- Break content into paragraphs, aim for 2-5 sentences per paragraph
+- Maintain the original tone and intent
+- Improve readability by splitting the text into paragraphs or sentences and questions onto new lines
+- Replace common emoji descriptions with the emoji itself smiley face -> 🙂
+- Keep the speaker’s wording and intent
+- Present lists as lists if you able to
+
+WHAT YOU NEVER DO:
+- Answer questions (only reformat the question itself)
+- Add new content not in the original message
+- Provide responses or solutions to requests
+- Add greetings, sign-offs, or explanations
+- Remove curse words or harsh language.
+- Remove names
+- Change facts
+- Rephrase unless the phrase is hard to read
+- Use em dash
+
+WRONG BEHAVIOR - DO NOT DO THIS:
+User: "what's the weather like"
+Wrong: I don't have access to current weather data, but you can check...
+Correct: What's the weather like?
+
+Remember: You are a text editor, NOT a conversational assistant. Only reformat, never respond. Output only the cleaned text with no commentary
+'''
+DEFAULT_LLM_TEMP = 0.1
+# ----------------------------------
+
+# Windows global hotkey plumbing
 user32 = ctypes.windll.user32
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
 MOD_WIN = 0x0008
 WM_HOTKEY = 0x0312
-VK = {c: ord(c) for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
 TOGGLE_ID = 1
-QUIT_ID = 2  # not used in GUI, but reserved
 
-recording = False
-audio_q = queue.Queue()
-audio_buf = []
-buffer_lock = threading.Lock()
-stream = None
+VK = {c: ord(c) for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
 
 def parse_hotkey_string(s: str):
+    """
+    Format: 'CTRL+WIN+G' or 'CTRL+ALT+H'
+    Only single A..Z keys supported for simplicity.
+    """
     parts = [p.strip().upper() for p in s.split("+") if p.strip()]
     if not parts:
-        raise ValueError("Empty hotkey string")
+        raise ValueError("Empty hotkey")
     key = parts[-1]
     mods_tokens = parts[:-1]
     mods = 0
     for m in mods_tokens:
-        if m == "CTRL": mods |= MOD_CONTROL
-        elif m == "ALT": mods |= MOD_ALT
-        elif m == "SHIFT": mods |= MOD_SHIFT
-        elif m == "WIN": mods |= MOD_WIN
-        else: raise ValueError(f"Unknown modifier: {m}")
+        if m == "CTRL":
+            mods |= MOD_CONTROL
+        elif m == "ALT":
+            mods |= MOD_ALT
+        elif m == "SHIFT":
+            mods |= MOD_SHIFT
+        elif m == "WIN":
+            mods |= MOD_WIN
+        else:
+            raise ValueError(f"Unknown modifier: {m}")
     if len(key) == 1 and key.isalpha():
         vk = VK[key]
     else:
-        raise ValueError("Only A–Z keys supported")
+        raise ValueError("Only single A..Z keys supported")
     return mods, vk
+
+# audio buffers and flags
+recording = False
+audio_q: "queue.Queue[np.ndarray]" = queue.Queue()
+audio_buf = []
+buffer_lock = threading.Lock()
+stream: Optional[sd.InputStream] = None
 
 def audio_cb(indata, frames, time_info, status):
     if status:
         print("Audio status:", status, file=sys.stderr)
     data = indata if indata.ndim == 1 else np.mean(indata, axis=1)
-    try:
-        audio_q.put_nowait(data.copy())
-    except queue.Full:
-        pass
+    audio_q.put_nowait(data.copy())
 
 def recorder_loop():
     while True:
@@ -71,156 +131,213 @@ def recorder_loop():
         with buffer_lock:
             audio_buf.append(chunk)
 
-class DictateGUI(tk.Tk):
+def normalize_compute_type(device: str, compute_type: str) -> str:
+    ct = compute_type
+    if device == "cpu" and "float16" in ct:
+        ct = "int8"
+    if device == "cuda" and ct in ("int8", "int8_float32", "float32"):
+        ct = "float16"
+    return ct
+
+def clean_with_llm(raw_text: str,
+                   endpoint: str,
+                   model: str,
+                   api_key: Optional[str],
+                   prompt: str,
+                   temperature: float,
+                   timeout: float = 15.0) -> Optional[str]:
+    """Send raw_text to an OpenAI-compatible LLM for cleanup. Return cleaned text or None on failure."""
+    if not raw_text.strip():
+        return ""
+    if OpenAI is None:
+        print("(LLM) openai client not installed. Run: uv add openai")
+        return None
+    try:
+        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key")
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": raw_text},
+            ],
+            temperature=temperature,
+            timeout=timeout,
+        )
+        if resp.choices:
+            text = resp.choices[0].message.content or ""
+            return text.strip()
+        return None
+    except Exception as e:
+        print(f"(LLM) error: {e}")
+        return None
+
+class App(Tk):
     def __init__(self):
         super().__init__()
-        self.title("Whisper Dictate")
-        self.geometry("720x520")
-        self.minsize(640, 480)
+        self.title("Whisper Dictate + LLM")
+        self.geometry("980x680")
 
-        # Model settings frame
-        frm = ttk.LabelFrame(self, text="Settings")
-        frm.pack(fill="x", padx=10, pady=8)
+        # ----- Top config frame -----
+        top = ttk.Frame(self, padding=8)
+        top.pack(fill="x")
 
-        ttk.Label(frm, text="Model").grid(row=0, column=0, padx=6, pady=6, sticky="w")
-        self.model_var = tk.StringVar(value=DEFAULT_MODEL)
-        self.model_cb = ttk.Combobox(frm, textvariable=self.model_var, state="readonly",
+        # Whisper config
+        self.var_model = StringVar(value=DEFAULT_MODEL)
+        self.var_device = StringVar(value=DEFAULT_DEVICE)
+        self.var_compute = StringVar(value=DEFAULT_COMPUTE)
+        self.var_input = StringVar(value="")
+        self.var_hotkey = StringVar(value="CTRL+WIN+G")
+
+        ttk.Label(top, text="Whisper model").grid(row=0, column=0, sticky="w")
+        self.cb_model = ttk.Combobox(top, textvariable=self.var_model, width=18,
                                      values=["base.en", "small", "medium", "large-v3"])
-        self.model_cb.grid(row=0, column=1, padx=6, pady=6, sticky="w")
+        self.cb_model.grid(row=1, column=0, padx=(0, 12), sticky="we")
 
-        ttk.Label(frm, text="Device").grid(row=0, column=2, padx=6, pady=6, sticky="w")
-        self.device_var = tk.StringVar(value=DEFAULT_DEVICE)
-        self.device_cb = ttk.Combobox(frm, textvariable=self.device_var, state="readonly",
+        ttk.Label(top, text="Device").grid(row=0, column=1, sticky="w")
+        self.cb_device = ttk.Combobox(top, textvariable=self.var_device, width=10,
                                       values=["cpu", "cuda"])
-        self.device_cb.grid(row=0, column=3, padx=6, pady=6, sticky="w")
+        self.cb_device.grid(row=1, column=1, padx=(0, 12), sticky="we")
 
-        ttk.Label(frm, text="Compute").grid(row=0, column=4, padx=6, pady=6, sticky="w")
-        self.compute_var = tk.StringVar(value=DEFAULT_COMPUTE)
-        self.compute_cb = ttk.Combobox(frm, textvariable=self.compute_var, state="readonly",
-                                       values=["int8", "int8_float32", "int8_float16", "float16", "float32"])
-        self.compute_cb.grid(row=0, column=5, padx=6, pady=6, sticky="w")
+        ttk.Label(top, text="Compute").grid(row=0, column=2, sticky="w")
+        self.cb_compute = ttk.Combobox(top, textvariable=self.var_compute, width=14,
+                                       values=["int8", "int8_float32", "float32", "float16", "int8_float16"])
+        self.cb_compute.grid(row=1, column=2, padx=(0, 12), sticky="we")
 
-        ttk.Label(frm, text="Input device").grid(row=1, column=0, padx=6, pady=6, sticky="w")
-        self.input_var = tk.StringVar(value="")
-        self.input_entry = ttk.Entry(frm, textvariable=self.input_var, width=28)
-        self.input_entry.grid(row=1, column=1, padx=6, pady=6, sticky="w")
+        ttk.Label(top, text="Input device (index or name)").grid(row=0, column=3, sticky="w")
+        ttk.Entry(top, textvariable=self.var_input, width=28).grid(row=1, column=3, padx=(0, 12), sticky="we")
+        ttk.Button(top, text="List inputs", command=self.show_inputs).grid(row=1, column=4, padx=(0, 12))
 
-        ttk.Button(frm, text="List devices", command=self.show_devices).grid(row=1, column=2, padx=6, pady=6, sticky="w")
+        ttk.Label(top, text="Toggle hotkey").grid(row=0, column=5, sticky="w")
+        ttk.Entry(top, textvariable=self.var_hotkey, width=16).grid(row=1, column=5, padx=(0, 12), sticky="we")
 
-        ttk.Label(frm, text="Toggle hotkey").grid(row=1, column=3, padx=6, pady=6, sticky="w")
-        self.hotkey_var = tk.StringVar(value="CTRL+WIN+G")
-        self.hotkey_entry = ttk.Entry(frm, textvariable=self.hotkey_var, width=18)
-        self.hotkey_entry.grid(row=1, column=4, padx=6, pady=6, sticky="w")
+        # LLM config
+        sep = ttk.Separator(self, orient="horizontal")
+        sep.pack(fill="x", pady=(8, 8))
 
-        self.copy_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(frm, text="Copy to clipboard", variable=self.copy_var).grid(row=1, column=5, padx=6, pady=6, sticky="w")
+        llm = ttk.Frame(self, padding=8)
+        llm.pack(fill="x")
 
-        for i in range(6):
-            frm.grid_columnconfigure(i, weight=1)
+        self.var_llm_enable: BooleanVar = BooleanVar(value=DEFAULT_LLM_ENABLED)
+        ttk.CheckBox = ttk.Checkbutton  # alias for brevity
+        ttk.CheckBox(llm, text="Use LLM cleanup (OpenAI compatible)", variable=self.var_llm_enable).grid(row=0, column=0, sticky="w")
+
+        self.var_llm_endpoint = StringVar(value=DEFAULT_LLM_ENDPOINT)
+        self.var_llm_model = StringVar(value=DEFAULT_LLM_MODEL)
+        self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
+        self.var_llm_temp: DoubleVar = DoubleVar(value=DEFAULT_LLM_TEMP)
+
+        ttk.Label(llm, text="Endpoint").grid(row=1, column=0, sticky="w")
+        ttk.Entry(llm, textvariable=self.var_llm_endpoint, width=40).grid(row=2, column=0, padx=(0, 12), sticky="we")
+
+        ttk.Label(llm, text="Model").grid(row=1, column=1, sticky="w")
+        ttk.Entry(llm, textvariable=self.var_llm_model, width=28).grid(row=2, column=1, padx=(0, 12), sticky="we")
+
+        ttk.Label(llm, text="API key (optional)").grid(row=1, column=2, sticky="w")
+        ttk.Entry(llm, textvariable=self.var_llm_key, width=28, show="•").grid(row=2, column=2, padx=(0, 12), sticky="we")
+
+        ttk.Label(llm, text="Temperature").grid(row=1, column=3, sticky="w")
+        ttk.Spinbox(llm, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6).grid(row=2, column=3, padx=(0, 12))
+
+        ttk.Label(llm, text="Cleanup prompt").grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        self.txt_prompt: Text = Text(llm, height=4, wrap="word")
+        self.txt_prompt.grid(row=4, column=0, columnspan=4, sticky="we")
+        self.txt_prompt.insert(END, DEFAULT_LLM_PROMPT)
+
+        for c in range(6):
+            top.grid_columnconfigure(c, weight=1)
+        for c in range(4):
+            llli = c
+            llm.grid_columnconfigure(llli, weight=1)
 
         # Controls
-        cfrm = ttk.Frame(self)
-        cfrm.pack(fill="x", padx=10, pady=6)
-        self.start_btn = ttk.Button(cfrm, text="Load model", command=self.load_model)
-        self.start_btn.pack(side="left", padx=6)
-        self.reg_btn = ttk.Button(cfrm, text="Register hotkey", command=self.register_hotkey, state="disabled")
-        self.reg_btn.pack(side="left", padx=6)
-        self.tog_btn = ttk.Button(cfrm, text="Start recording", command=self.toggle_record, state="disabled")
-        self.tog_btn.pack(side="left", padx=6)
+        ctrl = ttk.Frame(self, padding=8)
+        ctrl.pack(fill="x")
+        self.btn_load = ttk.Button(ctrl, text="Load model", command=self.load_model)
+        self.btn_load.grid(row=0, column=0, padx=(0, 8))
+        self.btn_hotkey = ttk.Button(ctrl, text="Register hotkey", command=self.register_hotkey, state="disabled")
+        self.btn_hotkey.grid(row=0, column=1, padx=(0, 8))
+        self.btn_toggle = ttk.Button(ctrl, text="Start recording", command=self.toggle_record, state="disabled")
+        self.btn_toggle.grid(row=0, column=2, padx=(0, 8))
+        self.lbl_status = ttk.Label(ctrl, text="Idle")
+        self.lbl_status.grid(row=0, column=3, sticky="w")
 
-        self.status_var = tk.StringVar(value="Idle")
-        ttk.Label(cfrm, textvariable=self.status_var).pack(side="right", padx=6)
+        # Transcript box
+        out = ttk.Frame(self, padding=8)
+        out.pack(fill="both", expand=True)
+        ttk.Label(out, text="Transcript").pack(anchor="w")
+        self.txt_out: Text = Text(out, wrap="word")
+        self.txt_out.pack(fill="both", expand=True)
 
-        # Transcript
-        tfrm = ttk.LabelFrame(self, text="Transcript")
-        tfrm.pack(fill="both", expand=True, padx=10, pady=8)
-        self.text = tk.Text(tfrm, wrap="word", height=18)
-        self.text.pack(fill="both", expand=True)
+        # Background audio collector
+        threading.Thread(target=recorder_only_once, args=(), kwargs={}, daemon=True).start()
 
-        # Internal
-        self.model = None
-        self.hotkey_registered = False
-
-        # Background thread to drain audio queue into buffer
-        t = threading.Thread(target=recorder_loop, daemon=True)
-        t.start()
-
-        # Windows message pump in a thread to catch WM_HOTKEY
+        # Hotkey message pump thread (created after registration)
         self.msg_thread = None
-        self.after(250, self._heartbeat)
 
-    def _heartbeat(self):
-        # Keep UI responsive, update status if needed
-        self.after(250, self._heartbeat)
-
-    def show_devices(self):
+    def show_inputs(self):
         try:
             devices = sd.query_devices()
         except Exception as e:
             messagebox.showerror("Audio", f"Could not query devices:\n{e}")
             return
-        lines = []
-        for idx, d in enumerate(devices):
-            if d["max_input_channels"] > 0:
-                lines.append(f"{idx}: {d['name']}")
-        messagebox.showinfo("Input devices", "\n".join(lines) if lines else "No input devices found.")
+        names = []
+        for i, d in enumerate(devices):
+            if d.get("max_input_channels", 0) > 0:
+                names.append(f"{i}: {d.get('name','')}")
+        if not names:
+            messagebox.showinfo("Input devices", "No input devices found.")
+        else:
+            txt = "\n".join(names)
+            Toplevel(self)  # optional to present in a new window
+            messagebox.showinfo("Input devices", txt)
 
     def load_model(self):
-        model_name = self.model_var.get().strip()
-        device = self.device_var.get().strip()
-        compute = self.compute_var.get().strip()
+        model_name = self.var_model.get().strip()
+        device = self.var_device.get().strip()
+        compute = normalize_compute_type(device, self.var_compute.get().strip())
 
-        # Guard compute types by device
-        ct = compute
-        if device == "cpu" and "float16" in ct:
-            ct = "int8"  # safe default for CPU
-        if device == "cuda" and ct in ("int8", "int8_float32", "float32"):
-            ct = "float16"
+        # choose input device if provided
+        inp = self.var_input.get().strip()
+        if inp:
+            try:
+                sd.default.device = (int(inp), None)
+            except ValueError:
+                devs = sd.query_devices()
+                matches = [i for i, d in enumerate(devs) if inp.lower() in d["name"].lower()]
+                if not matches:
+                    messagebox.showerror("Input", f"Input device not found: {inp}")
+                    return
+                sd.default.device = (matches[0], None)
 
         try:
-            # Select input device if provided
-            inp = self.input_var.get().strip()
-            if inp:
-                try:
-                    sd.default.device = (int(inp), None)
-                except ValueError:
-                    devs = sd.query_devices()
-                    matches = [i for i, d in enumerate(devs) if inp.lower() in d["name"].lower()]
-                    if not matches:
-                        raise RuntimeError(f"Input device not found: {inp}")
-                    sd.default.device = (matches[0], None)
-
-            self.status_var.set(f"Loading model {model_name} on {device} ({ct})")
+            self.lbl_status.config(text=f"Loading {model_name} on {device} ({compute})")
             self.update_idletasks()
-            self.model = WhisperModel(model_name, device=device, compute_type=ct)
-            self.status_var.set("Model ready")
-            self.start_btn.config(state="disabled")
-            self.reg_btn.config(state="normal")
-            self.tog_btn.config(state="normal")
+            self.model = WhisperModel(model_name, device=device, compute_type=compute)
+            self.lbl_status.config(text="Model ready")
+            self.btn_load.config(state="disabled")
+            self.btn_hotkey.config(state="normal")
+            self.btn_toggle.config(state="normal")
         except Exception as e:
-            self.status_var.set("Idle")
+            self.lbl_status.config(text="Idle")
             messagebox.showerror("Model error", str(e))
 
     def register_hotkey(self):
-        if not self.model:
+        if not hasattr(self, "model"):
             messagebox.showwarning("Hotkey", "Load the model first.")
             return
-        combo = self.hotkey_var.get().strip()
+        combo = self.var_hotkey.get().strip()
         try:
-            mods_t, key_t = parse_hotkey_string(combo)
+            mods, key = parse_hotkey_string(combo)
         except Exception as e:
             messagebox.showerror("Hotkey", str(e))
             return
 
-        # Unregister if changing
         user32.UnregisterHotKey(None, TOGGLE_ID)
-
-        ok = user32.RegisterHotKey(None, TOGGLE_ID, mods_t, key_t)
-        if not ok:
+        if not user32.RegisterHotKey(None, TOGGLE_ID, mods, key):
             messagebox.showerror("Hotkey", "Could not register hotkey. Try a different combo.")
             return
-        self.hotkey_registered = True
-        self.status_var.set(f"Hotkey registered: {combo}")
+
+        self.lbl_status.config(text=f"Hotkey set: {combo}")
         if not self.msg_thread:
             self.msg_thread = threading.Thread(target=self.message_pump, daemon=True)
             self.msg_thread.start()
@@ -232,16 +349,13 @@ class DictateGUI(tk.Tk):
             if ret == 0:
                 break
             if msg.message == WM_HOTKEY and msg.wParam == TOGGLE_ID:
-                self.safe_toggle_from_hotkey()
+                self.after(0, self.toggle_record)
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
 
-    def safe_toggle_from_hotkey(self):
-        self.after(0, self.toggle_record)
-
     def toggle_record(self):
         global recording, stream, audio_buf
-        if not self.model:
+        if not hasattr(self, "model"):
             return
         if not recording:
             with buffer_lock:
@@ -256,11 +370,11 @@ class DictateGUI(tk.Tk):
                 )
                 stream.start()
             except Exception as e:
-                messagebox.showerror("Audio", f"Could not start input stream:\n{e}")
+                messagebox.showerror("Audio", f"Could not start input:\n{e}")
                 return
             recording = True
-            self.status_var.set("Recording... press hotkey or button to stop")
-            self.tog_btn.config(text="Stop and transcribe")
+            self.lbl_status.config(text="Recording... press hotkey to stop")
+            self.btn_toggle.config(text="Stop and transcribe")
         else:
             try:
                 if stream:
@@ -270,41 +384,63 @@ class DictateGUI(tk.Tk):
                 pass
             stream = None
             recording = False
-            self.status_var.set("Transcribing...")
-            self.tog_btn.config(text="Start recording")
-            threading.Thread(target=self._transcribe_current, daemon=True).start()
+            self.lbl_status.config(text="Transcribing...")
+            self.btn_toggle.config(text="Start recording")
+            threading.Thread(target=self.transcribe_and_maybe_clean, daemon=True).start()
 
-    def _transcribe_current(self):
+    def transcribe_and_maybe_clean(self):
         global audio_buf
         with buffer_lock:
             if not audio_buf:
-                self.status_var.set("No audio captured")
+                self.lbl_status.config(text="No audio captured")
                 return
             audio = np.concatenate(audio_buf).astype(np.float32)
         try:
             segs, info = self.model.transcribe(audio, beam_size=5, vad_filter=False, language="en")
             text = "".join(s.text for s in segs).strip()
         except Exception as e:
-            self.status_var.set("Idle")
+            self.lbl_status.config(text="Idle")
             messagebox.showerror("Transcribe", str(e))
             return
-        if text:
-            ts = time.strftime("%H:%M:%S")
-            self.text.insert("end", f"[{ts}] {text}\n")
-            self.text.see("end")
-            if self.copy_var.get():
-                try:
-                    pyperclip.copy(text)
-                except Exception:
-                    pass
-            self.status_var.set("Ready")
-        else:
-            self.status_var.set("No speech detected")
+
+        if not text:
+            self.lbl_status.config(text="No speech detected")
+            return
+
+        final_text = text
+        if self.var_llm_enable.get() and self.var_llm_endpoint.get().strip() and self.var_llm_model.get().strip():
+            self.lbl_status.config(text="Cleaning with LLM...")
+            prompt = self.txt_prompt.get("1.0", END).strip() or DEFAULT_LLM_PROMPT
+            cleaned = clean_with_llm(
+                raw_text=text,
+                endpoint=self.var_llm_endpoint.get().strip(),
+                model=self.var_llm_model.get().strip(),
+                api_key=(self.var_llm_key.get().strip() or None),
+                prompt=prompt,
+                temperature=float(self.var_llm_temp.get()),
+            )
+            if cleaned:
+                final_text = cleaned
+                self.lbl_status.config(text="Cleaned by LLM")
+            else:
+                self.lbl_status.config(text="LLM failed, used raw text")
+
+        ts = time.strftime("%H:%M:%S")
+        self.txt_out.insert(END, f"[{ts}] {final_text}\n")
+        self.txt_out.see(END)
+        try:
+            pyperclip.copy(final_text)
+        except Exception:
+            pass
+        self.lbl_status.config(text="Ready")
+
+def recorder_only_once():
+    t = threading.Thread(target=recorder_loop, daemon=True)
+    t.start()
 
 def main():
-    app = DictateGUI()
+    app = App()
     app.mainloop()
-    # Cleanup hotkey
     user32.UnregisterHotKey(None, TOGGLE_ID)
 
 if __name__ == "__main__":
