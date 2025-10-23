@@ -9,6 +9,7 @@ It uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) to run OpenA
 - **Local only** — no network calls or cloud APIs  
 - **Global hotkey** to start/stop dictation from any app  
 - **Clipboard copy** so recognized text is ready to paste  
+- **GUI and CLI** modes 
 - **GPU or CPU support** with automatic configuration  
 - **Simple installation** using [`uv`](https://docs.astral.sh/uv/) for environment management  
 
@@ -27,7 +28,7 @@ cd whisper-dictate
 uv sync
 ```
 
-### 3. Run
+🖥️ Run (CLI mode)
 ```powershell
 uv run dictate
 ```
@@ -42,6 +43,18 @@ Ready.
 
 Press Ctrl + Win + G to start/stop recording and Ctrl + Win + X to quit.
 The recognized text prints to the console and is also copied to your clipboard.
+
+🪟 Run (GUI mode)
+
+A Tkinter-based GUI is included for easier control.
+```powershell
+uv run dictate-gui
+```
+
+- Click Load model to initialize the engine.
+- Click Register hotkey (e.g., CTRL+WIN+G) to enable global dictation.
+- Use the Start recording button or the hotkey to record and transcribe.
+- Transcripts appear in the text box and copy to the clipboard automatically.
 
 ⚙️ Options
 
@@ -122,6 +135,7 @@ whisper-dictate/
 ├─ whisper_dictate/
 │   ├─ __init__.py
 │   └─ cli.py
+│   └─ gui.py
 │
 ├─ pyproject.toml
 └─ README.md
@@ -144,6 +158,21 @@ uv lock
 
 Then later use:
 ```powershell
+uv sync --locked
+```
+
+🧾 Deployment on Another Machine
+```powershell
+git clone https://github.com/yourusername/whisper-dictate.git
+cd whisper-dictate
+uv sync
+uv run dictate         # CLI
+uv run dictate-gui     # GUI
+```
+
+To lock dependency versions:
+```powershell
+uv lock
 uv sync --locked
 ```
 
