@@ -9,6 +9,12 @@ import queue
 import sys
 from typing import Optional
 
+try:
+    import pyautogui
+    pyautogui.FAILSAFE = False
+except Exception:
+    pyautogui = None
+
 import numpy as np
 import sounddevice as sd
 import pyperclip
@@ -45,7 +51,7 @@ WHAT YOU DO:
 - Fix grammar, spelling, and punctuation
 - Remove speech artifacts ("um", "uh", false starts, repetitions)
 - Correct homophones and standardize numbers/dates
-- Break content into paragraphs, aim for 2-5 sentences per paragraph
+- Break large (greater than 20 words)  content into paragraphs, aim for 2-5 sentences per paragraph
 - Maintain the original tone and intent
 - Improve readability by splitting the text into paragraphs or sentences and questions onto new lines
 - Replace common emoji descriptions with the emoji itself smiley face -> 🙂
@@ -187,7 +193,9 @@ class App(Tk):
         self.var_compute = StringVar(value=DEFAULT_COMPUTE)
         self.var_input = StringVar(value="")
         self.var_hotkey = StringVar(value="CTRL+WIN+G")
-
+        self.var_auto_paste = BooleanVar(value=False)
+        self.var_paste_delay = DoubleVar(value=0.15)
+        
         ttk.Label(top, text="Whisper model").grid(row=0, column=0, sticky="w")
         self.cb_model = ttk.Combobox(top, textvariable=self.var_model, width=18,
                                      values=["base.en", "small", "medium", "large-v3"])
@@ -225,6 +233,13 @@ class App(Tk):
         self.var_llm_model = StringVar(value=DEFAULT_LLM_MODEL)
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
         self.var_llm_temp: DoubleVar = DoubleVar(value=DEFAULT_LLM_TEMP)
+
+        ttk.Checkbutton(llm, text="Auto-paste into active window", variable=self.var_auto_paste)\
+            .grid(row=5, column=0, sticky="w", pady=(8, 0))
+
+        ttk.Label(llm, text="Paste delay (s)").grid(row=5, column=1, sticky="e", pady=(8, 0))
+        ttk.Spinbox(llm, from_=0.0, to=1.0, increment=0.05, textvariable=self.var_paste_delay, width=6)\
+            .grid(row=5, column=2, sticky="w", pady=(8, 0))
 
         ttk.Label(llm, text="Endpoint").grid(row=1, column=0, sticky="w")
         ttk.Entry(llm, textvariable=self.var_llm_endpoint, width=40).grid(row=2, column=0, padx=(0, 12), sticky="we")
@@ -273,6 +288,9 @@ class App(Tk):
 
         # Hotkey message pump thread (created after registration)
         self.msg_thread = None
+        self._hotkey_mods = None
+        self._hotkey_vk = None
+        self._msg_tid = None
 
     def show_inputs(self):
         try:
@@ -331,27 +349,51 @@ class App(Tk):
         except Exception as e:
             messagebox.showerror("Hotkey", str(e))
             return
-
-        user32.UnregisterHotKey(None, TOGGLE_ID)
-        if not user32.RegisterHotKey(None, TOGGLE_ID, mods, key):
-            messagebox.showerror("Hotkey", "Could not register hotkey. Try a different combo.")
-            return
-
+    
+        # Store for the worker thread
+        self._hotkey_mods = mods
+        self._hotkey_vk = key
+    
+        # If a previous message thread is running, stop it
+        if self.msg_thread and self.msg_thread.is_alive():
+            try:
+                # Post WM_QUIT to that thread to end GetMessageW
+                ctypes.windll.user32.PostThreadMessageW(self._msg_tid, 0x0012, 0, 0)  # WM_QUIT
+            except Exception:
+                pass
+            self.msg_thread.join(timeout=0.5)
+    
+        # Start a fresh message pump that registers the hotkey in the same thread
+        self.msg_thread = threading.Thread(target=self.message_pump, daemon=True)
+        self.msg_thread.start()
+    
         self.lbl_status.config(text=f"Hotkey set: {combo}")
-        if not self.msg_thread:
-            self.msg_thread = threading.Thread(target=self.message_pump, daemon=True)
-            self.msg_thread.start()
+
 
     def message_pump(self):
-        msg = ctypes.wintypes.MSG()
-        while True:
-            ret = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
-            if ret == 0:
-                break
-            if msg.message == WM_HOTKEY and msg.wParam == TOGGLE_ID:
-                self.after(0, self.toggle_record)
-            user32.TranslateMessage(ctypes.byref(msg))
-            user32.DispatchMessageW(ctypes.byref(msg))
+        # Save this thread's id so we can post WM_QUIT when re-registering
+        self._msg_tid = ctypes.windll.kernel32.GetCurrentThreadId()
+    
+        # Register the hotkey in THIS thread so WM_HOTKEY arrives here
+        if not user32.RegisterHotKey(None, TOGGLE_ID, self._hotkey_mods, self._hotkey_vk):
+            # Report back to the UI thread
+            self.after(0, lambda: messagebox.showerror("Hotkey", "Could not register hotkey. Try a different combo."))
+            return
+    
+        try:
+            msg = ctypes.wintypes.MSG()
+            while True:
+                ret = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
+                if ret == 0:  # WM_QUIT received
+                    break
+                if msg.message == WM_HOTKEY and msg.wParam == TOGGLE_ID:
+                    # Call GUI method on the Tk thread
+                    self.after(0, self.toggle_record)
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        finally:
+            user32.UnregisterHotKey(None, TOGGLE_ID)
+    
 
     def toggle_record(self):
         global recording, stream, audio_buf
@@ -430,6 +472,17 @@ class App(Tk):
         self.txt_out.see(END)
         try:
             pyperclip.copy(final_text)
+            if self.var_auto_paste.get():
+                if pyautogui is None:
+                    self.lbl_status.config(text="pyautogui not installed; cannot auto-paste")
+                else:
+                    # brief pause to let the hotkey key-up finish in the target app
+                    time.sleep(float(self.var_paste_delay.get()))
+                    try:
+                        pyautogui.hotkey("ctrl", "v")
+                        self.lbl_status.config(text="Pasted into active window")
+                    except Exception as e:
+                        self.lbl_status.config(text=f"Auto-paste failed: {e}")
         except Exception:
             pass
         self.lbl_status.config(text="Ready")

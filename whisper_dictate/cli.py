@@ -7,6 +7,12 @@ import threading
 import time
 from typing import Optional
 
+try:
+    import pyautogui
+    pyautogui.FAILSAFE = False  # optional: prevents abort if mouse hits screen corner
+except Exception:
+    pyautogui = None
+
 import numpy as np
 import pyperclip
 import sounddevice as sd
@@ -35,7 +41,7 @@ WHAT YOU DO:
 - Fix grammar, spelling, and punctuation
 - Remove speech artifacts ("um", "uh", false starts, repetitions)
 - Correct homophones and standardize numbers/dates
-- Break content into paragraphs, aim for 2-5 sentences per paragraph
+- Break large (greater than 20 words) content into paragraphs, aim for 2-5 sentences per paragraph
 - Maintain the original tone and intent
 - Improve readability by splitting the text into paragraphs or sentences and questions onto new lines
 - Replace common emoji descriptions with the emoji itself smiley face -> 🙂
@@ -51,6 +57,7 @@ WHAT YOU NEVER DO:
 - Remove names
 - Change facts
 - Rephrase unless the phrase is hard to read
+- Use em dash
 
 WRONG BEHAVIOR - DO NOT DO THIS:
 User: "what's the weather like"
@@ -216,11 +223,23 @@ def stop_recording_and_transcribe(model: WhisperModel, args):
     try:
         pyperclip.copy(cleaned)
         print("(copied to clipboard)")
+        if args.auto_paste:
+            if pyautogui is None:
+                print("(auto-paste requested, but pyautogui not installed)")
+            else:
+                # tiny delay so the key-up from your hotkey doesn’t clash with Ctrl+V
+                time.sleep(getattr(args, "paste_delay", 0.15))
+                try:
+                    pyautogui.hotkey("ctrl", "v")
+                    print("(pasted into active window)")
+                except Exception as e:
+                    print(f"(auto-paste failed: {e})")
     except Exception as e:
         print("(clipboard copy failed)", e)
 
 def run(toggle_hotkey, quit_hotkey, model_size, device, compute_type,
-        input_device, no_llm, llm_endpoint, llm_model, llm_key, llm_prompt, llm_temp):
+        input_device, no_llm, llm_endpoint, llm_model,
+        llm_key, llm_prompt, llm_temp, auto_paste, paste_delay):
 
     if input_device:
         try:
@@ -305,6 +324,10 @@ def main():
     p.add_argument("--llm-prompt", default=DEFAULT_LLM_PROMPT,
                    help="System prompt to control cleanup behavior")
     p.add_argument("--llm-temp", type=float, default=0.1, help="Temperature for the cleanup request")
+    p.add_argument("--auto-paste", action="store_true",
+               help="After copying to clipboard, send Ctrl+V to the active window")
+    p.add_argument("--paste-delay", type=float, default=0.15,
+               help="Seconds to wait before sending Ctrl+V when --auto-paste is set")
 
     args = p.parse_args()
 
@@ -335,6 +358,8 @@ def main():
         llm_key=args.llm_key,
         llm_prompt=args.llm_prompt,
         llm_temp=args.llm_temp,
+        auto_paste=args.auto_paste,
+        paste_delay=args.paste_delay,
     )
 
 if __name__ == "__main__":
