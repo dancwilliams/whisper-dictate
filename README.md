@@ -194,5 +194,6 @@ uv sync --locked
 | Nothing pastes               | GUI has focus                   | Trigger with hotkey from target window |
 | Audio errors                 | Mic blocked by privacy settings | Enable mic access for desktop apps     |
 
+---
 
 **Enjoy local, AI-enhanced dictation — fast, private, and cloud-free.**
