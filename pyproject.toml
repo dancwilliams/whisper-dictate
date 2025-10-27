@@ -3,13 +3,19 @@ name = "whisper-dictate"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
+    "ctranslate2>=4.6.0",
     "faster-whisper>=1.2.0",
     "numpy>=2.3.4",
+    "nvidia-cublas-cu12==12.4.5.8",
+    "nvidia-cuda-nvrtc-cu12==12.4.127",
+    "nvidia-cuda-runtime-cu12==12.4.127",
+    "nvidia-cudnn-cu12==9.5.0.50",
     "openai>=1.40",
     "pillow>=12.0.0",
     "pyautogui>=0.9.54",
+    "pyinstaller>=6.16.0",
     "pyperclip>=1.11.0",
     "sounddevice>=0.5.3",
 ]
