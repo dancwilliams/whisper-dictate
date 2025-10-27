@@ -184,6 +184,18 @@ uv sync --locked
 
 ---
 
+## Create an EXE
+
+```powershell
+uv run pyinstaller --collect-all nvidia --noconfirm --clean --onefile --windowed --icon assets\whisper_dictate_gui.ico --name WhisperDictateGUI whisper_dictate/gui.py
+```
+
+```powershell
+uv run pyinstaller --collect-all nvidia --noconfirm --clean --onefile --windowed --icon assets\whisper_dictate_cli.ico --name WhisperDictateCLI whisper_dictate/cli.py
+```
+
+---
+
 ## 🛠 Troubleshooting
 
 | Symptom                      | Cause                           | Fix                                    |
