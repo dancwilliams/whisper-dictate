@@ -21,8 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-dictate = "whisper_dictate.cli:main"
-dictate-gui = "whisper_dictate.gui:main"
+dictate = "whisper_dictate.__main__:main"
 
 [build-system]
 requires = ["hatchling>=1.21.0"]

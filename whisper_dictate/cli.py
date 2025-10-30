@@ -1,238 +1,56 @@
-import os, importlib
-import sys
-from pathlib import Path
+"""Command-line interface for Whisper Dictate."""
 
-def set_cuda_paths():
-    """Ensure CUDA DLL folders from the embedded Nvidia wheels are on PATH."""
-
-    # When frozen with PyInstaller `sys.executable` points at the generated EXE and
-    # the package contents live inside `_MEIPASS`. In development we fall back to
-    # the virtualenv layout.
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        nvidia_base_path = Path(sys._MEIPASS) / "nvidia"
-    else:
-        venv_base = Path(sys.executable).resolve().parent.parent
-        nvidia_base_path = venv_base / "Lib" / "site-packages" / "nvidia"
-
-    cuda_dirs = [
-        nvidia_base_path / "cuda_runtime" / "bin",
-        nvidia_base_path / "cublas" / "bin",
-        nvidia_base_path / "cudnn" / "bin",
-    ]
-
-    paths_to_add = [str(path) for path in cuda_dirs if path.exists()]
-    if not paths_to_add:
-        return
-
-    env_vars = ["CUDA_PATH", "CUDA_PATH_V12_4", "PATH"]
-
-    for env_var in env_vars:
-        current_value = os.environ.get(env_var, "")
-        new_value = os.pathsep.join(paths_to_add + [current_value] if current_value else paths_to_add)
-        os.environ[env_var] = new_value
-
-set_cuda_paths()
+from __future__ import annotations
 
 import argparse
 import ctypes
 import ctypes.wintypes
-import queue
-
-import threading
 import time
 from typing import Optional
 
+import pyperclip
+
 try:
     import pyautogui
-    pyautogui.FAILSAFE = False  # optional: prevents abort if mouse hits screen corner
-except Exception:
-    pyautogui = None
 
-import numpy as np
-import pyperclip
-import sounddevice as sd
+    pyautogui.FAILSAFE = False
+except Exception:  # pragma: no cover - optional dependency
+    pyautogui = None  # type: ignore[assignment]
 
 from faster_whisper import WhisperModel
 
-# NEW: OpenAI-compatible client
-try:
-    from openai import OpenAI
-except Exception:
-    OpenAI = None  # we will check at runtime
+from . import environment  # ensure CUDA paths are available
+from .audio import AudioRecorder, configure_input_device
+from .constants import DEFAULT_COMPUTE, DEFAULT_DEVICE, DEFAULT_LLM_PROMPT, DEFAULT_MODEL
+from .hotkeys import (
+    MOD_ALT,
+    MOD_CONTROL,
+    MOD_SHIFT,
+    MOD_WIN,
+    WM_HOTKEY,
+    parse_hotkey_string,
+    user32,
+)
+from .llm import clean_with_llm
+from .model_utils import normalize_compute_type
 
-# Defaults
-DEFAULT_MODEL = "small"
-DEFAULT_DEVICE = "cpu"
-DEFAULT_COMPUTE = "int8"  # changed to a CPU-safe default
-SAMPLE_RATE = 16000
-INPUT_CHANNELS = 1
-CHUNK_MS = 50
-
-DEFAULT_LLM_PROMPT = '''
-You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.
-
-CRITICAL INSTRUCTION: Your response must ONLY contain the cleaned text. Nothing else.
-
-WHAT YOU DO:
-- Fix grammar, spelling, and punctuation
-- Remove speech artifacts ("um", "uh", false starts, repetitions)
-- Correct homophones and standardize numbers/dates
-- Break large (greater than 20 words) content into paragraphs, aim for 2-5 sentences per paragraph
-- Maintain the original tone and intent
-- Improve readability by splitting the text into paragraphs or sentences and questions onto new lines
-- Replace common emoji descriptions with the emoji itself smiley face -> 🙂
-- Keep the speaker’s wording and intent
-- Present lists as lists if you able to
-
-WHAT YOU NEVER DO:
-- Answer questions (only reformat the question itself)
-- Add new content not in the original message
-- Provide responses or solutions to requests
-- Add greetings, sign-offs, or explanations
-- Remove curse words or harsh language.
-- Remove names
-- Change facts
-- Rephrase unless the phrase is hard to read
-- Use em dash
-
-WRONG BEHAVIOR - DO NOT DO THIS:
-User: "what's the weather like"
-Wrong: I don't have access to current weather data, but you can check...
-Correct: What's the weather like?
-
-Remember: You are a text editor, NOT a conversational assistant. Only reformat, never respond. Output only the cleaned text with no commentary
-'''
-
-
-# Windows hotkey constants
-user32 = ctypes.windll.user32
-MOD_ALT = 0x0001
-MOD_CONTROL = 0x0002
-MOD_SHIFT = 0x0004
-MOD_WIN = 0x0008
-WM_HOTKEY = 0x0312
-
-VK = {c: ord(c) for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
 
 TOGGLE_ID = 1
 QUIT_ID = 2
 
-recording = False
-audio_q = queue.Queue()
-audio_buf = []
-buffer_lock = threading.Lock()
-stream = None
+recorder = AudioRecorder()
 
-def parse_hotkey_string(s: str):
-    parts = [p.strip().upper() for p in s.split("+") if p.strip()]
-    if not parts:
-        raise ValueError("Empty hotkey string")
-    key = parts[-1]
-    mods_tokens = parts[:-1]
 
-    mods = 0
-    for m in mods_tokens:
-        if m == "CTRL": mods |= MOD_CONTROL
-        elif m == "ALT": mods |= MOD_ALT
-        elif m == "SHIFT": mods |= MOD_SHIFT
-        elif m == "WIN": mods |= MOD_WIN
-        else: raise ValueError(f"Unknown modifier: {m}")
+def stop_recording_and_transcribe(model: WhisperModel, args: argparse.Namespace) -> None:
+    audio = recorder.stop()
+    if audio is None:
+        print("(no audio captured)")
+        return
 
-    if len(key) == 1 and key.isalpha():
-        vk = VK[key]
-    else:
-        raise ValueError("Only A–Z keys are supported")
-
-    return mods, vk
-
-def audio_cb(indata, frames, time_info, status):
-    if status:
-        print("Audio status:", status, file=sys.stderr)
-    data = indata if indata.ndim == 1 else np.mean(indata, axis=1)
-    audio_q.put_nowait(data.copy())
-
-def recorder_loop():
-    while True:
-        chunk = audio_q.get()
-        with buffer_lock:
-            audio_buf.append(chunk)
-
-def normalize_compute_type(device: str, compute_type: str) -> str:
-    ct = compute_type
-    if device == "cpu" and "float16" in ct:
-        ct = "int8"
-    if device == "cuda" and ct in ("int8", "int8_float32", "float32"):
-        ct = "float16"
-    return ct
-
-# NEW: LLM cleaner
-def clean_with_llm(
-    raw_text: str,
-    endpoint: str,
-    model: str,
-    api_key: Optional[str],
-    prompt: str,
-    temperature: float,
-    timeout: float = 15.0,
-) -> Optional[str]:
-    """
-    Send raw_text to an OpenAI-compatible chat endpoint for cleanup.
-    Returns cleaned text or None on failure.
-    """
-    if OpenAI is None:
-        print("(LLM) openai client not available. Install with: uv add openai")
-        return None
-
-    try:
-        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key-needed")
-        # LM Studio is compatible with /v1/chat/completions
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": raw_text},
-            ],
-            temperature=temperature,
-            timeout=timeout,
-        )
-        choice = resp.choices[0].message.content.strip() if resp.choices else ""
-        return choice or None
-    except Exception as e:
-        print(f"(LLM) error: {e}")
-        return None
-
-def start_recording():
-    global stream, recording, audio_buf
-    with buffer_lock:
-        audio_buf = []
-    stream = sd.InputStream(
-        channels=INPUT_CHANNELS,
-        samplerate=SAMPLE_RATE,
-        dtype="float32",
-        callback=audio_cb,
-        blocksize=int(SAMPLE_RATE * (CHUNK_MS / 1000.0)),
-    )
-    stream.start()
-    recording = True
-    print("[REC] Speak now. Press the toggle hotkey again to stop.")
-
-def stop_recording_and_transcribe(model: WhisperModel, args):
-    global stream, recording
-    if stream:
-        stream.stop()
-        stream.close()
-        stream = None
-    recording = False
     print("[REC] Stopped. Transcribing...")
 
-    with buffer_lock:
-        if not audio_buf:
-            print("(no audio captured)")
-            return
-        audio = np.concatenate(audio_buf).astype(np.float32)
-
-    segments, info = model.transcribe(audio, beam_size=5, vad_filter=False, language="en")
-    text = "".join(s.text for s in segments).strip()
+    segments, _ = model.transcribe(audio, beam_size=5, vad_filter=False, language="en")
+    text = "".join(segment.text for segment in segments).strip()
 
     if not text:
         print("(silence or no text)")
@@ -256,6 +74,7 @@ def stop_recording_and_transcribe(model: WhisperModel, args):
 
     stamp = time.strftime("%H:%M:%S", time.localtime())
     print(f"[{stamp}] {cleaned}")
+
     try:
         pyperclip.copy(cleaned)
         print("(copied to clipboard)")
@@ -263,46 +82,42 @@ def stop_recording_and_transcribe(model: WhisperModel, args):
             if pyautogui is None:
                 print("(auto-paste requested, but pyautogui not installed)")
             else:
-                # tiny delay so the key-up from your hotkey doesn’t clash with Ctrl+V
                 time.sleep(getattr(args, "paste_delay", 0.15))
                 try:
                     pyautogui.hotkey("ctrl", "v")
                     print("(pasted into active window)")
-                except Exception as e:
-                    print(f"(auto-paste failed: {e})")
-    except Exception as e:
-        print("(clipboard copy failed)", e)
+                except Exception as exc:  # pragma: no cover - UI automation issues
+                    print(f"(auto-paste failed: {exc})")
+    except Exception as exc:  # pragma: no cover - clipboard exceptions
+        print("(clipboard copy failed)", exc)
 
-def run(toggle_hotkey, quit_hotkey, model_size, device, compute_type,
-        input_device, no_llm, llm_endpoint, llm_model,
-        llm_key, llm_prompt, llm_temp, auto_paste, paste_delay):
 
-    if input_device:
-        try:
-            sd.default.device = (int(input_device), None)
-        except ValueError:
-            devices = sd.query_devices()
-            matches = [i for i, d in enumerate(devices) if input_device.lower() in d["name"].lower()]
-            if not matches:
-                raise RuntimeError(f"Input device not found: {input_device}")
-            sd.default.device = (matches[0], None)
+def start_recording() -> None:
+    try:
+        recorder.start()
+    except Exception as exc:
+        print(f"Could not start input device: {exc}")
+        return
 
-    ct = normalize_compute_type(device, compute_type)
-    print(f"Loading Whisper model: {model_size} on {device} ({ct})")
-    model = WhisperModel(model_size, device=device, compute_type=ct)
+    print("[REC] Speak now. Press the toggle hotkey again to stop.")
+
+
+def run(args: argparse.Namespace) -> None:
+    configure_input_device(args.input_device)
+
+    ct = normalize_compute_type(args.device, args.compute_type)
+    print(f"Loading Whisper model: {args.model} on {args.device} ({ct})")
+    model = WhisperModel(args.model, device=args.device, compute_type=ct)
     print("Ready.")
-    print(f"Toggle hotkey: {toggle_hotkey}")
-    print(f"Quit hotkey:   {quit_hotkey}")
-    if no_llm:
+    print(f"Toggle hotkey: {args.toggle}")
+    print(f"Quit hotkey:   {args.quit}")
+    if args.no_llm:
         print("(LLM) disabled")
-    elif llm_endpoint and llm_model:
-        print(f"(LLM) enabled: {llm_model} @ {llm_endpoint}")
+    elif args.llm_endpoint and args.llm_model:
+        print(f"(LLM) enabled: {args.llm_model} @ {args.llm_endpoint}")
 
-    t = threading.Thread(target=recorder_loop, daemon=True)
-    t.start()
-
-    mods_t, key_t = parse_hotkey_string(toggle_hotkey)
-    mods_q, key_q = parse_hotkey_string(quit_hotkey)
+    mods_t, key_t = parse_hotkey_string(args.toggle)
+    mods_q, key_q = parse_hotkey_string(args.quit)
 
     if not user32.RegisterHotKey(None, TOGGLE_ID, mods_t, key_t):
         print("Could not register toggle hotkey. Try a different combo.")
@@ -320,10 +135,10 @@ def run(toggle_hotkey, quit_hotkey, model_size, device, compute_type,
                 break
             if msg.message == WM_HOTKEY:
                 if msg.wParam == TOGGLE_ID:
-                    if not recording:
+                    if not recorder.is_recording:
                         start_recording()
                     else:
-                        stop_recording_and_transcribe(model, args=arg_holder)  # see below
+                        stop_recording_and_transcribe(model, args)
                 elif msg.wParam == QUIT_ID:
                     print("Quitting.")
                     break
@@ -332,42 +147,50 @@ def run(toggle_hotkey, quit_hotkey, model_size, device, compute_type,
     finally:
         user32.UnregisterHotKey(None, TOGGLE_ID)
         user32.UnregisterHotKey(None, QUIT_ID)
-        if recording:
+        if recorder.is_recording:
             try:
-                stop_recording_and_transcribe(model, args=arg_holder)
+                stop_recording_and_transcribe(model, args)
             except Exception:
                 pass
 
-def main():
-    p = argparse.ArgumentParser(
+
+def main(argv: Optional[list[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
         prog="dictate",
-        description="Local Whisper dictation with optional LLM cleanup"
+        description="Local Whisper dictation with optional LLM cleanup",
     )
-    p.add_argument("--toggle", default="CTRL+WIN+G", help="Global hotkey to start/stop recording")
-    p.add_argument("--quit", default="CTRL+WIN+X", help="Global hotkey to quit")
-    p.add_argument("--model", default=DEFAULT_MODEL, help="Whisper model size (base.en, small, medium, large-v3)")
-    p.add_argument("--device", default=DEFAULT_DEVICE, choices=["cpu", "cuda"], help="Inference device")
-    p.add_argument("--compute-type", default=DEFAULT_COMPUTE, help="CTranslate2 compute_type")
-    p.add_argument("--input-device", default=None, help="Input device index or name substring")
+    parser.add_argument("--toggle", default="CTRL+WIN+G", help="Global hotkey to start/stop recording")
+    parser.add_argument("--quit", default="CTRL+WIN+X", help="Global hotkey to quit")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help="Whisper model size (base.en, small, medium, large-v3)")
+    parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["cpu", "cuda"], help="Inference device")
+    parser.add_argument("--compute-type", default=DEFAULT_COMPUTE, help="CTranslate2 compute_type")
+    parser.add_argument("--input-device", default=None, help="Input device index or name substring")
 
-    # Presets
-    p.add_argument("--preset", choices=["cpu-fast", "gpu-fast"])
-    # LLM cleanup options
-    p.add_argument("--no-llm", action="store_true", help="Disable LLM cleanup entirely")
-    p.add_argument("--llm-endpoint", default="http://localhost:1234/v1", help="OpenAI-compatible base URL, for example http://localhost:1234/v1")
-    p.add_argument("--llm-model", default="openai/gpt-oss-20b", help="Model name served by your endpoint")
-    p.add_argument("--llm-key", default="lmstudiokey", help="API key if your endpoint requires one")
-    p.add_argument("--llm-prompt", default=DEFAULT_LLM_PROMPT,
-                   help="System prompt to control cleanup behavior")
-    p.add_argument("--llm-temp", type=float, default=0.1, help="Temperature for the cleanup request")
-    p.add_argument("--auto-paste", action="store_true",
-               help="After copying to clipboard, send Ctrl+V to the active window")
-    p.add_argument("--paste-delay", type=float, default=0.15,
-               help="Seconds to wait before sending Ctrl+V when --auto-paste is set")
+    parser.add_argument("--preset", choices=["cpu-fast", "gpu-fast"])
+    parser.add_argument("--no-llm", action="store_true", help="Disable LLM cleanup entirely")
+    parser.add_argument("--llm-endpoint", default="http://localhost:1234/v1", help="OpenAI-compatible base URL")
+    parser.add_argument("--llm-model", default="openai/gpt-oss-20b", help="Model name served by your endpoint")
+    parser.add_argument("--llm-key", default="lmstudiokey", help="API key if your endpoint requires one")
+    parser.add_argument(
+        "--llm-prompt",
+        default=DEFAULT_LLM_PROMPT,
+        help="System prompt to control cleanup behavior",
+    )
+    parser.add_argument("--llm-temp", type=float, default=0.1, help="Temperature for the cleanup request")
+    parser.add_argument(
+        "--auto-paste",
+        action="store_true",
+        help="After copying to clipboard, send Ctrl+V to the active window",
+    )
+    parser.add_argument(
+        "--paste-delay",
+        type=float,
+        default=0.15,
+        help="Seconds to wait before sending Ctrl+V when --auto-paste is set",
+    )
 
-    args = p.parse_args()
+    args = parser.parse_args(argv)
 
-    # presets
     if args.preset == "cpu-fast":
         args.device = "cpu"
         args.compute_type = "int8"
@@ -377,26 +200,8 @@ def main():
         args.device = "cuda"
         args.compute_type = "float16"
 
-    # hold args globally for the hotkey handler
-    global arg_holder
-    arg_holder = args
+    run(args)
 
-    run(
-        toggle_hotkey=args.toggle,
-        quit_hotkey=args.quit,
-        model_size=args.model,
-        device=args.device,
-        compute_type=args.compute_type,
-        input_device=args.input_device,
-        no_llm=args.no_llm,
-        llm_endpoint=args.llm_endpoint,
-        llm_model=args.llm_model,
-        llm_key=args.llm_key,
-        llm_prompt=args.llm_prompt,
-        llm_temp=args.llm_temp,
-        auto_paste=args.auto_paste,
-        paste_delay=args.paste_delay,
-    )
 
 if __name__ == "__main__":
     main()
