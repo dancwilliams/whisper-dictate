@@ -1,13 +1,3 @@
-Perfect — here’s an updated `README.md` reflecting everything your project now does, including:
-
-* Whisper dictation (CLI + GUI)
-* Optional LLM cleanup through an OpenAI-compatible endpoint (like LM Studio)
-* Auto-paste directly into the active window
-* Clear, concise setup for any new machine
-
----
-
-````markdown
 # Whisper Dictate
 
 A privacy-first, local **speech-to-text and AI cleanup tool** for Windows.  
