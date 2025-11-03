@@ -66,10 +66,10 @@ INPUT_CHANNELS = 1
 CHUNK_MS = 50
 
 DEFAULT_MODEL = "small"          # whisper model: base.en, small, medium, large-v3
-DEFAULT_DEVICE = "cpu"           # cpu or cuda
-DEFAULT_COMPUTE = "int8"         # good CPU default; GUI will coerce to float16 on cuda
+DEFAULT_DEVICE = "cuda"           # cpu or cuda
+DEFAULT_COMPUTE = "float16"         # good CPU default; GUI will coerce to float16 on cuda
 
-DEFAULT_LLM_ENABLED = False
+DEFAULT_LLM_ENABLED = True
 DEFAULT_LLM_ENDPOINT = "http://localhost:1234/v1"  # LM Studio default
 DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"
 DEFAULT_LLM_KEY = ""             # LM Studio usually does not require a key
@@ -224,7 +224,7 @@ class App(Tk):
         self.var_compute = StringVar(value=DEFAULT_COMPUTE)
         self.var_input = StringVar(value="")
         self.var_hotkey = StringVar(value="CTRL+WIN+G")
-        self.var_auto_paste = BooleanVar(value=False)
+        self.var_auto_paste = BooleanVar(value=True)
         self.var_paste_delay = DoubleVar(value=0.15)
         
         ttk.Label(top, text="Whisper model").grid(row=0, column=0, sticky="w")
