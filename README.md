@@ -2,7 +2,7 @@
 
 A privacy-first, local **speech-to-text and AI cleanup tool** for Windows.  
 It uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) for offline transcription and can optionally send text to a local or remote **OpenAI-compatible endpoint** (such as [LM Studio](https://lmstudio.ai/)) for light cleanup or rewriting.  
-It supports both a **CLI** and a **GUI**, global hotkeys, and automatic pasting into the active window.
+It supports a **GUI**, global hotkeys, and automatic pasting into the active window.
 
 ---
 
@@ -11,8 +11,7 @@ It supports both a **CLI** and a **GUI**, global hotkeys, and automatic pasting 
 - **100 % local transcription** — no cloud calls  
 - **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)  
 - **Global hotkey** for push-to-talk from any application  
-- **Auto-paste** into the focused window (`Ctrl+V`)  
-- **GUI and CLI** modes  
+- **Auto-paste** into the focused window (`Ctrl+V`)    
 - **GPU or CPU** execution  
 - **One-command setup** using [`uv`](https://docs.astral.sh/uv/)  
 
@@ -27,25 +26,6 @@ git clone https://github.com/yourusername/whisper-dictate.git
 cd whisper-dictate
 uv sync
 ````
-
-### 2. Run (CLI)
-
-```powershell
-uv run dictate
-```
-
-Default behavior:
-
-```
-Toggle hotkey: CTRL+WIN+G
-Quit hotkey:   CTRL+WIN+X
-Loading Whisper model: small on cpu (int8)
-Ready.
-```
-
-Speak, press **Ctrl + Win + G** again to stop, and the text will appear in the console and on the clipboard.
-
----
 
 ## 🪟 Run (GUI)
 
@@ -63,67 +43,6 @@ The GUI adds:
 
 Use **Load model**, then **Register hotkey** (e.g., `CTRL+WIN+G`), and press the hotkey anywhere to dictate.
 If “Auto-paste” is enabled, the result pastes automatically into the app you were using.
-
----
-
-## ⚙️ CLI Options
-
-```powershell
-uv run dictate --help
-```
-
-Common examples:
-
-```powershell
-# Basic CPU dictation
-uv run dictate --preset cpu-fast
-
-# Use GPU
-uv run dictate --preset gpu-fast
-
-# Clean up text through a local LM Studio server
-uv run dictate --preset cpu-fast `
-  --llm-endpoint http://localhost:1234/v1 `
-  --llm-model "Llama-3.1-8B-Instruct"
-
-# Auto-paste into the active window
-uv run dictate --auto-paste
-```
-
-All cleanup options are optional; omit them for raw Whisper output.
-
----
-
-## 🧠 LLM Cleanup Details
-
-Whisper Dictate can post-process text using any OpenAI-compatible endpoint.
-
-Example (LM Studio defaults):
-
-```powershell
---llm-endpoint http://localhost:1234/v1
---llm-model "Llama-3.1-8B-Instruct"
---llm-prompt "You are a writing assistant. Clean up the user's dictated text for grammar, punctuation, and capitalization without changing meaning."
-```
-
-If your endpoint needs an API key:
-
-```powershell
---llm-key sk-yourkey
-```
-
----
-
-## 💻 GPU Acceleration (Optional)
-
-1. Install **CUDA 12.x** and **cuDNN v9.x** (for example, CUDA 12.5 + cuDNN 9.4).
-2. Ensure `cudnn_ops64_9.dll` is in your PATH.
-3. Run:
-
-   ```powershell
-   uv run dictate --device cuda --compute-type float16
-   ```
-4. Check that the log shows `on cuda (float16)`.
 
 ---
 
@@ -147,7 +66,6 @@ whisper-dictate/
 │
 ├─ whisper_dictate/
 │   ├─ __init__.py
-│   ├─ cli.py         # CLI with optional LLM and auto-paste
 │   └─ gui.py         # Tkinter GUI with LLM + auto-paste
 │
 ├─ pyproject.toml
@@ -162,7 +80,7 @@ whisper-dictate/
 git clone https://github.com/yourusername/whisper-dictate.git
 cd whisper-dictate
 uv sync
-uv run dictate-gui     # or uv run dictate
+uv run dictate
 ```
 
 If you want to freeze dependency versions for reproducibility:
@@ -178,10 +96,6 @@ uv sync --locked
 
 ```powershell
 uv run pyinstaller --collect-all nvidia --noconfirm --clean --onefile --windowed --icon assets\whisper_dictate_gui.ico --name WhisperDictateGUI whisper_dictate/gui.py
-```
-
-```powershell
-uv run pyinstaller --collect-all nvidia --noconfirm --clean --onefile --windowed --icon assets\whisper_dictate_cli.ico --name WhisperDictateCLI whisper_dictate/cli.py
 ```
 
 ---
