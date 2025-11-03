@@ -510,6 +510,9 @@ class App(Tk):
         self._menubar = menubar
 
     def set_status(self, state: str, message: str):
+        if threading.current_thread() is not threading.main_thread():
+            self.after(0, self.set_status, state, message)
+            return
         self._status_state = state
         self._status_message = message
         self.lbl_status.config(text=message)
