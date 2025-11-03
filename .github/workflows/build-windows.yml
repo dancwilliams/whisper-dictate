@@ -1,0 +1,72 @@
+name: Build Windows executable
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      WINDOWS_SIGNING_CERTIFICATE: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE }}
+      WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+      WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          enable-cache: true
+          cache-dependency-path: |
+            pyproject.toml
+            uv.lock
+
+      - name: Sync project environment
+        shell: pwsh
+        run: |
+          uv sync --frozen --python 3.11
+
+      - name: Build executable with PyInstaller
+        shell: pwsh
+        run: |
+          uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
+
+      - name: Decode signing certificate
+        if: env.WINDOWS_SIGNING_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          $bytes = [System.Convert]::FromBase64String('${{ env.WINDOWS_SIGNING_CERTIFICATE }}')
+          Set-Content -Path signing-certificate.pfx -Value $bytes -Encoding Byte
+
+      - name: Sign executable
+        if: env.WINDOWS_SIGNING_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          $signtool = (Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Select-Object -First 1).FullName
+          if (-not $signtool) { throw 'signtool.exe not found' }
+          $arguments = @('/fd', 'sha256', '/f', 'signing-certificate.pfx', '/p', '${{ env.WINDOWS_SIGNING_PASSWORD }}', '/v', 'dist\whisper-dictate-gui\whisper-dictate-gui.exe')
+          if ('${{ env.WINDOWS_TIMESTAMP_URL }}') {
+            $arguments += @('/tr', '${{ env.WINDOWS_TIMESTAMP_URL }}', '/td', 'sha256')
+          }
+          & $signtool sign @arguments
+
+      - name: Remove sensitive files
+        if: env.WINDOWS_SIGNING_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          Remove-Item signing-certificate.pfx -ErrorAction SilentlyContinue
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-dictate-gui
+          path: dist/whisper-dictate-gui
+          if-no-files-found: error
