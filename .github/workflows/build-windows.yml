@@ -1,0 +1,86 @@
+name: Build Windows executable
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Whisper model size to prefetch"
+        required: false
+        default: "small"
+      device:
+        description: "Device used while prefetching (cuda or cpu)"
+        required: false
+        default: "cpu"
+      compute_type:
+        description: "Compute type passed to faster-whisper"
+        required: false
+        default: "int8_float32"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      MODEL_NAME: ${{ inputs.model }}
+      PREFETCH_DEVICE: ${{ inputs.device }}
+      PREFETCH_COMPUTE: ${{ inputs.compute_type }}
+      WINDOWS_SIGNING_CERTIFICATE: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE }}
+      WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+      WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip wheel
+          pip install .
+
+      - name: Prefetch Whisper model
+        shell: pwsh
+        run: |
+          python scripts/prefetch_model.py --model ${env:MODEL_NAME} --device ${env:PREFETCH_DEVICE} --compute-type ${env:PREFETCH_COMPUTE}
+
+      - name: Build executable with PyInstaller
+        shell: pwsh
+        run: |
+          pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
+
+      - name: Decode signing certificate
+        if: env.WINDOWS_SIGNING_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          $bytes = [System.Convert]::FromBase64String('${{ env.WINDOWS_SIGNING_CERTIFICATE }}')
+          Set-Content -Path signing-certificate.pfx -Value $bytes -Encoding Byte
+
+      - name: Sign executable
+        if: env.WINDOWS_SIGNING_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          $signtool = (Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Select-Object -First 1).FullName
+          if (-not $signtool) { throw 'signtool.exe not found' }
+          $arguments = @('/fd', 'sha256', '/f', 'signing-certificate.pfx', '/p', '${{ env.WINDOWS_SIGNING_PASSWORD }}', '/v', 'dist\whisper-dictate-gui\whisper-dictate-gui.exe')
+          if ('${{ env.WINDOWS_TIMESTAMP_URL }}') {
+            $arguments += @('/tr', '${{ env.WINDOWS_TIMESTAMP_URL }}', '/td', 'sha256')
+          }
+          & $signtool sign @arguments
+
+      - name: Remove sensitive files
+        if: env.WINDOWS_SIGNING_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          Remove-Item signing-certificate.pfx -ErrorAction SilentlyContinue
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-dictate-gui
+          path: dist/whisper-dictate-gui
+          if-no-files-found: error
