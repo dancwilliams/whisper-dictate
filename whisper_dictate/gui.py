@@ -305,13 +305,17 @@ class StatusIndicator:
         if not self.window.winfo_viewable():
             return
         self.window.update_idletasks()
-        parent_x = self.master.winfo_rootx()
-        parent_y = self.master.winfo_rooty()
-        parent_w = self.master.winfo_width()
+        screen_w = self.master.winfo_screenwidth()
+        screen_h = self.master.winfo_screenheight()
         window_w = self.window.winfo_width()
-        x = parent_x + parent_w - window_w - 24
-        y = parent_y + 32
+        window_h = self.window.winfo_height()
+        margin_x = 24
+        margin_y = 48
+        x = screen_w - window_w - margin_x
+        y = screen_h - window_h - margin_y
         self.window.geometry(f"+{int(x)}+{int(y)}")
+        self.window.lift()
+        self.window.attributes("-topmost", True)
 
     def update(self, state: str, message: str):
         color = self.COLORS.get(state, self.COLORS["idle"])
@@ -335,7 +339,6 @@ class App(Tk):
         style.configure("Section.TLabelframe", padding=(12, 10))
         style.configure("Section.TLabelframe.Label", font=("Segoe UI", 9, "bold"))
 
-        self.var_prompt_preview = StringVar()
         self._apply_prompt(load_saved_prompt(DEFAULT_LLM_PROMPT))
 
         self._build_menus()
@@ -461,15 +464,10 @@ class App(Tk):
 
         ttk.Label(
             llm,
-            text="Cleanup prompt (Edit → Prompt… to change)",
-        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
-        self.lbl_prompt_preview = ttk.Label(
-            llm,
-            textvariable=self.var_prompt_preview,
+            text=f"Cleanup prompt saved to {PROMPT_FILE} (Edit → Prompt…)",
             wraplength=760,
             justify="left",
-        )
-        self.lbl_prompt_preview.grid(row=6, column=0, columnspan=2, sticky="we")
+        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         # Controls
         ctrl = ttk.Frame(self, padding=(12, 0, 12, 12))
@@ -518,17 +516,8 @@ class App(Tk):
         if hasattr(self, "indicator"):
             self.indicator.update(state, message)
 
-    def _summarize_prompt(self, prompt: str) -> str:
-        text = prompt.strip()
-        if not text:
-            return "(using default prompt)"
-        if len(text) > 500:
-            text = text[:497].rstrip() + "…"
-        return text
-
     def _apply_prompt(self, prompt: str, persist: bool = False) -> bool:
         self.prompt_content = prompt or DEFAULT_LLM_PROMPT
-        self.var_prompt_preview.set(self._summarize_prompt(self.prompt_content))
         if persist:
             if not write_saved_prompt(self.prompt_content):
                 messagebox.showerror("Prompt", f"Could not save prompt to {PROMPT_FILE}")
