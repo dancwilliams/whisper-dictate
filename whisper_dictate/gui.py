@@ -271,8 +271,8 @@ class App(Tk):
         self.title("Whisper Dictate + LLM")
         self.geometry("980x680")
 
-        self.prompt_content = load_saved_prompt(DEFAULT_LLM_PROMPT)
-        self.var_prompt_preview = StringVar(value=self._summarize_prompt(self.prompt_content))
+        self.var_prompt_preview = StringVar()
+        self._apply_prompt(load_saved_prompt(DEFAULT_LLM_PROMPT))
 
         self._build_menus()
 
