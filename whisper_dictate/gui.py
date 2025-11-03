@@ -5,6 +5,28 @@ import os, importlib
 import sys
 from pathlib import Path
 
+PROMPT_FILE = Path.home() / ".whisper_dictate_prompt.txt"
+
+
+def load_saved_prompt(default: str) -> str:
+    try:
+        if PROMPT_FILE.is_file():
+            content = PROMPT_FILE.read_text(encoding="utf-8")
+            return content if content.strip() else default
+    except Exception as e:
+        print(f"(Prompt) Could not read saved prompt: {e}")
+    return default
+
+
+def write_saved_prompt(prompt: str) -> bool:
+    try:
+        PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PROMPT_FILE.write_text(prompt, encoding="utf-8")
+        return True
+    except Exception as e:
+        print(f"(Prompt) Could not save prompt: {e}")
+        return False
+
 def set_cuda_paths():
     """Ensure CUDA DLL folders from the embedded Nvidia wheels are on PATH."""
 
@@ -49,7 +71,7 @@ except Exception:
 import numpy as np
 import sounddevice as sd
 import pyperclip
-from tkinter import Tk, Toplevel, StringVar, BooleanVar, DoubleVar, Text, END
+from tkinter import Tk, Toplevel, StringVar, BooleanVar, DoubleVar, Text, END, Menu
 from tkinter import messagebox
 from tkinter import ttk
 
@@ -208,11 +230,51 @@ def clean_with_llm(raw_text: str,
         print(f"(LLM) error: {e}")
         return None
 
+class PromptDialog(Toplevel):
+    def __init__(self, parent: Tk, prompt: str):
+        super().__init__(parent)
+        self.title("Edit Cleanup Prompt")
+        self.transient(parent)
+        self.grab_set()
+        self.result = None
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        self.txt_prompt = Text(self, height=16, wrap="word")
+        self.txt_prompt.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=12, pady=(12, 6))
+        self.txt_prompt.insert("1.0", prompt)
+        self.txt_prompt.focus_set()
+
+        btns = ttk.Frame(self)
+        btns.grid(row=1, column=0, columnspan=2, pady=(0, 12))
+        ttk.Button(btns, text="Cancel", command=self.on_cancel).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(btns, text="Save", command=self.on_save).grid(row=0, column=1)
+
+        self.bind("<Escape>", lambda event: self.on_cancel())
+        self.bind("<Control-s>", lambda event: self.on_save())
+        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
+
+    def on_cancel(self):
+        self.result = None
+        self.destroy()
+
+    def on_save(self):
+        text = self.txt_prompt.get("1.0", END).rstrip()
+        self.result = text
+        self.destroy()
+
+
 class App(Tk):
     def __init__(self):
         super().__init__()
         self.title("Whisper Dictate + LLM")
         self.geometry("980x680")
+
+        self.prompt_content = load_saved_prompt(DEFAULT_LLM_PROMPT)
+        self.var_prompt_preview = StringVar(value=self._summarize_prompt(self.prompt_content))
+
+        self._build_menus()
 
         # ----- Top config frame -----
         top = ttk.Frame(self, padding=8)
@@ -284,10 +346,16 @@ class App(Tk):
         ttk.Label(llm, text="Temperature").grid(row=1, column=3, sticky="w")
         ttk.Spinbox(llm, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6).grid(row=2, column=3, padx=(0, 12))
 
-        ttk.Label(llm, text="Cleanup prompt").grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
-        self.txt_prompt: Text = Text(llm, height=4, wrap="word")
-        self.txt_prompt.grid(row=4, column=0, columnspan=4, sticky="we")
-        self.txt_prompt.insert(END, DEFAULT_LLM_PROMPT)
+        ttk.Label(llm, text="Cleanup prompt (Edit → Prompt… to change)").grid(
+            row=3, column=0, columnspan=4, sticky="w", pady=(8, 0)
+        )
+        self.lbl_prompt_preview = ttk.Label(
+            llm,
+            textvariable=self.var_prompt_preview,
+            wraplength=760,
+            justify="left",
+        )
+        self.lbl_prompt_preview.grid(row=4, column=0, columnspan=4, sticky="we")
 
         for c in range(6):
             top.grid_columnconfigure(c, weight=1)
@@ -322,6 +390,41 @@ class App(Tk):
         self._hotkey_mods = None
         self._hotkey_vk = None
         self._msg_tid = None
+
+    def _build_menus(self):
+        menubar = Menu(self)
+        edit_menu = Menu(menubar, tearoff=False)
+        edit_menu.add_command(label="Prompt...", command=self.open_prompt_dialog)
+        menubar.add_cascade(label="Edit", menu=edit_menu)
+        self.config(menu=menubar)
+        self._menubar = menubar
+
+    def _summarize_prompt(self, prompt: str) -> str:
+        text = prompt.strip()
+        if not text:
+            return "(using default prompt)"
+        if len(text) > 500:
+            text = text[:497].rstrip() + "…"
+        return text
+
+    def _apply_prompt(self, prompt: str, persist: bool = False) -> bool:
+        self.prompt_content = prompt or DEFAULT_LLM_PROMPT
+        self.var_prompt_preview.set(self._summarize_prompt(self.prompt_content))
+        if persist:
+            if not write_saved_prompt(self.prompt_content):
+                messagebox.showerror("Prompt", f"Could not save prompt to {PROMPT_FILE}")
+                return False
+        return True
+
+    def open_prompt_dialog(self):
+        dialog = PromptDialog(self, self.prompt_content)
+        self.wait_window(dialog)
+        if dialog.result is not None:
+            new_prompt = dialog.result
+            if not new_prompt.strip():
+                new_prompt = DEFAULT_LLM_PROMPT
+            if self._apply_prompt(new_prompt, persist=True) and hasattr(self, "lbl_status"):
+                self.lbl_status.config(text="Prompt updated")
 
     def show_inputs(self):
         try:
@@ -483,7 +586,7 @@ class App(Tk):
         final_text = text
         if self.var_llm_enable.get() and self.var_llm_endpoint.get().strip() and self.var_llm_model.get().strip():
             self.lbl_status.config(text="Cleaning with LLM...")
-            prompt = self.txt_prompt.get("1.0", END).strip() or DEFAULT_LLM_PROMPT
+            prompt = self.prompt_content or DEFAULT_LLM_PROMPT
             cleaned = clean_with_llm(
                 raw_text=text,
                 endpoint=self.var_llm_endpoint.get().strip(),
