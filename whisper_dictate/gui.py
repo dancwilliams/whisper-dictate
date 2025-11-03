@@ -71,7 +71,7 @@ except Exception:
 import numpy as np
 import sounddevice as sd
 import pyperclip
-from tkinter import Tk, Toplevel, StringVar, BooleanVar, DoubleVar, Text, END, Menu
+from tkinter import Tk, Toplevel, StringVar, BooleanVar, DoubleVar, Text, END, Menu, Canvas
 from tkinter import messagebox
 from tkinter import ttk
 
@@ -265,20 +265,96 @@ class PromptDialog(Toplevel):
         self.destroy()
 
 
+class StatusIndicator:
+    """Small floating indicator that reflects the app's status."""
+
+    COLORS = {
+        "idle": "#6c757d",
+        "ready": "#198754",
+        "listening": "#0d6efd",
+        "transcribing": "#6610f2",
+        "processing": "#fd7e14",
+        "warning": "#ffc107",
+        "error": "#dc3545",
+    }
+
+    def __init__(self, master: Tk):
+        self.master = master
+        self.window = Toplevel(master)
+        self.window.withdraw()
+        self.window.overrideredirect(True)
+        self.window.attributes("-topmost", True)
+        self.window.resizable(False, False)
+
+        frame = ttk.Frame(self.window, padding=(8, 6))
+        frame.pack()
+
+        bg = self.window.cget("background")
+        self.dot = Canvas(frame, width=14, height=14, highlightthickness=0, bg=bg, borderwidth=0)
+        self.dot.grid(row=0, column=0, padx=(0, 6))
+        self.dot_oval = self.dot.create_oval(2, 2, 12, 12, fill=self.COLORS["idle"], outline="")
+
+        self.label = ttk.Label(frame, text="Idle", anchor="w")
+        self.label.grid(row=0, column=1, sticky="w")
+
+        frame.columnconfigure(1, weight=1)
+
+        master.bind("<Configure>", self._reposition, add="+")
+
+    def _reposition(self, event=None):
+        if not self.window.winfo_viewable():
+            return
+        self.window.update_idletasks()
+        screen_w = self.master.winfo_screenwidth()
+        screen_h = self.master.winfo_screenheight()
+        window_w = self.window.winfo_width()
+        window_h = self.window.winfo_height()
+        margin_x = 24
+        margin_y = 48
+        x = screen_w - window_w - margin_x
+        y = screen_h - window_h - margin_y
+        self.window.geometry(f"+{int(x)}+{int(y)}")
+        self.window.lift()
+        self.window.attributes("-topmost", True)
+
+    def update(self, state: str, message: str):
+        color = self.COLORS.get(state, self.COLORS["idle"])
+        self.dot.itemconfigure(self.dot_oval, fill=color)
+        display = message if len(message) <= 40 else message[:37] + "…"
+        self.label.config(text=display)
+        if not self.window.winfo_viewable():
+            self.window.deiconify()
+        self.window.update_idletasks()
+        self._reposition()
+
+
 class App(Tk):
     def __init__(self):
         super().__init__()
         self.title("Whisper Dictate + LLM")
         self.geometry("980x680")
 
-        self.var_prompt_preview = StringVar()
+        self.option_add("*Font", ("Segoe UI", 10))
+        style = ttk.Style(self)
+        style.configure("Section.TLabelframe", padding=(12, 10))
+        style.configure("Section.TLabelframe.Label", font=("Segoe UI", 9, "bold"))
+
         self._apply_prompt(load_saved_prompt(DEFAULT_LLM_PROMPT))
 
         self._build_menus()
 
         # ----- Top config frame -----
-        top = ttk.Frame(self, padding=8)
-        top.pack(fill="x")
+        config = ttk.Frame(self, padding=(12, 12, 12, 6))
+        config.pack(fill="x")
+
+        whisper_box = ttk.LabelFrame(config, text="Speech recognition", style="Section.TLabelframe")
+        whisper_box.grid(row=0, column=0, sticky="nsew")
+
+        automation_box = ttk.LabelFrame(config, text="Automation", style="Section.TLabelframe")
+        automation_box.grid(row=0, column=1, sticky="nsew", padx=(12, 0))
+
+        config.columnconfigure(0, weight=3)
+        config.columnconfigure(1, weight=2)
 
         # Whisper config
         self.var_model = StringVar(value=DEFAULT_MODEL)
@@ -288,83 +364,113 @@ class App(Tk):
         self.var_hotkey = StringVar(value="CTRL+WIN+G")
         self.var_auto_paste = BooleanVar(value=True)
         self.var_paste_delay = DoubleVar(value=0.15)
-        
-        ttk.Label(top, text="Whisper model").grid(row=0, column=0, sticky="w")
-        self.cb_model = ttk.Combobox(top, textvariable=self.var_model, width=18,
-                                     values=["base.en", "small", "medium", "large-v3"])
-        self.cb_model.grid(row=1, column=0, padx=(0, 12), sticky="we")
 
-        ttk.Label(top, text="Device").grid(row=0, column=1, sticky="w")
-        self.cb_device = ttk.Combobox(top, textvariable=self.var_device, width=10,
-                                      values=["cpu", "cuda"])
-        self.cb_device.grid(row=1, column=1, padx=(0, 12), sticky="we")
+        whisper_box.columnconfigure(1, weight=1)
 
-        ttk.Label(top, text="Compute").grid(row=0, column=2, sticky="w")
-        self.cb_compute = ttk.Combobox(top, textvariable=self.var_compute, width=14,
-                                       values=["int8", "int8_float32", "float32", "float16", "int8_float16"])
-        self.cb_compute.grid(row=1, column=2, padx=(0, 12), sticky="we")
+        ttk.Label(whisper_box, text="Model").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self.cb_model = ttk.Combobox(
+            whisper_box,
+            textvariable=self.var_model,
+            values=["base.en", "small", "medium", "large-v3"],
+            width=18,
+        )
+        self.cb_model.grid(row=0, column=1, sticky="we", pady=(0, 4))
 
-        ttk.Label(top, text="Input device (index or name)").grid(row=0, column=3, sticky="w")
-        ttk.Entry(top, textvariable=self.var_input, width=28).grid(row=1, column=3, padx=(0, 12), sticky="we")
-        ttk.Button(top, text="List inputs", command=self.show_inputs).grid(row=1, column=4, padx=(0, 12))
+        ttk.Label(whisper_box, text="Device").grid(row=1, column=0, sticky="w", pady=4)
+        self.cb_device = ttk.Combobox(
+            whisper_box,
+            textvariable=self.var_device,
+            values=["cpu", "cuda"],
+            width=10,
+        )
+        self.cb_device.grid(row=1, column=1, sticky="we", pady=4)
 
-        ttk.Label(top, text="Toggle hotkey").grid(row=0, column=5, sticky="w")
-        ttk.Entry(top, textvariable=self.var_hotkey, width=16).grid(row=1, column=5, padx=(0, 12), sticky="we")
+        ttk.Label(whisper_box, text="Compute").grid(row=2, column=0, sticky="w", pady=4)
+        self.cb_compute = ttk.Combobox(
+            whisper_box,
+            textvariable=self.var_compute,
+            values=["int8", "int8_float32", "float32", "float16", "int8_float16"],
+            width=14,
+        )
+        self.cb_compute.grid(row=2, column=1, sticky="we", pady=4)
+
+        ttk.Label(whisper_box, text="Input device").grid(row=3, column=0, sticky="w", pady=4)
+        input_row = ttk.Frame(whisper_box)
+        input_row.grid(row=3, column=1, sticky="we", pady=4)
+        input_row.columnconfigure(0, weight=1)
+        ttk.Entry(input_row, textvariable=self.var_input).grid(row=0, column=0, sticky="we")
+        ttk.Button(input_row, text="List…", command=self.show_inputs).grid(row=0, column=1, padx=(8, 0))
+
+        ttk.Label(automation_box, text="Toggle hotkey").grid(row=0, column=0, sticky="w")
+        ttk.Entry(automation_box, textvariable=self.var_hotkey, width=16).grid(row=1, column=0, sticky="we", pady=(0, 8))
+
+        ttk.Checkbutton(
+            automation_box,
+            text="Auto-paste into active window",
+            variable=self.var_auto_paste,
+        ).grid(row=2, column=0, sticky="w")
+
+        paste_row = ttk.Frame(automation_box)
+        paste_row.grid(row=3, column=0, sticky="we", pady=(4, 0))
+        ttk.Label(paste_row, text="Paste delay (s)").pack(side="left")
+        ttk.Spinbox(
+            paste_row,
+            from_=0.0,
+            to=1.0,
+            increment=0.05,
+            textvariable=self.var_paste_delay,
+            width=6,
+        ).pack(side="left", padx=(8, 0))
+
+        automation_box.columnconfigure(0, weight=1)
 
         # LLM config
-        sep = ttk.Separator(self, orient="horizontal")
-        sep.pack(fill="x", pady=(8, 8))
-
-        llm = ttk.Frame(self, padding=8)
-        llm.pack(fill="x")
+        llm = ttk.LabelFrame(self, text="LLM cleanup", padding=(12, 12), style="Section.TLabelframe")
+        llm.pack(fill="x", padx=12, pady=(0, 12))
 
         self.var_llm_enable: BooleanVar = BooleanVar(value=DEFAULT_LLM_ENABLED)
         ttk.CheckBox = ttk.Checkbutton  # alias for brevity
-        ttk.CheckBox(llm, text="Use LLM cleanup (OpenAI compatible)", variable=self.var_llm_enable).grid(row=0, column=0, sticky="w")
+        ttk.CheckBox(
+            llm,
+            text="Use LLM cleanup (OpenAI compatible)",
+            variable=self.var_llm_enable,
+        ).grid(row=0, column=0, sticky="w", columnspan=2)
 
         self.var_llm_endpoint = StringVar(value=DEFAULT_LLM_ENDPOINT)
         self.var_llm_model = StringVar(value=DEFAULT_LLM_MODEL)
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
         self.var_llm_temp: DoubleVar = DoubleVar(value=DEFAULT_LLM_TEMP)
 
-        ttk.Checkbutton(llm, text="Auto-paste into active window", variable=self.var_auto_paste)\
-            .grid(row=5, column=0, sticky="w", pady=(8, 0))
+        llm.columnconfigure(1, weight=1)
 
-        ttk.Label(llm, text="Paste delay (s)").grid(row=5, column=1, sticky="e", pady=(8, 0))
-        ttk.Spinbox(llm, from_=0.0, to=1.0, increment=0.05, textvariable=self.var_paste_delay, width=6)\
-            .grid(row=5, column=2, sticky="w", pady=(8, 0))
+        ttk.Label(llm, text="Endpoint").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(llm, textvariable=self.var_llm_endpoint).grid(row=1, column=1, sticky="we", pady=(8, 0), padx=(12, 0))
 
-        ttk.Label(llm, text="Endpoint").grid(row=1, column=0, sticky="w")
-        ttk.Entry(llm, textvariable=self.var_llm_endpoint, width=40).grid(row=2, column=0, padx=(0, 12), sticky="we")
+        ttk.Label(llm, text="Model").grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Entry(llm, textvariable=self.var_llm_model).grid(row=2, column=1, sticky="we", pady=4, padx=(12, 0))
 
-        ttk.Label(llm, text="Model").grid(row=1, column=1, sticky="w")
-        ttk.Entry(llm, textvariable=self.var_llm_model, width=28).grid(row=2, column=1, padx=(0, 12), sticky="we")
+        ttk.Label(llm, text="API key (optional)").grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Entry(llm, textvariable=self.var_llm_key, show="•").grid(row=3, column=1, sticky="we", pady=4, padx=(12, 0))
 
-        ttk.Label(llm, text="API key (optional)").grid(row=1, column=2, sticky="w")
-        ttk.Entry(llm, textvariable=self.var_llm_key, width=28, show="•").grid(row=2, column=2, padx=(0, 12), sticky="we")
-
-        ttk.Label(llm, text="Temperature").grid(row=1, column=3, sticky="w")
-        ttk.Spinbox(llm, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6).grid(row=2, column=3, padx=(0, 12))
-
-        ttk.Label(llm, text="Cleanup prompt (Edit → Prompt… to change)").grid(
-            row=3, column=0, columnspan=4, sticky="w", pady=(8, 0)
-        )
-        self.lbl_prompt_preview = ttk.Label(
+        ttk.Label(llm, text="Temperature").grid(row=4, column=0, sticky="w", pady=4)
+        ttk.Spinbox(
             llm,
-            textvariable=self.var_prompt_preview,
+            from_=0.0,
+            to=1.5,
+            increment=0.1,
+            textvariable=self.var_llm_temp,
+            width=6,
+        ).grid(row=4, column=1, sticky="w", pady=4, padx=(12, 0))
+
+        ttk.Label(
+            llm,
+            text=f"Cleanup prompt saved to {PROMPT_FILE} (Edit → Prompt…)",
             wraplength=760,
             justify="left",
-        )
-        self.lbl_prompt_preview.grid(row=4, column=0, columnspan=4, sticky="we")
-
-        for c in range(6):
-            top.grid_columnconfigure(c, weight=1)
-        for c in range(4):
-            llli = c
-            llm.grid_columnconfigure(llli, weight=1)
+        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         # Controls
-        ctrl = ttk.Frame(self, padding=8)
+        ctrl = ttk.Frame(self, padding=(12, 0, 12, 12))
         ctrl.pack(fill="x")
         self.btn_load = ttk.Button(ctrl, text="Load model", command=self.load_model)
         self.btn_load.grid(row=0, column=0, padx=(0, 8))
@@ -381,6 +487,10 @@ class App(Tk):
         ttk.Label(out, text="Transcript").pack(anchor="w")
         self.txt_out: Text = Text(out, wrap="word")
         self.txt_out.pack(fill="both", expand=True)
+
+        # Floating indicator
+        self.indicator = StatusIndicator(self)
+        self.set_status("idle", "Idle")
 
         # Background audio collector
         threading.Thread(target=recorder_only_once, args=(), kwargs={}, daemon=True).start()
@@ -399,17 +509,18 @@ class App(Tk):
         self.config(menu=menubar)
         self._menubar = menubar
 
-    def _summarize_prompt(self, prompt: str) -> str:
-        text = prompt.strip()
-        if not text:
-            return "(using default prompt)"
-        if len(text) > 500:
-            text = text[:497].rstrip() + "…"
-        return text
+    def set_status(self, state: str, message: str):
+        if threading.current_thread() is not threading.main_thread():
+            self.after(0, self.set_status, state, message)
+            return
+        self._status_state = state
+        self._status_message = message
+        self.lbl_status.config(text=message)
+        if hasattr(self, "indicator"):
+            self.indicator.update(state, message)
 
     def _apply_prompt(self, prompt: str, persist: bool = False) -> bool:
         self.prompt_content = prompt or DEFAULT_LLM_PROMPT
-        self.var_prompt_preview.set(self._summarize_prompt(self.prompt_content))
         if persist:
             if not write_saved_prompt(self.prompt_content):
                 messagebox.showerror("Prompt", f"Could not save prompt to {PROMPT_FILE}")
@@ -424,7 +535,7 @@ class App(Tk):
             if not new_prompt.strip():
                 new_prompt = DEFAULT_LLM_PROMPT
             if self._apply_prompt(new_prompt, persist=True) and hasattr(self, "lbl_status"):
-                self.lbl_status.config(text="Prompt updated")
+                self.set_status("ready", "Prompt updated")
 
     def show_inputs(self):
         try:
@@ -462,28 +573,30 @@ class App(Tk):
                 sd.default.device = (matches[0], None)
 
         try:
-            self.lbl_status.config(text=f"Loading {model_name} on {device} ({compute})")
+            self.set_status("processing", f"Loading {model_name} on {device} ({compute})")
             self.update_idletasks()
             self.model = WhisperModel(model_name, device=device, compute_type=compute)
-            self.lbl_status.config(text="Model ready")
+            self.set_status("ready", "Model ready")
             self.btn_load.config(state="disabled")
             self.btn_hotkey.config(state="normal")
             self.btn_toggle.config(state="normal")
         except Exception as e:
-            self.lbl_status.config(text="Idle")
+            self.set_status("error", "Model load failed")
             messagebox.showerror("Model error", str(e))
 
     def register_hotkey(self):
         if not hasattr(self, "model"):
+            self.set_status("warning", "Load the model first")
             messagebox.showwarning("Hotkey", "Load the model first.")
             return
         combo = self.var_hotkey.get().strip()
         try:
             mods, key = parse_hotkey_string(combo)
         except Exception as e:
+            self.set_status("error", "Invalid hotkey")
             messagebox.showerror("Hotkey", str(e))
             return
-    
+
         # Store for the worker thread
         self._hotkey_mods = mods
         self._hotkey_vk = key
@@ -496,22 +609,22 @@ class App(Tk):
             except Exception:
                 pass
             self.msg_thread.join(timeout=0.5)
-    
+
         # Start a fresh message pump that registers the hotkey in the same thread
         self.msg_thread = threading.Thread(target=self.message_pump, daemon=True)
         self.msg_thread.start()
-    
-        self.lbl_status.config(text=f"Hotkey set: {combo}")
+
+        self.set_status("ready", f"Hotkey set: {combo}")
 
 
     def message_pump(self):
         # Save this thread's id so we can post WM_QUIT when re-registering
         self._msg_tid = ctypes.windll.kernel32.GetCurrentThreadId()
-    
+
         # Register the hotkey in THIS thread so WM_HOTKEY arrives here
         if not user32.RegisterHotKey(None, TOGGLE_ID, self._hotkey_mods, self._hotkey_vk):
             # Report back to the UI thread
-            self.after(0, lambda: messagebox.showerror("Hotkey", "Could not register hotkey. Try a different combo."))
+            self.after(0, self._on_hotkey_register_failed)
             return
     
         try:
@@ -527,6 +640,10 @@ class App(Tk):
                 user32.DispatchMessageW(ctypes.byref(msg))
         finally:
             user32.UnregisterHotKey(None, TOGGLE_ID)
+
+    def _on_hotkey_register_failed(self):
+        self.set_status("error", "Hotkey registration failed")
+        messagebox.showerror("Hotkey", "Could not register hotkey. Try a different combo.")
     
 
     def toggle_record(self):
@@ -546,10 +663,11 @@ class App(Tk):
                 )
                 stream.start()
             except Exception as e:
+                self.set_status("error", "Audio input failed")
                 messagebox.showerror("Audio", f"Could not start input:\n{e}")
                 return
             recording = True
-            self.lbl_status.config(text="Recording... press hotkey to stop")
+            self.set_status("listening", "Recording... press hotkey to stop")
             self.btn_toggle.config(text="Stop and transcribe")
         else:
             try:
@@ -560,7 +678,7 @@ class App(Tk):
                 pass
             stream = None
             recording = False
-            self.lbl_status.config(text="Transcribing...")
+            self.set_status("transcribing", "Transcribing...")
             self.btn_toggle.config(text="Start recording")
             threading.Thread(target=self.transcribe_and_maybe_clean, daemon=True).start()
 
@@ -568,24 +686,24 @@ class App(Tk):
         global audio_buf
         with buffer_lock:
             if not audio_buf:
-                self.lbl_status.config(text="No audio captured")
+                self.set_status("warning", "No audio captured")
                 return
             audio = np.concatenate(audio_buf).astype(np.float32)
         try:
             segs, info = self.model.transcribe(audio, beam_size=5, vad_filter=False, language="en")
             text = "".join(s.text for s in segs).strip()
         except Exception as e:
-            self.lbl_status.config(text="Idle")
+            self.set_status("error", "Transcription failed")
             messagebox.showerror("Transcribe", str(e))
             return
 
         if not text:
-            self.lbl_status.config(text="No speech detected")
+            self.set_status("warning", "No speech detected")
             return
 
         final_text = text
         if self.var_llm_enable.get() and self.var_llm_endpoint.get().strip() and self.var_llm_model.get().strip():
-            self.lbl_status.config(text="Cleaning with LLM...")
+            self.set_status("processing", "Cleaning with LLM...")
             prompt = self.prompt_content or DEFAULT_LLM_PROMPT
             cleaned = clean_with_llm(
                 raw_text=text,
@@ -597,9 +715,9 @@ class App(Tk):
             )
             if cleaned:
                 final_text = cleaned
-                self.lbl_status.config(text="Cleaned by LLM")
+                self.set_status("ready", "Cleaned by LLM")
             else:
-                self.lbl_status.config(text="LLM failed, used raw text")
+                self.set_status("warning", "LLM failed, used raw text")
 
         ts = time.strftime("%H:%M:%S")
         self.txt_out.insert(END, f"[{ts}] {final_text}\n")
@@ -608,18 +726,19 @@ class App(Tk):
             pyperclip.copy(final_text)
             if self.var_auto_paste.get():
                 if pyautogui is None:
-                    self.lbl_status.config(text="pyautogui not installed; cannot auto-paste")
+                    self.set_status("warning", "pyautogui not installed; cannot auto-paste")
                 else:
                     # brief pause to let the hotkey key-up finish in the target app
                     time.sleep(float(self.var_paste_delay.get()))
                     try:
                         pyautogui.hotkey("ctrl", "v")
-                        self.lbl_status.config(text="Pasted into active window")
+                        self.set_status("ready", "Pasted into active window")
                     except Exception as e:
-                        self.lbl_status.config(text=f"Auto-paste failed: {e}")
+                        self.set_status("error", f"Auto-paste failed: {e}")
         except Exception:
             pass
-        self.lbl_status.config(text="Ready")
+        if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
+            self.set_status("ready", "Ready")
 
 def recorder_only_once():
     t = threading.Thread(target=recorder_loop, daemon=True)
