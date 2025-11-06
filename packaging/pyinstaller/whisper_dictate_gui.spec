@@ -1,10 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from pathlib import Path
 
+from pathlib import Path
 from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 
-project_root = Path(__file__).resolve().parent.parent.parent
+# Path to the folder that contains this .spec file
+spec_dir = Path(SPECPATH).resolve()
+
+# Your repo root: .../packaging/pyinstaller -> .../packaging -> project root
+project_root = spec_dir.parent.parent
+
 assets_dir = project_root / "assets"
 
 
@@ -75,14 +80,4 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(assets_dir / "whisper_dictate_gui.ico"),
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name="whisper-dictate-gui",
 )
