@@ -37,7 +37,12 @@ jobs:
       - name: Build executable with PyInstaller
         shell: pwsh
         run: |
-          uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
+          uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm --distpath "${{ github.workspace }}\dist" --workpath "${{ github.workspace }}\build"
+
+      - name: Show dist contents
+        run: |
+          Write-Host "Workspace: $env:GITHUB_WORKSPACE"
+          Get-ChildItem -Recurse "$env:GITHUB_WORKSPACE\dist" | Format-Table -AutoSize
 
       - name: Decode signing certificate
         if: env.WINDOWS_SIGNING_CERTIFICATE != ''
@@ -68,5 +73,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: whisper-dictate-gui
-          path: dist/whisper-dictate-gui
+          path: dist/whisper-dictate-gui.exe
           if-no-files-found: error
