@@ -22,12 +22,14 @@ jobs:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v1
+        uses: astral-sh/setup-uv@v3
         with:
+          version: '0.4.4'
           enable-cache: true
-          cache-dependency-path: |
-            pyproject.toml
-            uv.lock
+          cache-dependency-glob: |
+            **/uv.lock
+            **/pyproject.toml
+          cache-suffix: windows-py311
 
       - name: Sync project environment
         shell: pwsh
