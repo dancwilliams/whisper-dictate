@@ -304,7 +304,8 @@ class StatusIndicator:
 
         master.bind("<Configure>", self._reposition, add="+")
 
-        for widget in (frame, self.label, self.dot):
+        draggable_widgets = (self.window, frame, self.label, self.dot)
+        for widget in draggable_widgets:
             widget.bind("<ButtonPress-1>", self._begin_drag, add="+")
             widget.bind("<B1-Motion>", self._drag, add="+")
 
