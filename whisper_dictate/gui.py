@@ -286,6 +286,9 @@ class StatusIndicator:
         self.window.attributes("-topmost", True)
         self.window.resizable(False, False)
 
+        self._drag_offset = (0, 0)
+        self._user_placed = False
+
         frame = ttk.Frame(self.window, padding=(8, 6))
         frame.pack()
 
@@ -301,19 +304,24 @@ class StatusIndicator:
 
         master.bind("<Configure>", self._reposition, add="+")
 
+        for widget in (frame, self.label, self.dot):
+            widget.bind("<ButtonPress-1>", self._begin_drag, add="+")
+            widget.bind("<B1-Motion>", self._drag, add="+")
+
     def _reposition(self, event=None):
         if not self.window.winfo_viewable():
             return
         self.window.update_idletasks()
-        screen_w = self.master.winfo_screenwidth()
-        screen_h = self.master.winfo_screenheight()
-        window_w = self.window.winfo_width()
-        window_h = self.window.winfo_height()
-        margin_x = 24
-        margin_y = 48
-        x = screen_w - window_w - margin_x
-        y = screen_h - window_h - margin_y
-        self.window.geometry(f"+{int(x)}+{int(y)}")
+        if not self._user_placed:
+            screen_w = self.master.winfo_screenwidth()
+            screen_h = self.master.winfo_screenheight()
+            window_w = self.window.winfo_width()
+            window_h = self.window.winfo_height()
+            margin_x = 24
+            margin_y = 48
+            x = screen_w - window_w - margin_x
+            y = screen_h - window_h - margin_y
+            self.window.geometry(f"+{int(x)}+{int(y)}")
         self.window.lift()
         self.window.attributes("-topmost", True)
 
@@ -326,6 +334,29 @@ class StatusIndicator:
             self.window.deiconify()
         self.window.update_idletasks()
         self._reposition()
+
+    def _begin_drag(self, event):
+        self.window.update_idletasks()
+        win_x = self.window.winfo_x()
+        win_y = self.window.winfo_y()
+        self._drag_offset = (event.x_root - win_x, event.y_root - win_y)
+
+    def _drag(self, event):
+        self._user_placed = True
+        self.window.update_idletasks()
+        window_w = self.window.winfo_width()
+        window_h = self.window.winfo_height()
+        screen_w = self.master.winfo_screenwidth()
+        screen_h = self.master.winfo_screenheight()
+        new_x = event.x_root - self._drag_offset[0]
+        new_y = event.y_root - self._drag_offset[1]
+        max_x = max(0, screen_w - window_w)
+        max_y = max(0, screen_h - window_h)
+        new_x = min(max(0, new_x), max_x)
+        new_y = min(max(0, new_y), max_y)
+        self.window.geometry(f"+{int(new_x)}+{int(new_y)}")
+        self.window.lift()
+        self.window.attributes("-topmost", True)
 
 
 class App(Tk):
