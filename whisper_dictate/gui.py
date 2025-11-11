@@ -266,7 +266,7 @@ class PromptDialog(Toplevel):
 
 
 class StatusIndicator:
-    """Small floating indicator that reflects the app's status."""
+    """Small floating indicator that reflects the app's status, draggable and always on top."""
 
     COLORS = {
         "idle": "#6c757d",
@@ -286,6 +286,11 @@ class StatusIndicator:
         self.window.attributes("-topmost", True)
         self.window.resizable(False, False)
 
+        # Track drag state and user-chosen position
+        self._dragging = False
+        self._drag_offset = (0, 0)
+        self.user_position = None  # set to (x, y) after user moves the window
+
         frame = ttk.Frame(self.window, padding=(8, 6))
         frame.pack()
 
@@ -299,20 +304,73 @@ class StatusIndicator:
 
         frame.columnconfigure(1, weight=1)
 
+        # Reposition when master changes size or placement
         master.bind("<Configure>", self._reposition, add="+")
+
+        # Bind mouse events to allow dragging from anywhere on the small UI
+        for w in (self.window, frame, self.label, self.dot):
+            w.bind("<ButtonPress-1>", self._start_drag, add="+")
+            w.bind("<B1-Motion>", self._on_drag, add="+")
+            w.bind("<ButtonRelease-1>", self._end_drag, add="+")
+            w.bind("<Double-Button-1>", self._reset_position, add="+")
+
+    def _start_drag(self, event):
+        # Remember how far from the toplevel's origin the click occurred
+        wx = self.window.winfo_x()
+        wy = self.window.winfo_y()
+        self._drag_offset = (event.x_root - wx, event.y_root - wy)
+        self._dragging = True
+
+    def _on_drag(self, event):
+        # Move the window following the pointer
+        if not self._dragging:
+            return
+        x = int(event.x_root - self._drag_offset[0])
+        y = int(event.y_root - self._drag_offset[1])
+
+        # Optional: keep fully on the nearest screen
+        sw = self.master.winfo_screenwidth()
+        sh = self.master.winfo_screenheight()
+        self.window.update_idletasks()
+        ww = self.window.winfo_width()
+        wh = self.window.winfo_height()
+        x = max(0, min(x, sw - ww))
+        y = max(0, min(y, sh - wh))
+
+        self.window.geometry(f"+{x}+{y}")
+        self.window.lift()
+        self.window.attributes("-topmost", True)
+
+        # Remember that the user moved it
+        self.user_position = (x, y)
+
+    def _end_drag(self, event):
+        self._dragging = False
+
+    def _reset_position(self, event=None):
+        # Clear user override and snap back to bottom-right anchor
+        self.user_position = None
+        self._reposition()
 
     def _reposition(self, event=None):
         if not self.window.winfo_viewable():
             return
+
         self.window.update_idletasks()
-        screen_w = self.master.winfo_screenwidth()
-        screen_h = self.master.winfo_screenheight()
-        window_w = self.window.winfo_width()
-        window_h = self.window.winfo_height()
-        margin_x = 24
-        margin_y = 48
-        x = screen_w - window_w - margin_x
-        y = screen_h - window_h - margin_y
+
+        # If user has placed it, respect that unless actively dragging
+        if self.user_position is not None and not self._dragging:
+            x, y = self.user_position
+        else:
+            screen_w = self.master.winfo_screenwidth()
+            screen_h = self.master.winfo_screenheight()
+            window_w = self.window.winfo_width()
+            window_h = self.window.winfo_height()
+            margin_x = 24
+            margin_y = 96
+            x = screen_w - window_w - margin_x
+            y = screen_h - window_h - margin_y
+
         self.window.geometry(f"+{int(x)}+{int(y)}")
         self.window.lift()
         self.window.attributes("-topmost", True)
