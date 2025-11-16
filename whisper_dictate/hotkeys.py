@@ -78,6 +78,8 @@ class HotkeyManager:
         self._hotkey_vk: Optional[int] = None
         self._msg_tid: Optional[int] = None
         self._running = False
+        self._registration_event: Optional[threading.Event] = None
+        self._registration_error: Optional[str] = None
     
     def register(self, hotkey_string: str) -> None:
         """
@@ -109,8 +111,21 @@ class HotkeyManager:
         
         # Start a fresh message pump that registers the hotkey in the same thread
         self._running = True
+        self._registration_event = threading.Event()
+        self._registration_error = None
         self.msg_thread = threading.Thread(target=self._message_pump, daemon=True)
         self.msg_thread.start()
+
+        # Wait for the worker thread to report registration status
+        if not self._registration_event.wait(timeout=1.0):
+            self._running = False
+            raise HotkeyError("Timed out waiting for hotkey registration")
+
+        if self._registration_error:
+            self._running = False
+            if self.msg_thread:
+                self.msg_thread.join(timeout=0.5)
+            raise HotkeyError(self._registration_error)
     
     def unregister(self) -> None:
         """Unregister hotkey and stop message pump."""
@@ -131,10 +146,17 @@ class HotkeyManager:
         
         # Register the hotkey in THIS thread so WM_HOTKEY arrives here
         if not user32.RegisterHotKey(None, TOGGLE_ID, self._hotkey_mods, self._hotkey_vk):
-            # Registration failed - this will be detected by checking if thread is still running
-            # The caller should check registration status
+            # Registration failed; signal the waiting register() call
+            self._registration_error = (
+                "Failed to register hotkey. The combination may already be in use."
+            )
+            if self._registration_event:
+                self._registration_event.set()
             self._running = False
             return
+
+        if self._registration_event:
+            self._registration_event.set()
         
         try:
             msg = ctypes.wintypes.MSG()

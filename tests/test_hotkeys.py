@@ -1,7 +1,10 @@
 """Tests for hotkey parsing and management."""
 
+from types import SimpleNamespace
+
 import pytest
 
+import whisper_dictate.hotkeys as hotkeys
 from whisper_dictate.hotkeys import HotkeyError, HotkeyManager, parse_hotkey_string
 
 
@@ -71,4 +74,22 @@ class TestHotkeyManager:
         manager = HotkeyManager(lambda: None)
         with pytest.raises(HotkeyError):
             manager.register("INVALID")
+
+    def test_hotkey_registration_failure_is_propagated(self, monkeypatch):
+        """Ensure register() raises when the OS refuses the hotkey."""
+
+        manager = HotkeyManager(lambda: None)
+
+        failing_user32 = SimpleNamespace(
+            RegisterHotKey=lambda *_args, **_kwargs: 0,
+            UnregisterHotKey=lambda *_args, **_kwargs: None,
+            GetMessageW=lambda *_args, **_kwargs: 0,
+            TranslateMessage=lambda *_args, **_kwargs: None,
+            DispatchMessageW=lambda *_args, **_kwargs: None,
+        )
+
+        monkeypatch.setattr(hotkeys, "user32", failing_user32)
+
+        with pytest.raises(HotkeyError, match="Failed to register hotkey"):
+            manager.register("CTRL+G")
 
