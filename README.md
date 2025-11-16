@@ -8,12 +8,14 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 
 ## ✨ Features
 
-- **100 % local transcription** — no cloud calls  
+- **100% local transcription** — no cloud calls  
 - **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)  
 - **Global hotkey** for push-to-talk from any application  
 - **Auto-paste** into the focused window (`Ctrl+V`)    
 - **GPU or CPU** execution  
 - **One-command setup** using [`uv`](https://docs.astral.sh/uv/)  
+- **Comprehensive test suite** with coverage reporting
+- **Structured logging** to file and console
 
 ---
 
@@ -25,15 +27,15 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 git clone https://github.com/yourusername/whisper-dictate.git
 cd whisper-dictate
 uv sync
-````
+```
 
-## 🪟 Run (GUI)
+### 2. Run (GUI)
 
 ```powershell
 uv run dictate-gui
 ```
 
-The GUI adds:
+The GUI provides:
 
 * Model/device selection
 * Input-device field
@@ -42,20 +44,20 @@ The GUI adds:
 * Transcript view with timestamped results
 
 Use **Load model**, then **Register hotkey** (e.g., `CTRL+WIN+G`), and press the hotkey anywhere to dictate.
-If “Auto-paste” is enabled, the result pastes automatically into the app you were using.
+If "Auto-paste" is enabled, the result pastes automatically into the app you were using.
 
 ---
 
 ## 🪄 Auto-Paste Behavior
 
-When `--auto-paste` (CLI) or the **Auto-paste** checkbox (GUI) is enabled:
+When the **Auto-paste** checkbox (GUI) is enabled:
 
 1. The final text is copied to the clipboard.
 2. After a short delay (default 0.15 s), `Ctrl + V` is sent to the active window.
 
 If you toggle recording from inside Word, Notion, VS Code, or a chat window, the cleaned text appears directly where your cursor is.
 
-> Tip: Trigger the hotkey, don’t click the GUI button — clicking steals focus and will paste into the GUI itself.
+> Tip: Trigger the hotkey, don't click the GUI button — clicking steals focus and will paste into the GUI itself.
 
 ---
 
@@ -65,11 +67,51 @@ If you toggle recording from inside Word, Notion, VS Code, or a chat window, the
 whisper-dictate/
 │
 ├─ whisper_dictate/
-│   ├─ __init__.py
-│   └─ gui.py         # Tkinter GUI with LLM + auto-paste
+│   ├─ __init__.py           # Package initialization
+│   ├─ config.py             # Configuration defaults and CUDA setup
+│   ├─ prompt.py             # LLM prompt management (load/save)
+│   ├─ audio.py              # Audio recording functionality
+│   ├─ transcription.py      # Whisper transcription logic
+│   ├─ llm_cleanup.py        # LLM text cleanup functionality
+│   ├─ hotkeys.py            # Windows global hotkey management
+│   ├─ gui_components.py     # Reusable GUI components
+│   ├─ logging_config.py     # Centralized logging setup
+│   └─ gui.py                # Main GUI application
+│
+├─ tests/                    # Comprehensive test suite
+│   ├─ test_config.py
+│   ├─ test_prompt.py
+│   ├─ test_hotkeys.py
+│   ├─ test_llm_cleanup.py
+│   ├─ test_transcription.py
+│   └─ test_audio.py
+│
+├─ legacy_cli/               # Legacy CLI implementation (deprecated)
+│   └─ cli.py
+│
+├─ packaging/
+│   └─ pyinstaller/
+│       └─ whisper_dictate_gui.spec  # PyInstaller build spec
 │
 ├─ pyproject.toml
 └─ README.md
+```
+
+---
+
+## 🧪 Testing
+
+Run the test suite with coverage:
+
+```powershell
+uv sync --dev
+uv run pytest
+```
+
+Generate HTML coverage report:
+
+```powershell
+uv run pytest --cov=whisper_dictate --cov-report=html
 ```
 
 ---
@@ -80,7 +122,7 @@ whisper-dictate/
 git clone https://github.com/yourusername/whisper-dictate.git
 cd whisper-dictate
 uv sync
-uv run dictate
+uv run dictate-gui
 ```
 
 If you want to freeze dependency versions for reproducibility:
@@ -92,11 +134,19 @@ uv sync --locked
 
 ---
 
-## Create an EXE
+## 📦 Create an EXE
+
+Build a standalone Windows executable using the PyInstaller spec:
 
 ```powershell
-uv run pyinstaller --collect-all nvidia --noconfirm --clean --onefile --windowed --icon assets\whisper_dictate_gui.ico --name WhisperDictateGUI whisper_dictate/gui.py
+# Using the Makefile (recommended)
+USE_UV=1 make build-exe
+
+# Or directly with PyInstaller
+uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
 ```
+
+The executable will be created in `dist/whisper-dictate-gui/` with all required CUDA DLLs bundled. See [`docs/build.md`](docs/build.md) for detailed build instructions.
 
 ---
 
@@ -109,6 +159,16 @@ uv run pyinstaller --collect-all nvidia --noconfirm --clean --onefile --windowed
 | `int8_float16 not supported` | CPU mode only                   | Use `--compute-type int8`              |
 | Nothing pastes               | GUI has focus                   | Trigger with hotkey from target window |
 | Audio errors                 | Mic blocked by privacy settings | Enable mic access for desktop apps     |
+
+---
+
+## 📝 Logging
+
+Logs are written to both:
+- **Console** (stderr) — for immediate feedback
+- **File** (`~/.whisper_dictate/logs/whisper_dictate.log`) — for debugging
+
+Log levels include DEBUG, INFO, WARNING, and ERROR with timestamps and context.
 
 ---
 
