@@ -86,9 +86,6 @@ whisper-dictate/
 │   ├─ test_transcription.py
 │   └─ test_audio.py
 │
-├─ legacy_cli/               # Legacy CLI implementation (deprecated)
-│   └─ cli.py
-│
 ├─ packaging/
 │   └─ pyinstaller/
 │       └─ whisper_dictate_gui.spec  # PyInstaller build spec
