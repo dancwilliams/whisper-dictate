@@ -17,7 +17,7 @@ from tkinter import Tk, StringVar, BooleanVar, DoubleVar, Text, END, Menu, Tople
 from tkinter import messagebox
 from tkinter import ttk
 
-from whisper_dictate import audio, config, hotkeys, llm_cleanup, prompt, transcription
+from whisper_dictate import audio, config, hotkeys, llm_cleanup, prompt, settings_store, transcription
 from whisper_dictate.config import (
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
@@ -50,6 +50,7 @@ class App(Tk):
         super().__init__()
         self.title("Whisper Dictate + LLM")
         self.geometry("980x680")
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.option_add("*Font", ("Segoe UI", 10))
         style = ttk.Style(self)
@@ -103,6 +104,8 @@ class App(Tk):
         self.var_llm_model = StringVar(value=DEFAULT_LLM_MODEL)
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
         self.var_llm_temp = DoubleVar(value=DEFAULT_LLM_TEMP)
+
+        self._load_settings()
 
         # Controls
         ctrl = ttk.Frame(self, padding=(12, 0, 12, 12))
@@ -246,6 +249,62 @@ class App(Tk):
         if hasattr(self, "indicator"):
             self.indicator.update(state, message)
         logger.info(f"Status: {state} - {message}")
+
+    def _load_settings(self) -> None:
+        """Load saved settings from disk into Tk variables."""
+        saved = settings_store.load_settings()
+        if not saved:
+            return
+
+        def set_if_present(key, var, cast=None):
+            if key not in saved:
+                return
+            value = saved[key]
+            if cast:
+                try:
+                    value = cast(value)
+                except (TypeError, ValueError):
+                    return
+            var.set(value)
+
+        set_if_present("model", self.var_model, str)
+        set_if_present("device", self.var_device, str)
+        set_if_present("compute", self.var_compute, str)
+        set_if_present("input", self.var_input, str)
+        set_if_present("hotkey", self.var_hotkey, str)
+        set_if_present("auto_paste", self.var_auto_paste, bool)
+        set_if_present("paste_delay", self.var_paste_delay, float)
+        set_if_present("llm_enable", self.var_llm_enable, bool)
+        set_if_present("llm_endpoint", self.var_llm_endpoint, str)
+        set_if_present("llm_model", self.var_llm_model, str)
+        set_if_present("llm_key", self.var_llm_key, str)
+        set_if_present("llm_temp", self.var_llm_temp, float)
+
+    def _save_settings(self) -> None:
+        """Persist current settings to disk."""
+        settings = {
+            "model": self.var_model.get().strip(),
+            "device": self.var_device.get().strip(),
+            "compute": config.normalize_compute_type(
+                self.var_device.get().strip(), self.var_compute.get().strip()
+            ),
+            "input": self.var_input.get().strip(),
+            "hotkey": self.var_hotkey.get().strip(),
+            "auto_paste": bool(self.var_auto_paste.get()),
+            "paste_delay": float(self.var_paste_delay.get()),
+            "llm_enable": bool(self.var_llm_enable.get()),
+            "llm_endpoint": self.var_llm_endpoint.get().strip(),
+            "llm_model": self.var_llm_model.get().strip(),
+            "llm_key": self.var_llm_key.get(),
+            "llm_temp": float(self.var_llm_temp.get()),
+        }
+        if not settings_store.save_settings(settings):
+            logger.warning("Could not save settings to disk")
+
+    def _on_close(self) -> None:
+        """Handle window close event by saving settings then destroying."""
+        self._save_settings()
+        self.destroy()
 
     def _open_prompt_dialog(self) -> None:
         """Open prompt editing dialog."""
@@ -441,6 +500,8 @@ def main() -> None:
     try:
         app.mainloop()
     finally:
+        if hasattr(app, "_save_settings"):
+            app._save_settings()
         # Cleanup
         if hasattr(app, "hotkey_manager") and app.hotkey_manager:
             app.hotkey_manager.unregister()
