@@ -52,6 +52,8 @@ class App(Tk):
         self.geometry("980x680")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        self._settings_saved = False
+
         self.option_add("*Font", ("Segoe UI", 10))
         style = ttk.Style(self)
         style.configure("Section.TLabelframe", padding=(12, 10))
@@ -303,8 +305,13 @@ class App(Tk):
 
     def _on_close(self) -> None:
         """Handle window close event by saving settings then destroying."""
-        self._save_settings()
-        self.destroy()
+        try:
+            self._save_settings()
+        except Exception as e:
+            logger.error(f"Failed to save settings on close: {e}", exc_info=True)
+        finally:
+            self._settings_saved = True
+            self.destroy()
 
     def _open_prompt_dialog(self) -> None:
         """Open prompt editing dialog."""
@@ -500,8 +507,9 @@ def main() -> None:
     try:
         app.mainloop()
     finally:
-        if hasattr(app, "_save_settings"):
+        if hasattr(app, "_save_settings") and not getattr(app, "_settings_saved", False):
             app._save_settings()
+            app._settings_saved = True
         # Cleanup
         if hasattr(app, "hotkey_manager") and app.hotkey_manager:
             app.hotkey_manager.unregister()
