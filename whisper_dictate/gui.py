@@ -13,7 +13,7 @@ except ImportError:
 import pyperclip
 import sounddevice as sd
 from faster_whisper import WhisperModel
-from tkinter import Tk, StringVar, BooleanVar, DoubleVar, Text, END, Menu
+from tkinter import Tk, StringVar, BooleanVar, DoubleVar, Text, END, Menu, Toplevel
 from tkinter import messagebox
 from tkinter import ttk
 
@@ -63,6 +63,11 @@ class App(Tk):
         self.model: Optional[WhisperModel] = None
         self.hotkey_manager: Optional[hotkeys.HotkeyManager] = None
 
+        # Secondary windows
+        self._speech_window: Optional[Toplevel] = None
+        self._automation_window: Optional[Toplevel] = None
+        self._llm_window: Optional[Toplevel] = None
+
         self._build_menus()
         self._build_ui()
         self._setup_status_indicator()
@@ -73,23 +78,17 @@ class App(Tk):
         edit_menu = Menu(menubar, tearoff=False)
         edit_menu.add_command(label="Prompt...", command=self._open_prompt_dialog)
         menubar.add_cascade(label="Edit", menu=edit_menu)
+
+        settings_menu = Menu(menubar, tearoff=False)
+        settings_menu.add_command(label="Speech recognition...", command=self._open_speech_settings)
+        settings_menu.add_command(label="LLM cleanup...", command=self._open_llm_settings)
+        settings_menu.add_command(label="Automation...", command=self._open_automation_settings)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+
         self.config(menu=menubar)
 
     def _build_ui(self) -> None:
         """Build the main UI."""
-        # Top config frame
-        config_frame = ttk.Frame(self, padding=(12, 12, 12, 6))
-        config_frame.pack(fill="x")
-
-        whisper_box = ttk.LabelFrame(config_frame, text="Speech recognition", style="Section.TLabelframe")
-        whisper_box.grid(row=0, column=0, sticky="nsew")
-
-        automation_box = ttk.LabelFrame(config_frame, text="Automation", style="Section.TLabelframe")
-        automation_box.grid(row=0, column=1, sticky="nsew", padx=(12, 0))
-
-        config_frame.columnconfigure(0, weight=3)
-        config_frame.columnconfigure(1, weight=2)
-
         # Variables
         self.var_model = StringVar(value=DEFAULT_MODEL)
         self.var_device = StringVar(value=DEFAULT_DEVICE)
@@ -99,71 +98,11 @@ class App(Tk):
         self.var_auto_paste = BooleanVar(value=True)
         self.var_paste_delay = DoubleVar(value=0.15)
 
-        # Whisper config
-        whisper_box.columnconfigure(1, weight=1)
-        self._add_labeled_widget(whisper_box, "Model", 0, ttk.Combobox(
-            whisper_box, textvariable=self.var_model,
-            values=["base.en", "small", "medium", "large-v3"], width=18
-        ))
-        self._add_labeled_widget(whisper_box, "Device", 1, ttk.Combobox(
-            whisper_box, textvariable=self.var_device, values=["cpu", "cuda"], width=10
-        ))
-        self._add_labeled_widget(whisper_box, "Compute", 2, ttk.Combobox(
-            whisper_box, textvariable=self.var_compute,
-            values=["int8", "int8_float32", "float32", "float16", "int8_float16"], width=14
-        ))
-        
-        input_row = ttk.Frame(whisper_box)
-        input_row.grid(row=3, column=1, sticky="we", pady=4)
-        input_row.columnconfigure(0, weight=1)
-        ttk.Label(whisper_box, text="Input device").grid(row=3, column=0, sticky="w", pady=4)
-        ttk.Entry(input_row, textvariable=self.var_input).grid(row=0, column=0, sticky="we")
-        ttk.Button(input_row, text="List…", command=self._show_inputs).grid(row=0, column=1, padx=(8, 0))
-
-        # Automation config
-        ttk.Label(automation_box, text="Toggle hotkey").grid(row=0, column=0, sticky="w")
-        ttk.Entry(automation_box, textvariable=self.var_hotkey, width=16).grid(row=1, column=0, sticky="we", pady=(0, 8))
-        ttk.Checkbutton(
-            automation_box, text="Auto-paste into active window", variable=self.var_auto_paste
-        ).grid(row=2, column=0, sticky="w")
-        
-        paste_row = ttk.Frame(automation_box)
-        paste_row.grid(row=3, column=0, sticky="we", pady=(4, 0))
-        ttk.Label(paste_row, text="Paste delay (s)").pack(side="left")
-        ttk.Spinbox(
-            paste_row, from_=0.0, to=1.0, increment=0.05,
-            textvariable=self.var_paste_delay, width=6
-        ).pack(side="left", padx=(8, 0))
-        automation_box.columnconfigure(0, weight=1)
-
-        # LLM config
-        llm = ttk.LabelFrame(self, text="LLM cleanup", padding=(12, 12), style="Section.TLabelframe")
-        llm.pack(fill="x", padx=12, pady=(0, 12))
-
         self.var_llm_enable = BooleanVar(value=DEFAULT_LLM_ENABLED)
         self.var_llm_endpoint = StringVar(value=DEFAULT_LLM_ENDPOINT)
         self.var_llm_model = StringVar(value=DEFAULT_LLM_MODEL)
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
         self.var_llm_temp = DoubleVar(value=DEFAULT_LLM_TEMP)
-
-        llm.columnconfigure(1, weight=1)
-        ttk.Checkbutton(
-            llm, text="Use LLM cleanup (OpenAI compatible)", variable=self.var_llm_enable
-        ).grid(row=0, column=0, sticky="w", columnspan=2)
-        self._add_labeled_widget(llm, "Endpoint", 1, ttk.Entry(llm, textvariable=self.var_llm_endpoint))
-        self._add_labeled_widget(llm, "Model", 2, ttk.Entry(llm, textvariable=self.var_llm_model))
-        self._add_labeled_widget(
-            llm, "API key (optional)", 3,
-            ttk.Entry(llm, textvariable=self.var_llm_key, show="•")
-        )
-        self._add_labeled_widget(
-            llm, "Temperature", 4,
-            ttk.Spinbox(llm, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6)
-        )
-        ttk.Label(
-            llm, text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
-            wraplength=760, justify="left"
-        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         # Controls
         ctrl = ttk.Frame(self, padding=(12, 0, 12, 12))
@@ -183,6 +122,110 @@ class App(Tk):
         ttk.Label(out, text="Transcript").pack(anchor="w")
         self.txt_out = Text(out, wrap="word")
         self.txt_out.pack(fill="both", expand=True)
+
+    def _open_window(self, window_attr: str, title: str, builder) -> None:
+        """Open or focus a configuration window."""
+        existing = getattr(self, window_attr)
+        if existing and existing.winfo_exists():
+            existing.deiconify()
+            existing.lift()
+            existing.focus_set()
+            return
+
+        window = Toplevel(self)
+        window.title(title)
+        window.resizable(False, False)
+        setattr(self, window_attr, window)
+        window.protocol("WM_DELETE_WINDOW", lambda: self._close_window(window_attr))
+        builder(window)
+
+    def _close_window(self, window_attr: str) -> None:
+        """Close and clear a configuration window reference."""
+        window = getattr(self, window_attr)
+        if window and window.winfo_exists():
+            window.destroy()
+        setattr(self, window_attr, None)
+
+    def _open_speech_settings(self) -> None:
+        """Open speech recognition settings window."""
+
+        def build(window: Toplevel) -> None:
+            frame = ttk.Frame(window, padding=12)
+            frame.pack(fill="both", expand=True)
+            frame.columnconfigure(1, weight=1)
+
+            self._add_labeled_widget(frame, "Model", 0, ttk.Combobox(
+                frame, textvariable=self.var_model,
+                values=["base.en", "small", "medium", "large-v3"], width=18
+            ))
+            self._add_labeled_widget(frame, "Device", 1, ttk.Combobox(
+                frame, textvariable=self.var_device, values=["cpu", "cuda"], width=10
+            ))
+            self._add_labeled_widget(frame, "Compute", 2, ttk.Combobox(
+                frame, textvariable=self.var_compute,
+                values=["int8", "int8_float32", "float32", "float16", "int8_float16"], width=14
+            ))
+
+            input_row = ttk.Frame(frame)
+            input_row.grid(row=3, column=1, sticky="we", pady=4)
+            input_row.columnconfigure(0, weight=1)
+            ttk.Label(frame, text="Input device").grid(row=3, column=0, sticky="w", pady=4)
+            ttk.Entry(input_row, textvariable=self.var_input).grid(row=0, column=0, sticky="we")
+            ttk.Button(input_row, text="List…", command=self._show_inputs).grid(row=0, column=1, padx=(8, 0))
+
+        self._open_window("_speech_window", "Speech recognition", build)
+
+    def _open_automation_settings(self) -> None:
+        """Open automation settings window."""
+
+        def build(window: Toplevel) -> None:
+            frame = ttk.Frame(window, padding=12)
+            frame.pack(fill="both", expand=True)
+            frame.columnconfigure(0, weight=1)
+
+            ttk.Label(frame, text="Toggle hotkey").grid(row=0, column=0, sticky="w")
+            ttk.Entry(frame, textvariable=self.var_hotkey, width=16).grid(row=1, column=0, sticky="we", pady=(0, 8))
+            ttk.Checkbutton(
+                frame, text="Auto-paste into active window", variable=self.var_auto_paste
+            ).grid(row=2, column=0, sticky="w")
+
+            paste_row = ttk.Frame(frame)
+            paste_row.grid(row=3, column=0, sticky="we", pady=(4, 0))
+            ttk.Label(paste_row, text="Paste delay (s)").pack(side="left")
+            ttk.Spinbox(
+                paste_row, from_=0.0, to=1.0, increment=0.05,
+                textvariable=self.var_paste_delay, width=6
+            ).pack(side="left", padx=(8, 0))
+
+        self._open_window("_automation_window", "Automation", build)
+
+    def _open_llm_settings(self) -> None:
+        """Open LLM cleanup settings window."""
+
+        def build(window: Toplevel) -> None:
+            frame = ttk.Frame(window, padding=12)
+            frame.pack(fill="both", expand=True)
+            frame.columnconfigure(1, weight=1)
+
+            ttk.Checkbutton(
+                frame, text="Use LLM cleanup (OpenAI compatible)", variable=self.var_llm_enable
+            ).grid(row=0, column=0, sticky="w", columnspan=2)
+            self._add_labeled_widget(frame, "Endpoint", 1, ttk.Entry(frame, textvariable=self.var_llm_endpoint))
+            self._add_labeled_widget(frame, "Model", 2, ttk.Entry(frame, textvariable=self.var_llm_model))
+            self._add_labeled_widget(
+                frame, "API key (optional)", 3,
+                ttk.Entry(frame, textvariable=self.var_llm_key, show="•")
+            )
+            self._add_labeled_widget(
+                frame, "Temperature", 4,
+                ttk.Spinbox(frame, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6)
+            )
+            ttk.Label(
+                frame, text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
+                wraplength=440, justify="left"
+            ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        self._open_window("_llm_window", "LLM cleanup", build)
 
     def _add_labeled_widget(self, parent: ttk.Frame, label: str, row: int, widget: ttk.Widget) -> None:
         """Helper to add a labeled widget."""
