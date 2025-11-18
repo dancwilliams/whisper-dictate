@@ -5,7 +5,7 @@ from typing import Optional
 
 from whisper_dictate.config import DEFAULT_LLM_PROMPT
 
-PROMPT_FILE = Path.home() / ".whisper_dictate_prompt.txt"
+PROMPT_FILE = Path.home() / ".whisper_dictate/whisper_dictate_prompt.txt"
 
 
 def load_saved_prompt(default: str = DEFAULT_LLM_PROMPT) -> str:

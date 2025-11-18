@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-SETTINGS_FILE = Path.home() / ".whisper_dictate_settings.json"
+SETTINGS_FILE = Path.home() / ".whisper_dictate/whisper_dictate_settings.json"
 
 
 def load_settings() -> Dict[str, Any]:
