@@ -57,9 +57,9 @@ def load_model(
     
     Args:
         model_name: Model name (e.g., "small", "medium", "large-v3")
-        device: Device ("cpu" or "cuda")
+        device: Device ("cpu", "cuda", or "mps")
         compute_type: Compute type (will be normalized based on device)
-        
+
     Returns:
         Loaded WhisperModel instance
     """

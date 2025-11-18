@@ -5,6 +5,11 @@ import sys
 from pathlib import Path
 from typing import Literal
 
+try:  # Optional dependency for device detection
+    import torch
+except Exception:  # pragma: no cover - torch may not be installed in some environments
+    torch = None
+
 # Audio defaults
 SAMPLE_RATE = 16000
 INPUT_CHANNELS = 1
@@ -12,8 +17,26 @@ CHUNK_MS = 50
 
 # Whisper defaults
 DEFAULT_MODEL = "small"  # whisper model: base.en, small, medium, large-v3
-DEFAULT_DEVICE: Literal["cpu", "cuda"] = "cuda"  # cpu or cuda
+DEFAULT_DEVICE: Literal["cpu", "cuda", "mps"] = "cpu"  # set below based on availability
 DEFAULT_COMPUTE = "float16"  # good default; GUI will coerce based on device
+
+
+def _select_default_device() -> Literal["cpu", "cuda", "mps"]:
+    """Choose the best available device for the host."""
+
+    if torch is None:
+        return "cpu"
+
+    if torch.cuda.is_available():
+        return "cuda"
+
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
+
+    return "cpu"
+
+
+DEFAULT_DEVICE = _select_default_device()
 
 # LLM defaults
 DEFAULT_LLM_ENABLED = True
@@ -90,7 +113,12 @@ def normalize_compute_type(device: str, compute_type: str) -> str:
     ct = compute_type
     if device == "cpu" and "float16" in ct:
         ct = "int8"
-    if device == "cuda" and ct in ("int8", "int8_float32", "float32"):
+    elif device == "cuda" and ct in ("int8", "int8_float32", "float32"):
         ct = "float16"
+    elif device == "mps":
+        if "int8" in ct:
+            ct = "float16"
+        elif ct == "float32":
+            ct = "float16"
     return ct
 

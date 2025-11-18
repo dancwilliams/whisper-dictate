@@ -164,7 +164,7 @@ class App(Tk):
                 values=["base.en", "small", "medium", "large-v3"], width=18
             ))
             self._add_labeled_widget(frame, "Device", 1, ttk.Combobox(
-                frame, textvariable=self.var_device, values=["cpu", "cuda"], width=10
+                frame, textvariable=self.var_device, values=["cpu", "cuda", "mps"], width=10
             ))
             self._add_labeled_widget(frame, "Compute", 2, ttk.Combobox(
                 frame, textvariable=self.var_compute,
