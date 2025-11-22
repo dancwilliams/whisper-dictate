@@ -8,12 +8,16 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 
 ## ✨ Features
 
-- **100% local transcription** — no cloud calls  
-- **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)  
-- **Global hotkey** for push-to-talk from any application  
-- **Auto-paste** into the focused window (`Ctrl+V`)    
-- **GPU or CPU** execution  
-- **One-command setup** using [`uv`](https://docs.astral.sh/uv/)  
+- **100% local transcription** — no cloud calls
+- **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)
+- **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate_prompt.txt`
+- **Saves your settings** (model, device, hotkey, LLM config, paste delay) to `~/.whisper_dictate/whisper_dictate_settings.json`
+- **Global hotkey** for push-to-talk from any application
+- **Auto-paste** into the focused window (`Ctrl+V`), with a configurable delay
+- **Fetch available LLM models** from your endpoint directly inside the LLM settings window
+- **Floating status indicator** that mirrors the app state (idle, listening, cleaning, etc.)
+- **GPU or CPU** execution
+- **One-command setup** using [`uv`](https://docs.astral.sh/uv/)
 - **Comprehensive test suite** with coverage reporting
 - **Structured logging** to file and console
 
@@ -46,6 +50,14 @@ The GUI provides:
 Use **Load model**, then **Register hotkey** (e.g., `CTRL+WIN+G`), and press the hotkey anywhere to dictate.
 If "Auto-paste" is enabled, the result pastes automatically into the app you were using.
 
+### 3. Configure (optional)
+
+- **Edit → Prompt…** to customize the cleanup prompt (persisted to `~/.whisper_dictate_prompt.txt`).
+- **Settings → Speech recognition…** to pick model/device, compute type, and input device (use **List…** to view inputs).
+- **Settings → Automation…** to set the global hotkey, enable auto-paste, and tune the paste delay.
+- **Settings → LLM cleanup…** to toggle cleanup, set endpoint/model/API key, refresh available models, and adjust temperature.
+  All settings are saved to `~/.whisper_dictate/whisper_dictate_settings.json` when you close the app.
+
 ---
 
 ## 🪄 Auto-Paste Behavior
@@ -76,6 +88,7 @@ whisper-dictate/
 │   ├─ hotkeys.py            # Windows global hotkey management
 │   ├─ gui_components.py     # Reusable GUI components
 │   ├─ logging_config.py     # Centralized logging setup
+│   ├─ settings_store.py     # Persistent settings load/save helpers
 │   └─ gui.py                # Main GUI application
 │
 ├─ tests/                    # Comprehensive test suite
