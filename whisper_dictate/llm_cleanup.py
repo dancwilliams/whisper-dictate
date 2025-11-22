@@ -46,6 +46,7 @@ def clean_with_llm(
     api_key: Optional[str],
     prompt: str,
     temperature: float,
+    prompt_context: Optional[str] = None,
     timeout: float = 15.0,
 ) -> Optional[str]:
     """
@@ -57,6 +58,7 @@ def clean_with_llm(
         model: Model name to use
         api_key: API key (optional, can be None)
         prompt: System prompt for the LLM
+        prompt_context: Optional runtime context to append to the prompt
         temperature: Temperature for generation
         timeout: Request timeout in seconds
         
@@ -71,13 +73,19 @@ def clean_with_llm(
     
     if OpenAI is None:
         raise LLMCleanupError("OpenAI client not installed. Run: uv add openai")
-    
+
+    system_prompt = prompt.rstrip()
+    if prompt_context:
+        system_prompt = (
+            f"{system_prompt}\n\nContext about the active application:\n{prompt_context}"
+        )
+
     try:
         client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key")
         resp = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": prompt},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": raw_text},
             ],
             temperature=temperature,

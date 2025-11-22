@@ -17,7 +17,16 @@ from tkinter import Tk, StringVar, BooleanVar, DoubleVar, Text, END, Menu, Tople
 from tkinter import messagebox
 from tkinter import ttk
 
-from whisper_dictate import audio, config, hotkeys, llm_cleanup, prompt, settings_store, transcription
+from whisper_dictate import (
+    app_context,
+    audio,
+    config,
+    hotkeys,
+    llm_cleanup,
+    prompt,
+    settings_store,
+    transcription,
+)
 from whisper_dictate.config import (
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
@@ -498,6 +507,10 @@ class App(Tk):
             self._set_status("warning", "No audio captured")
             return
 
+        prompt_context = app_context.format_context_for_prompt(
+            app_context.get_active_context()
+        )
+
         try:
             text = transcription.transcribe_audio(self.model, audio_data)
         except transcription.TranscriptionError as e:
@@ -525,6 +538,7 @@ class App(Tk):
                     api_key=self.var_llm_key.get().strip() or None,
                     prompt=self.prompt_content or DEFAULT_LLM_PROMPT,
                     temperature=float(self.var_llm_temp.get()),
+                    prompt_context=prompt_context,
                 )
                 if cleaned:
                     final_text = cleaned
