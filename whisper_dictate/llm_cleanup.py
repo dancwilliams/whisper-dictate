@@ -12,6 +12,33 @@ class LLMCleanupError(Exception):
     """Raised when LLM cleanup fails."""
 
 
+def list_llm_models(endpoint: str, api_key: Optional[str], timeout: float = 10.0) -> list[str]:
+    """
+    Retrieve available models from an OpenAI-compatible endpoint.
+
+    Args:
+        endpoint: Base URL for the API
+        api_key: API key (optional, can be None)
+        timeout: Request timeout in seconds
+
+    Returns:
+        A list of model identifiers (may be empty)
+
+    Raises:
+        LLMCleanupError: If the client is unavailable or listing fails
+    """
+    if OpenAI is None:
+        raise LLMCleanupError("OpenAI client not installed. Run: uv add openai")
+
+    try:
+        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key")
+        response = client.models.list(timeout=timeout)
+        models = [m.id for m in getattr(response, "data", []) if getattr(m, "id", None)]
+        return sorted(set(models))
+    except Exception as e:
+        raise LLMCleanupError(f"Could not list models: {e}") from e
+
+
 def clean_with_llm(
     raw_text: str,
     endpoint: str,

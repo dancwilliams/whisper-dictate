@@ -65,6 +65,9 @@ class App(Tk):
         # Model and hotkey manager
         self.model: Optional[WhisperModel] = None
         self.hotkey_manager: Optional[hotkeys.HotkeyManager] = None
+        self.llm_models: list[str] = []
+        self.cmb_llm_model: Optional[ttk.Combobox] = None
+        self.btn_llm_refresh: Optional[ttk.Button] = None
 
         # Secondary windows
         self._speech_window: Optional[Toplevel] = None
@@ -150,6 +153,9 @@ class App(Tk):
         if window and window.winfo_exists():
             window.destroy()
         setattr(self, window_attr, None)
+        if window_attr == "_llm_window":
+            self.cmb_llm_model = None
+            self.btn_llm_refresh = None
 
     def _open_speech_settings(self) -> None:
         """Open speech recognition settings window."""
@@ -216,7 +222,16 @@ class App(Tk):
                 frame, text="Use LLM cleanup (OpenAI compatible)", variable=self.var_llm_enable
             ).grid(row=0, column=0, sticky="w", columnspan=2)
             self._add_labeled_widget(frame, "Endpoint", 1, ttk.Entry(frame, textvariable=self.var_llm_endpoint))
-            self._add_labeled_widget(frame, "Model", 2, ttk.Entry(frame, textvariable=self.var_llm_model))
+            ttk.Label(frame, text="Model").grid(row=2, column=0, sticky="w", pady=4)
+            model_row = ttk.Frame(frame)
+            model_row.grid(row=2, column=1, sticky="we", pady=4, padx=(12, 0))
+            model_row.columnconfigure(0, weight=1)
+            self.cmb_llm_model = ttk.Combobox(
+                model_row, textvariable=self.var_llm_model, values=self.llm_models
+            )
+            self.cmb_llm_model.grid(row=0, column=0, sticky="we")
+            self.btn_llm_refresh = ttk.Button(model_row, text="Refresh", command=self._refresh_llm_models)
+            self.btn_llm_refresh.grid(row=0, column=1, padx=(8, 0))
             self._add_labeled_widget(
                 frame, "API key (optional)", 3,
                 ttk.Entry(frame, textvariable=self.var_llm_key, show="•")
@@ -231,6 +246,50 @@ class App(Tk):
             ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         self._open_window("_llm_window", "LLM cleanup", build)
+
+    def _refresh_llm_models(self) -> None:
+        """Fetch available LLM models from the configured endpoint."""
+        endpoint = self.var_llm_endpoint.get().strip()
+        api_key = self.var_llm_key.get().strip() or None
+
+        if not endpoint:
+            messagebox.showerror("LLM models", "Enter an endpoint before fetching models.")
+            return
+
+        if self.btn_llm_refresh:
+            self.btn_llm_refresh.config(state="disabled")
+
+        def worker() -> None:
+            self._set_status("processing", "Fetching LLM models...")
+            try:
+                models = llm_cleanup.list_llm_models(endpoint, api_key)
+            except llm_cleanup.LLMCleanupError as e:
+                def on_error() -> None:
+                    if self.btn_llm_refresh:
+                        self.btn_llm_refresh.config(state="normal")
+                    self._set_status("warning", "LLM model fetch failed")
+                    messagebox.showerror("LLM models", str(e))
+
+                self.after(0, on_error)
+                return
+
+            def on_success() -> None:
+                if self.btn_llm_refresh:
+                    self.btn_llm_refresh.config(state="normal")
+                self.llm_models = models
+                if self.cmb_llm_model:
+                    self.cmb_llm_model.config(values=self.llm_models)
+                if self.llm_models and self.var_llm_model.get().strip() not in self.llm_models:
+                    self.var_llm_model.set(self.llm_models[0])
+                if self.llm_models:
+                    self._set_status("ready", "LLM models updated")
+                else:
+                    self._set_status("warning", "No models returned")
+                    messagebox.showinfo("LLM models", "No models returned by the endpoint.")
+
+            self.after(0, on_success)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _add_labeled_widget(self, parent: ttk.Frame, label: str, row: int, widget: ttk.Widget) -> None:
         """Helper to add a labeled widget."""
