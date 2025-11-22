@@ -50,6 +50,7 @@ def clean_with_llm(
     api_key: Optional[str],
     prompt: str,
     temperature: float,
+    glossary: Optional[str] = None,
     prompt_context: Optional[str] = None,
     debug_logging: bool = False,
     timeout: float = 15.0,
@@ -63,6 +64,7 @@ def clean_with_llm(
         model: Model name to use
         api_key: API key (optional, can be None)
         prompt: System prompt for the LLM
+        glossary: Optional glossary text prepended to the prompt
         prompt_context: Optional runtime context to append to the prompt
         debug_logging: When True, log the full prompt payload before sending
         temperature: Temperature for generation
@@ -80,7 +82,10 @@ def clean_with_llm(
     if OpenAI is None:
         raise LLMCleanupError("OpenAI client not installed. Run: uv add openai")
 
+    glossary_text = (glossary or "").strip()
     system_prompt = prompt.rstrip()
+    if glossary_text:
+        system_prompt = f"Glossary entries (prioritized):\n{glossary_text}\n\n{system_prompt}"
     if prompt_context:
         system_prompt = (
             f"{system_prompt}\n\nContext about the active application:\n{prompt_context}"
