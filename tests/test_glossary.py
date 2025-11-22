@@ -3,11 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from whisper_dictate.glossary import (
-    GLOSSARY_FILE,
-    load_saved_glossary,
-    write_saved_glossary,
-)
+from whisper_dictate.glossary import load_saved_glossary, write_saved_glossary
 
 
 class TestGlossary:
@@ -37,7 +33,7 @@ class TestGlossary:
         test_file = tmp_path / "whisper_dictate_glossary.txt"
 
         with patch("whisper_dictate.glossary.GLOSSARY_FILE", test_file):
-            assert write_saved_glossary("entry", path=None) is True
+            assert write_saved_glossary("entry") is True
             assert test_file.read_text(encoding="utf-8") == "entry"
 
     def test_write_saved_glossary_failure(self):

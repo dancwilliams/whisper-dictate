@@ -2,7 +2,6 @@
 
 import threading
 import time
-from pathlib import Path
 from typing import Optional
 
 try:
@@ -125,7 +124,6 @@ class App(Tk):
         self.var_llm_temp = DoubleVar(value=DEFAULT_LLM_TEMP)
         self.var_llm_debug = BooleanVar(value=DEFAULT_LLM_DEBUG)
         self.var_glossary_enable = BooleanVar(value=True)
-        self.var_glossary_path = StringVar(value=str(glossary.GLOSSARY_FILE))
 
         self._load_settings()
         self._refresh_glossary_cache()
@@ -264,19 +262,16 @@ class App(Tk):
             ttk.Checkbutton(
                 frame, text="Use glossary before prompt", variable=self.var_glossary_enable
             ).grid(row=6, column=0, columnspan=2, sticky="w")
-            self._add_labeled_widget(
-                frame, "Glossary file", 7, ttk.Entry(frame, textvariable=self.var_glossary_path)
-            )
             ttk.Label(
                 frame, text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
                 wraplength=440, justify="left"
-            ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(8, 0))
             ttk.Label(
                 frame,
-                text=f"Glossary saved to {self.var_glossary_path.get()} (Edit → Glossary…)",
+                text=f"Glossary saved to {glossary.GLOSSARY_FILE} (Edit → Glossary…)",
                 wraplength=440,
                 justify="left",
-            ).grid(row=9, column=0, columnspan=2, sticky="w")
+            ).grid(row=8, column=0, columnspan=2, sticky="w")
 
         self._open_window("_llm_window", "LLM cleanup", build)
 
@@ -344,16 +339,9 @@ class App(Tk):
             self.indicator.update(state, message)
         logger.info(f"Status: {state} - {message}")
 
-    def _get_glossary_path(self) -> Path:
-        """Return the configured glossary path, expanding user directories."""
-        path_str = self.var_glossary_path.get().strip()
-        return Path(path_str).expanduser() if path_str else glossary.GLOSSARY_FILE
-
     def _refresh_glossary_cache(self) -> None:
-        """Load glossary content from disk according to the configured path."""
-        self.glossary_content = glossary.load_saved_glossary(
-            path=self._get_glossary_path()
-        )
+        """Load glossary content from disk."""
+        self.glossary_content = glossary.load_saved_glossary()
 
     def _load_settings(self) -> None:
         """Load saved settings from disk into Tk variables."""
@@ -386,7 +374,6 @@ class App(Tk):
         set_if_present("llm_temp", self.var_llm_temp, float)
         set_if_present("llm_debug", self.var_llm_debug, bool)
         set_if_present("glossary_enable", self.var_glossary_enable, bool)
-        set_if_present("glossary_path", self.var_glossary_path, str)
 
     def _save_settings(self) -> None:
         """Persist current settings to disk."""
@@ -407,7 +394,6 @@ class App(Tk):
             "llm_temp": float(self.var_llm_temp.get()),
             "llm_debug": bool(self.var_llm_debug.get()),
             "glossary_enable": bool(self.var_glossary_enable.get()),
-            "glossary_path": self.var_glossary_path.get().strip(),
         }
         if not settings_store.save_settings(settings):
             logger.warning("Could not save settings to disk")
@@ -438,18 +424,16 @@ class App(Tk):
 
     def _open_glossary_dialog(self) -> None:
         """Open glossary editing dialog."""
-        path = self._get_glossary_path()
-        current = glossary.load_saved_glossary(path=path)
+        current = glossary.load_saved_glossary()
         dialog = PromptDialog(self, current)
         dialog.title("Edit Glossary")
         self.wait_window(dialog)
         if dialog.result is not None:
-            if glossary.write_saved_glossary(dialog.result, path=path):
+            if glossary.write_saved_glossary(dialog.result):
                 self.glossary_content = dialog.result
-                self.var_glossary_path.set(str(path))
                 self._set_status("ready", "Glossary updated")
             else:
-                messagebox.showerror("Glossary", f"Could not save glossary to {path}")
+                messagebox.showerror("Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}")
 
     def _show_inputs(self) -> None:
         """Show available audio input devices."""
