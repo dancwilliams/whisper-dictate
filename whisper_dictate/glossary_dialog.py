@@ -189,7 +189,8 @@ class GlossaryRuleDialog(Toplevel):
         self.var_match_type = StringVar(value=rule.match_type if rule else "phrase")
         self.var_case_sensitive = BooleanVar(value=rule.case_sensitive if rule else False)
         self.var_word_boundary = BooleanVar(value=rule.word_boundary if rule else True)
-        self.var_description = StringVar(value=rule.description or "")
+        # Description can be missing when creating a new rule
+        self.var_description = StringVar(value=rule.description if rule and rule.description else "")
 
         frame = ttk.Frame(self, padding=12)
         frame.grid(row=0, column=0, sticky="nsew")
