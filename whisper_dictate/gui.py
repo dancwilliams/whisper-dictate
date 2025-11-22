@@ -17,7 +17,16 @@ from tkinter import Tk, StringVar, BooleanVar, DoubleVar, Text, END, Menu, Tople
 from tkinter import messagebox
 from tkinter import ttk
 
-from whisper_dictate import audio, config, hotkeys, llm_cleanup, prompt, settings_store, transcription
+from whisper_dictate import (
+    app_context,
+    audio,
+    config,
+    hotkeys,
+    llm_cleanup,
+    prompt,
+    settings_store,
+    transcription,
+)
 from whisper_dictate.config import (
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
@@ -27,6 +36,7 @@ from whisper_dictate.config import (
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_PROMPT,
     DEFAULT_LLM_TEMP,
+    DEFAULT_LLM_DEBUG,
     DEFAULT_MODEL,
     set_cuda_paths,
 )
@@ -109,6 +119,7 @@ class App(Tk):
         self.var_llm_model = StringVar(value=DEFAULT_LLM_MODEL)
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
         self.var_llm_temp = DoubleVar(value=DEFAULT_LLM_TEMP)
+        self.var_llm_debug = BooleanVar(value=DEFAULT_LLM_DEBUG)
 
         self._load_settings()
 
@@ -240,10 +251,13 @@ class App(Tk):
                 frame, "Temperature", 4,
                 ttk.Spinbox(frame, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6)
             )
+            ttk.Checkbutton(
+                frame, text="Log full LLM prompts for debugging", variable=self.var_llm_debug
+            ).grid(row=5, column=0, columnspan=2, sticky="w")
             ttk.Label(
                 frame, text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
                 wraplength=440, justify="left"
-            ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         self._open_window("_llm_window", "LLM cleanup", build)
 
@@ -340,6 +354,7 @@ class App(Tk):
         set_if_present("llm_model", self.var_llm_model, str)
         set_if_present("llm_key", self.var_llm_key, str)
         set_if_present("llm_temp", self.var_llm_temp, float)
+        set_if_present("llm_debug", self.var_llm_debug, bool)
 
     def _save_settings(self) -> None:
         """Persist current settings to disk."""
@@ -358,6 +373,7 @@ class App(Tk):
             "llm_model": self.var_llm_model.get().strip(),
             "llm_key": self.var_llm_key.get(),
             "llm_temp": float(self.var_llm_temp.get()),
+            "llm_debug": bool(self.var_llm_debug.get()),
         }
         if not settings_store.save_settings(settings):
             logger.warning("Could not save settings to disk")
@@ -498,6 +514,10 @@ class App(Tk):
             self._set_status("warning", "No audio captured")
             return
 
+        prompt_context = app_context.format_context_for_prompt(
+            app_context.get_active_context()
+        )
+
         try:
             text = transcription.transcribe_audio(self.model, audio_data)
         except transcription.TranscriptionError as e:
@@ -525,6 +545,8 @@ class App(Tk):
                     api_key=self.var_llm_key.get().strip() or None,
                     prompt=self.prompt_content or DEFAULT_LLM_PROMPT,
                     temperature=float(self.var_llm_temp.get()),
+                    prompt_context=prompt_context,
+                    debug_logging=bool(self.var_llm_debug.get()),
                 )
                 if cleaned:
                     final_text = cleaned

@@ -21,6 +21,7 @@ DEFAULT_LLM_ENDPOINT = "http://localhost:1234/v1"  # LM Studio default
 DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"
 DEFAULT_LLM_KEY = ""  # LM Studio usually does not require a key
 DEFAULT_LLM_TEMP = 0.1
+DEFAULT_LLM_DEBUG = False
 
 # Default LLM prompt
 DEFAULT_LLM_PROMPT = '''
