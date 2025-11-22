@@ -12,7 +12,8 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 - **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)
 - **Glossary injection** to enforce product names, jargon, or key phrases during normalization and LLM cleanup
 - **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate_prompt.txt`
-- **Glossary editor** (Edit → Glossary…) with your entries saved to `~/.whisper_dictate/whisper_dictate_glossary.json`
+- **Glossary editor** (Edit → Glossary…) with add/edit/delete controls, CSV import/export, and entries saved to
+  `~/.whisper_dictate/whisper_dictate_glossary.json`
 - **Saves your settings** (model, device, hotkey, LLM config, paste delay) to `~/.whisper_dictate/whisper_dictate_settings.json`
 - **Global hotkey** for push-to-talk from any application
 - **Auto-paste** into the focused window (`Ctrl+V`), with a configurable delay
@@ -82,6 +83,9 @@ If you toggle recording from inside Word, Notion, VS Code, or a chat window, the
 Use the glossary to keep acronyms, brand names, or domain-specific terms intact during normalization and LLM cleanup:
 
 - Open **Edit → Glossary…** and add entries as trigger/replacement pairs using the glossary manager.
+- Each rule supports **Match** (word, phrase, regex), **Case sensitive**, and **Whole words only** to fine-tune how
+  replacements are applied. Use **Add**, **Edit**, or **Delete** to maintain the list, or **Import CSV** / **Export CSV** to
+  bulk-manage rules. An optional description can remind you why a term matters.
 - Entries are saved to `~/.whisper_dictate/whisper_dictate_glossary.json` and loaded automatically on startup.
 - In **Settings → LLM cleanup…**, enable **Use glossary before prompt** to apply the glossary to transcripts and prepend the
   rules to the LLM system prompt so it takes priority over the general cleanup prompt.
