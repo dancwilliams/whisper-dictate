@@ -5,6 +5,7 @@ __version__ = "0.1.0"
 __all__ = [
     "audio",
     "config",
+    "glossary",
     "hotkeys",
     "llm_cleanup",
     "prompt",

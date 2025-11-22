@@ -49,7 +49,7 @@ class TestLLMCleanup:
         """Test handling of API errors."""
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = Exception("API error")
-        
+
         with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
             with pytest.raises(LLMCleanupError, match="LLM cleanup failed"):
                 clean_with_llm("text", "http://test", "model", None, "prompt", 0.1)
@@ -60,8 +60,34 @@ class TestLLMCleanup:
         mock_response = MagicMock()
         mock_response.choices = []
         mock_client.chat.completions.create.return_value = mock_response
-        
+
         with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
             result = clean_with_llm("text", "http://test", "model", None, "prompt", 0.1)
             assert result is None
+
+    def test_clean_with_llm_includes_glossary(self):
+        """Ensure glossary text is prepended to the system prompt when provided."""
+        glossary_text = "AppName = Whisper Dictate"
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Cleaned text"
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
+            clean_with_llm(
+                "raw text",
+                "http://test",
+                "model",
+                None,
+                "system prompt",
+                0.1,
+                glossary=glossary_text,
+                prompt_context=None,
+            )
+
+        messages = mock_client.chat.completions.create.call_args[1]["messages"]
+        assert messages[0]["role"] == "system"
+        assert glossary_text in messages[0]["content"]
+        assert messages[0]["content"].startswith("Glossary entries (prioritized):")
 

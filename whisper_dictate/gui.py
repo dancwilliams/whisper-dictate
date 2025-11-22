@@ -2,6 +2,7 @@
 
 import threading
 import time
+from pathlib import Path
 from typing import Optional
 
 try:
@@ -21,6 +22,7 @@ from whisper_dictate import (
     app_context,
     audio,
     config,
+    glossary,
     hotkeys,
     llm_cleanup,
     prompt,
@@ -71,6 +73,7 @@ class App(Tk):
 
         # Load saved prompt
         self.prompt_content = prompt.load_saved_prompt()
+        self.glossary_content = ""
 
         # Model and hotkey manager
         self.model: Optional[WhisperModel] = None
@@ -93,6 +96,7 @@ class App(Tk):
         menubar = Menu(self)
         edit_menu = Menu(menubar, tearoff=False)
         edit_menu.add_command(label="Prompt...", command=self._open_prompt_dialog)
+        edit_menu.add_command(label="Glossary...", command=self._open_glossary_dialog)
         menubar.add_cascade(label="Edit", menu=edit_menu)
 
         settings_menu = Menu(menubar, tearoff=False)
@@ -120,8 +124,11 @@ class App(Tk):
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
         self.var_llm_temp = DoubleVar(value=DEFAULT_LLM_TEMP)
         self.var_llm_debug = BooleanVar(value=DEFAULT_LLM_DEBUG)
+        self.var_glossary_enable = BooleanVar(value=True)
+        self.var_glossary_path = StringVar(value=str(glossary.GLOSSARY_FILE))
 
         self._load_settings()
+        self._refresh_glossary_cache()
 
         # Controls
         ctrl = ttk.Frame(self, padding=(12, 0, 12, 12))
@@ -254,10 +261,22 @@ class App(Tk):
             ttk.Checkbutton(
                 frame, text="Log full LLM prompts for debugging", variable=self.var_llm_debug
             ).grid(row=5, column=0, columnspan=2, sticky="w")
+            ttk.Checkbutton(
+                frame, text="Use glossary before prompt", variable=self.var_glossary_enable
+            ).grid(row=6, column=0, columnspan=2, sticky="w")
+            self._add_labeled_widget(
+                frame, "Glossary file", 7, ttk.Entry(frame, textvariable=self.var_glossary_path)
+            )
             ttk.Label(
                 frame, text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
                 wraplength=440, justify="left"
-            ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ttk.Label(
+                frame,
+                text=f"Glossary saved to {self.var_glossary_path.get()} (Edit → Glossary…)",
+                wraplength=440,
+                justify="left",
+            ).grid(row=9, column=0, columnspan=2, sticky="w")
 
         self._open_window("_llm_window", "LLM cleanup", build)
 
@@ -325,6 +344,17 @@ class App(Tk):
             self.indicator.update(state, message)
         logger.info(f"Status: {state} - {message}")
 
+    def _get_glossary_path(self) -> Path:
+        """Return the configured glossary path, expanding user directories."""
+        path_str = self.var_glossary_path.get().strip()
+        return Path(path_str).expanduser() if path_str else glossary.GLOSSARY_FILE
+
+    def _refresh_glossary_cache(self) -> None:
+        """Load glossary content from disk according to the configured path."""
+        self.glossary_content = glossary.load_saved_glossary(
+            path=self._get_glossary_path()
+        )
+
     def _load_settings(self) -> None:
         """Load saved settings from disk into Tk variables."""
         saved = settings_store.load_settings()
@@ -355,6 +385,8 @@ class App(Tk):
         set_if_present("llm_key", self.var_llm_key, str)
         set_if_present("llm_temp", self.var_llm_temp, float)
         set_if_present("llm_debug", self.var_llm_debug, bool)
+        set_if_present("glossary_enable", self.var_glossary_enable, bool)
+        set_if_present("glossary_path", self.var_glossary_path, str)
 
     def _save_settings(self) -> None:
         """Persist current settings to disk."""
@@ -374,6 +406,8 @@ class App(Tk):
             "llm_key": self.var_llm_key.get(),
             "llm_temp": float(self.var_llm_temp.get()),
             "llm_debug": bool(self.var_llm_debug.get()),
+            "glossary_enable": bool(self.var_glossary_enable.get()),
+            "glossary_path": self.var_glossary_path.get().strip(),
         }
         if not settings_store.save_settings(settings):
             logger.warning("Could not save settings to disk")
@@ -401,6 +435,21 @@ class App(Tk):
                 self._set_status("ready", "Prompt updated")
             else:
                 messagebox.showerror("Prompt", f"Could not save prompt to {prompt.PROMPT_FILE}")
+
+    def _open_glossary_dialog(self) -> None:
+        """Open glossary editing dialog."""
+        path = self._get_glossary_path()
+        current = glossary.load_saved_glossary(path=path)
+        dialog = PromptDialog(self, current)
+        dialog.title("Edit Glossary")
+        self.wait_window(dialog)
+        if dialog.result is not None:
+            if glossary.write_saved_glossary(dialog.result, path=path):
+                self.glossary_content = dialog.result
+                self.var_glossary_path.set(str(path))
+                self._set_status("ready", "Glossary updated")
+            else:
+                messagebox.showerror("Glossary", f"Could not save glossary to {path}")
 
     def _show_inputs(self) -> None:
         """Show available audio input devices."""
@@ -531,11 +580,12 @@ class App(Tk):
             return
 
         final_text = text
-        
+
         # Optionally clean with LLM
-        if (self.var_llm_enable.get() and 
-            self.var_llm_endpoint.get().strip() and 
+        if (self.var_llm_enable.get() and
+            self.var_llm_endpoint.get().strip() and
             self.var_llm_model.get().strip()):
+            self._refresh_glossary_cache()
             self._set_status("processing", "Cleaning with LLM...")
             try:
                 cleaned = llm_cleanup.clean_with_llm(
@@ -544,6 +594,7 @@ class App(Tk):
                     model=self.var_llm_model.get().strip(),
                     api_key=self.var_llm_key.get().strip() or None,
                     prompt=self.prompt_content or DEFAULT_LLM_PROMPT,
+                    glossary=self.glossary_content if self.var_glossary_enable.get() else None,
                     temperature=float(self.var_llm_temp.get()),
                     prompt_context=prompt_context,
                     debug_logging=bool(self.var_llm_debug.get()),
