@@ -2,6 +2,8 @@
 
 import logging
 
+import logging
+
 from whisper_dictate import llm_cleanup
 
 
