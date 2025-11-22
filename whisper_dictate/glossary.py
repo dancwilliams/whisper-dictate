@@ -87,11 +87,13 @@ class GlossaryManager:
     # Loading / saving
     # ------------------------------------------------------------------
     @classmethod
-    def load(cls, path: Path = GLOSSARY_FILE) -> "GlossaryManager":
+    def load(cls, path: Path | None = None) -> "GlossaryManager":
         """Load glossary rules from disk.
 
         JSON is preferred, but we also parse legacy "trigger => replacement" text.
         """
+
+        path = path or GLOSSARY_FILE
 
         if not path.is_file():
             return cls()
@@ -117,8 +119,10 @@ class GlossaryManager:
         # Fallback to legacy text format
         return cls(_parse_legacy_rules(content))
 
-    def save(self, path: Path = GLOSSARY_FILE) -> bool:
+    def save(self, path: Path | None = None) -> bool:
         """Persist glossary rules to disk as JSON."""
+
+        path = path or GLOSSARY_FILE
 
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
