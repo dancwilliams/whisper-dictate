@@ -1,7 +1,9 @@
 """LLM cleanup functionality for text refinement."""
 
 import logging
-from typing import Optional
+from typing import Optional, Union
+
+from whisper_dictate.glossary import GlossaryManager
 
 try:
     from openai import OpenAI
@@ -51,7 +53,7 @@ def clean_with_llm(
     prompt: str,
     temperature: float,
     prompt_context: Optional[str] = None,
-    glossary: Optional[str] = None,
+    glossary: Optional[Union[str, GlossaryManager]] = None,
     debug_logging: bool = False,
     timeout: float = 15.0,
 ) -> Optional[str]:
@@ -82,7 +84,10 @@ def clean_with_llm(
     if OpenAI is None:
         raise LLMCleanupError("OpenAI client not installed. Run: uv add openai")
 
-    glossary_text = (glossary or "").strip()
+    if isinstance(glossary, GlossaryManager):
+        glossary_text = glossary.format_for_prompt().strip()
+    else:
+        glossary_text = (glossary or "").strip()
     system_prompt = prompt.rstrip()
     if glossary_text:
         system_prompt = f"Glossary entries (prioritized):\n{glossary_text}\n\n{system_prompt}"
