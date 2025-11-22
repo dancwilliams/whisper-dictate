@@ -10,7 +10,9 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 
 - **100% local transcription** — no cloud calls
 - **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)
+- **Glossary injection** to enforce product names, jargon, or key phrases during LLM cleanup
 - **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate_prompt.txt`
+- **Glossary editor** (Edit → Glossary…) with your entries saved to `~/.whisper_dictate/whisper_dictate_glossary.txt`
 - **Saves your settings** (model, device, hotkey, LLM config, paste delay) to `~/.whisper_dictate/whisper_dictate_settings.json`
 - **Global hotkey** for push-to-talk from any application
 - **Auto-paste** into the focused window (`Ctrl+V`), with a configurable delay
@@ -53,9 +55,11 @@ If "Auto-paste" is enabled, the result pastes automatically into the app you wer
 ### 3. Configure (optional)
 
 - **Edit → Prompt…** to customize the cleanup prompt (persisted to `~/.whisper_dictate_prompt.txt`).
+- **Edit → Glossary…** to maintain glossary entries (persisted to `~/.whisper_dictate/whisper_dictate_glossary.txt`).
 - **Settings → Speech recognition…** to pick model/device, compute type, and input device (use **List…** to view inputs).
 - **Settings → Automation…** to set the global hotkey, enable auto-paste, and tune the paste delay.
 - **Settings → LLM cleanup…** to toggle cleanup, set endpoint/model/API key, refresh available models, and adjust temperature.
+  Use **Use glossary before prompt** to prepend glossary text to the system prompt so the LLM honors your terminology.
   All settings are saved to `~/.whisper_dictate/whisper_dictate_settings.json` when you close the app.
 
 ---
@@ -73,6 +77,19 @@ If you toggle recording from inside Word, Notion, VS Code, or a chat window, the
 
 ---
 
+## 📒 Glossary-Driven Cleanup
+
+Use the glossary to keep acronyms, brand names, or domain-specific terms intact during LLM cleanup:
+
+- Open **Edit → Glossary…** and add one entry per line (for example, `ProductX = Project X`).
+- Entries are saved to `~/.whisper_dictate/whisper_dictate_glossary.txt` and loaded automatically on startup.
+- In **Settings → LLM cleanup…**, enable **Use glossary before prompt** to prepend the glossary to the LLM system prompt so it
+  takes priority over the general cleanup prompt.
+
+Glossary usage is optional; turn it off from **Settings → LLM cleanup…** if you only want the standard prompt applied.
+
+---
+
 ## 🧩 Project Layout
 
 ```
@@ -85,6 +102,7 @@ whisper-dictate/
 │   ├─ audio.py              # Audio recording functionality
 │   ├─ transcription.py      # Whisper transcription logic
 │   ├─ llm_cleanup.py        # LLM text cleanup functionality
+│   ├─ glossary.py           # Glossary persistence used during LLM cleanup
 │   ├─ hotkeys.py            # Windows global hotkey management
 │   ├─ gui_components.py     # Reusable GUI components
 │   ├─ logging_config.py     # Centralized logging setup
@@ -96,6 +114,7 @@ whisper-dictate/
 │   ├─ test_prompt.py
 │   ├─ test_hotkeys.py
 │   ├─ test_llm_cleanup.py
+│   ├─ test_glossary.py
 │   ├─ test_transcription.py
 │   └─ test_audio.py
 │
