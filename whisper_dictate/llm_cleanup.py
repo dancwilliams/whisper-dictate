@@ -50,8 +50,8 @@ def clean_with_llm(
     api_key: Optional[str],
     prompt: str,
     temperature: float,
-    glossary: Optional[str] = None,
     prompt_context: Optional[str] = None,
+    glossary: Optional[str] = None,
     debug_logging: bool = False,
     timeout: float = 15.0,
 ) -> Optional[str]:
@@ -64,10 +64,10 @@ def clean_with_llm(
         model: Model name to use
         api_key: API key (optional, can be None)
         prompt: System prompt for the LLM
-        glossary: Optional glossary text prepended to the prompt
-        prompt_context: Optional runtime context to append to the prompt
-        debug_logging: When True, log the full prompt payload before sending
         temperature: Temperature for generation
+        prompt_context: Optional runtime context to append to the prompt
+        glossary: Optional glossary text prepended to the prompt
+        debug_logging: When True, log the full prompt payload before sending
         timeout: Request timeout in seconds
         
     Returns:
