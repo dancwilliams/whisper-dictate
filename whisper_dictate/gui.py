@@ -42,6 +42,7 @@ from whisper_dictate.config import (
     set_cuda_paths,
 )
 from whisper_dictate.gui_components import PromptDialog, StatusIndicator
+from whisper_dictate.glossary_dialog import GlossaryDialog
 from whisper_dictate.logging_config import setup_logging
 
 # Set up CUDA paths before importing other modules
@@ -72,7 +73,7 @@ class App(Tk):
 
         # Load saved prompt
         self.prompt_content = prompt.load_saved_prompt()
-        self.glossary_content = ""
+        self.glossary_manager = glossary.load_glossary_manager()
 
         # Model and hotkey manager
         self.model: Optional[WhisperModel] = None
@@ -341,7 +342,7 @@ class App(Tk):
 
     def _refresh_glossary_cache(self) -> None:
         """Load glossary content from disk."""
-        self.glossary_content = glossary.load_saved_glossary()
+        self.glossary_manager = glossary.load_glossary_manager()
 
     def _load_settings(self) -> None:
         """Load saved settings from disk into Tk variables."""
@@ -424,13 +425,11 @@ class App(Tk):
 
     def _open_glossary_dialog(self) -> None:
         """Open glossary editing dialog."""
-        current = glossary.load_saved_glossary()
-        dialog = PromptDialog(self, current)
-        dialog.title("Edit Glossary")
+        dialog = GlossaryDialog(self, self.glossary_manager)
         self.wait_window(dialog)
         if dialog.result is not None:
-            if glossary.write_saved_glossary(dialog.result):
-                self.glossary_content = dialog.result
+            self.glossary_manager = dialog.result
+            if self.glossary_manager.save():
                 self._set_status("ready", "Glossary updated")
             else:
                 messagebox.showerror("Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}")
@@ -563,22 +562,25 @@ class App(Tk):
             self._set_status("warning", "No speech detected")
             return
 
-        final_text = text
+        self._refresh_glossary_cache()
+        glossary_enabled = bool(self.var_glossary_enable.get() and self.glossary_manager.rules)
+
+        normalized_text = glossary.apply_glossary(text, self.glossary_manager if glossary_enabled else None)
+        final_text = normalized_text
 
         # Optionally clean with LLM
         if (self.var_llm_enable.get() and
             self.var_llm_endpoint.get().strip() and
             self.var_llm_model.get().strip()):
-            self._refresh_glossary_cache()
             self._set_status("processing", "Cleaning with LLM...")
             try:
                 cleaned = llm_cleanup.clean_with_llm(
-                    raw_text=text,
+                    raw_text=normalized_text,
                     endpoint=self.var_llm_endpoint.get().strip(),
                     model=self.var_llm_model.get().strip(),
                     api_key=self.var_llm_key.get().strip() or None,
                     prompt=self.prompt_content or DEFAULT_LLM_PROMPT,
-                    glossary=self.glossary_content if self.var_glossary_enable.get() else None,
+                    glossary=self.glossary_manager if glossary_enabled else None,
                     temperature=float(self.var_llm_temp.get()),
                     prompt_context=prompt_context,
                     debug_logging=bool(self.var_llm_debug.get()),
@@ -591,6 +593,9 @@ class App(Tk):
             except llm_cleanup.LLMCleanupError as e:
                 self._set_status("warning", "LLM failed, used raw text")
                 logger.warning(f"LLM cleanup failed: {e}")
+
+        if glossary_enabled:
+            final_text = glossary.apply_glossary(final_text, self.glossary_manager)
 
         # Display and copy result
         ts = time.strftime("%H:%M:%S")

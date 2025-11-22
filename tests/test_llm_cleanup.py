@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from whisper_dictate.glossary import GlossaryManager, GlossaryRule
 from whisper_dictate.llm_cleanup import LLMCleanupError, clean_with_llm
 
 
@@ -66,8 +67,8 @@ class TestLLMCleanup:
             assert result is None
 
     def test_clean_with_llm_includes_glossary(self):
-        """Ensure glossary text is prepended to the system prompt when provided."""
-        glossary_text = "AppName = Whisper Dictate"
+        """Ensure glossary rules are summarized in the system prompt when provided."""
+        glossary_manager = GlossaryManager([GlossaryRule(trigger="AppName", replacement="Whisper Dictate")])
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -82,12 +83,12 @@ class TestLLMCleanup:
                 None,
                 "system prompt",
                 0.1,
-                glossary=glossary_text,
+                glossary=glossary_manager,
                 prompt_context=None,
             )
 
         messages = mock_client.chat.completions.create.call_args[1]["messages"]
         assert messages[0]["role"] == "system"
-        assert glossary_text in messages[0]["content"]
+        assert "AppName → Whisper Dictate" in messages[0]["content"]
         assert messages[0]["content"].startswith("Glossary entries (prioritized):")
 
