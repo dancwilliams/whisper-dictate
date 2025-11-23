@@ -126,6 +126,8 @@ class App(Tk):
         self.var_llm_debug = BooleanVar(value=DEFAULT_LLM_DEBUG)
         self.var_glossary_enable = BooleanVar(value=True)
 
+        self._indicator_position: tuple[int, int] | None = None
+
         self._load_settings()
         self._refresh_glossary_cache()
 
@@ -327,7 +329,7 @@ class App(Tk):
 
     def _setup_status_indicator(self) -> None:
         """Set up the floating status indicator."""
-        self.indicator = StatusIndicator(self)
+        self.indicator = StatusIndicator(self, initial_position=self._indicator_position)
         self._set_status("idle", "Idle")
 
     def _set_status(self, state: str, message: str) -> None:
@@ -376,6 +378,12 @@ class App(Tk):
         set_if_present("llm_debug", self.var_llm_debug, bool)
         set_if_present("glossary_enable", self.var_glossary_enable, bool)
 
+        pos = saved.get("indicator_position")
+        if isinstance(pos, dict):
+            x, y = pos.get("x"), pos.get("y")
+            if isinstance(x, int) and isinstance(y, int):
+                self._indicator_position = (x, y)
+
     def _save_settings(self) -> None:
         """Persist current settings to disk."""
         settings = {
@@ -396,6 +404,12 @@ class App(Tk):
             "llm_debug": bool(self.var_llm_debug.get()),
             "glossary_enable": bool(self.var_glossary_enable.get()),
         }
+
+        if hasattr(self, "indicator"):
+            pos = self.indicator.get_position()
+            if pos is not None:
+                settings["indicator_position"] = {"x": pos[0], "y": pos[1]}
+
         if not settings_store.save_settings(settings):
             logger.warning("Could not save settings to disk")
 
