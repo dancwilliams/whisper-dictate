@@ -57,7 +57,7 @@ class StatusIndicator:
         "error": "#dc3545",
     }
 
-    def __init__(self, master: Tk):
+    def __init__(self, master: Tk, initial_position: tuple[int, int] | None = None):
         self.master = master
         self.window = Toplevel(master)
         self.window.withdraw()
@@ -65,10 +65,12 @@ class StatusIndicator:
         self.window.attributes("-topmost", True)
         self.window.resizable(False, False)
 
-        # Track drag state and user-chosen position
+        # Remember last known position
+        self.user_position: tuple[int, int] | None = initial_position
+
+        # Track drag state
         self._dragging = False
         self._drag_offset = (0, 0)
-        self.user_position: tuple[int, int] | None = None
 
         frame = ttk.Frame(self.window, padding=(8, 6))
         frame.pack()
@@ -92,6 +94,9 @@ class StatusIndicator:
             w.bind("<B1-Motion>", self._on_drag, add="+")
             w.bind("<ButtonRelease-1>", self._end_drag, add="+")
             w.bind("<Double-Button-1>", self._reset_position, add="+")
+
+        # Keep the floating window pinned above everything else
+        self.window.after(1500, self._ensure_topmost)
 
     def _start_drag(self, event) -> None:
         """Start dragging the indicator."""
@@ -139,14 +144,17 @@ class StatusIndicator:
 
         self.window.update_idletasks()
 
+        screen_w = self.master.winfo_screenwidth()
+        screen_h = self.master.winfo_screenheight()
+        window_w = self.window.winfo_width()
+        window_h = self.window.winfo_height()
+
         # If user has placed it, respect that unless actively dragging
         if self.user_position is not None and not self._dragging:
             x, y = self.user_position
+            x = max(0, min(int(x), screen_w - window_w))
+            y = max(0, min(int(y), screen_h - window_h))
         else:
-            screen_w = self.master.winfo_screenwidth()
-            screen_h = self.master.winfo_screenheight()
-            window_w = self.window.winfo_width()
-            window_h = self.window.winfo_height()
             margin_x = 24
             margin_y = 96
             x = screen_w - window_w - margin_x
@@ -155,6 +163,14 @@ class StatusIndicator:
         self.window.geometry(f"+{int(x)}+{int(y)}")
         self.window.lift()
         self.window.attributes("-topmost", True)
+
+    def _ensure_topmost(self) -> None:
+        """Re-assert topmost state on an interval."""
+        if not self.window.winfo_exists():
+            return
+        self.window.lift()
+        self.window.attributes("-topmost", True)
+        self.window.after(3000, self._ensure_topmost)
 
     def update(self, state: str, message: str) -> None:
         """Update the indicator with new state and message."""
@@ -166,4 +182,10 @@ class StatusIndicator:
             self.window.deiconify()
         self.window.update_idletasks()
         self._reposition()
+
+    def get_position(self) -> tuple[int, int] | None:
+        """Return the user-chosen position for persistence."""
+        if self.user_position is None:
+            return None
+        return int(self.user_position[0]), int(self.user_position[1])
 
