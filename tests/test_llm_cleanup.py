@@ -92,3 +92,29 @@ class TestLLMCleanup:
         assert "AppName → Whisper Dictate" in messages[0]["content"]
         assert messages[0]["content"].startswith("Glossary entries (prioritized):")
 
+    def test_clean_with_llm_includes_app_prompt(self):
+        """Application-specific prompt should be appended to the system prompt."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Cleaned text"
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
+            clean_with_llm(
+                "raw text",
+                "http://test",
+                "model",
+                None,
+                "system prompt",
+                0.1,
+                app_prompt="App specific",
+                prompt_context="Some context",
+            )
+
+        messages = mock_client.chat.completions.create.call_args[1]["messages"]
+        system_prompt = messages[0]["content"]
+        assert "Application-specific instructions" in system_prompt
+        assert "App specific" in system_prompt
+        assert system_prompt.endswith("Some context")
+

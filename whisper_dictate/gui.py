@@ -19,6 +19,7 @@ from tkinter import ttk
 
 from whisper_dictate import (
     app_context,
+    app_prompts,
     audio,
     config,
     glossary,
@@ -42,6 +43,7 @@ from whisper_dictate.config import (
     set_cuda_paths,
 )
 from whisper_dictate.gui_components import PromptDialog, StatusIndicator
+from whisper_dictate.app_prompt_dialog import AppPromptDialog
 from whisper_dictate.glossary_dialog import GlossaryDialog
 from whisper_dictate.logging_config import setup_logging
 
@@ -74,6 +76,7 @@ class App(Tk):
         # Load saved prompt
         self.prompt_content = prompt.load_saved_prompt()
         self.glossary_manager = glossary.load_glossary_manager()
+        self.app_prompts: app_prompts.AppPromptMap = {}
 
         # Model and hotkey manager
         self.model: Optional[WhisperModel] = None
@@ -97,6 +100,7 @@ class App(Tk):
         edit_menu = Menu(menubar, tearoff=False)
         edit_menu.add_command(label="Prompt...", command=self._open_prompt_dialog)
         edit_menu.add_command(label="Glossary...", command=self._open_glossary_dialog)
+        edit_menu.add_command(label="Per-app prompts...", command=self._open_app_prompt_dialog)
         menubar.add_cascade(label="Edit", menu=edit_menu)
 
         settings_menu = Menu(menubar, tearoff=False)
@@ -363,6 +367,8 @@ class App(Tk):
         if not saved:
             return
 
+        self.app_prompts = app_prompts.normalize_app_prompts(saved.get("app_prompts", {}))
+
         def set_if_present(key, var, cast=None):
             if key not in saved:
                 return
@@ -414,6 +420,7 @@ class App(Tk):
             "llm_temp": float(self.var_llm_temp.get()),
             "llm_debug": bool(self.var_llm_debug.get()),
             "glossary_enable": bool(self.var_glossary_enable.get()),
+            "app_prompts": self.app_prompts,
         }
 
         if hasattr(self, "indicator"):
@@ -458,6 +465,13 @@ class App(Tk):
                 self._set_status("ready", "Glossary updated")
             else:
                 messagebox.showerror("Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}")
+
+    def _open_app_prompt_dialog(self) -> None:
+        """Open application-specific prompt dialog."""
+        dialog = AppPromptDialog(self, self.app_prompts)
+        self.wait_window(dialog)
+        if dialog.result is not None:
+            self.app_prompts = dialog.result
 
     def _show_inputs(self) -> None:
         """Show available audio input devices."""
@@ -571,9 +585,9 @@ class App(Tk):
             self._set_status("warning", "No audio captured")
             return
 
-        prompt_context = app_context.format_context_for_prompt(
-            app_context.get_active_context()
-        )
+        active_context = app_context.get_active_context()
+        prompt_context = app_context.format_context_for_prompt(active_context)
+        app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
         try:
             text = transcription.transcribe_audio(self.model, audio_data)
@@ -607,6 +621,7 @@ class App(Tk):
                     prompt=self.prompt_content or DEFAULT_LLM_PROMPT,
                     glossary=self.glossary_manager if glossary_enabled else None,
                     temperature=float(self.var_llm_temp.get()),
+                    app_prompt=app_prompt,
                     prompt_context=prompt_context,
                     debug_logging=bool(self.var_llm_debug.get()),
                 )
