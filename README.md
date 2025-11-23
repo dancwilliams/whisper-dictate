@@ -12,6 +12,7 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 - **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)
 - **Glossary injection** to enforce product names, jargon, or key phrases during normalization and LLM cleanup
 - **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate_prompt.txt`
+- **Per-application prompts** so you can override the cleanup prompt per app or window title (Edit → Per-app prompts…)
 - **Glossary editor** (Edit → Glossary…) with add/edit/delete controls, CSV import/export, and entries saved to
   `~/.whisper_dictate/whisper_dictate_glossary.json`
 - **Saves your settings** (model, device, hotkey, LLM config, paste delay) to `~/.whisper_dictate/whisper_dictate_settings.json`
@@ -19,6 +20,7 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 - **Auto-paste** into the focused window (`Ctrl+V`), with a configurable delay
 - **Fetch available LLM models** from your endpoint directly inside the LLM settings window
 - **Floating status indicator** that mirrors the app state (idle, listening, cleaning, etc.)
+- **Reset floating status indicator** button if you drag the indicator off screen
 - **GPU or CPU** execution
 - **One-command setup** using [`uv`](https://docs.astral.sh/uv/)
 - **Comprehensive test suite** with coverage reporting
@@ -56,12 +58,30 @@ If "Auto-paste" is enabled, the result pastes automatically into the app you wer
 ### 3. Configure (optional)
 
 - **Edit → Prompt…** to customize the cleanup prompt (persisted to `~/.whisper_dictate_prompt.txt`).
+- **Edit → Per-app prompts…** to override the cleanup prompt for specific processes (e.g., `winword.exe`, `notion.exe`).
+  Use the **recent apps** dropdown to prefill entries with the last windows you dictated into, and optionally add a window-title
+  regex to scope a prompt to a particular document or channel. These rules are persisted to
+  `~/.whisper_dictate/whisper_dictate_settings.json`.
 - **Edit → Glossary…** to maintain glossary entries (persisted to `~/.whisper_dictate/whisper_dictate_glossary.json`).
 - **Settings → Speech recognition…** to pick model/device, compute type, and input device (use **List…** to view inputs).
 - **Settings → Automation…** to set the global hotkey, enable auto-paste, and tune the paste delay.
 - **Settings → LLM cleanup…** to toggle cleanup, set endpoint/model/API key, refresh available models, and adjust temperature.
   Use **Use glossary before prompt** to normalize transcripts with your glossary and prepend the rules to the LLM system prompt so it honors your terminology.
-  All settings are saved to `~/.whisper_dictate/whisper_dictate_settings.json` when you close the app.
+All settings are saved to `~/.whisper_dictate/whisper_dictate_settings.json` when you close the app.
+
+---
+
+## 🎯 Per-Application Prompts
+
+Per-application prompts let you tailor cleanup instructions to the active app or window:
+
+1. Open **Edit → Per-app prompts…**.
+2. Pick a **Recent app** to prefill the process name, or add a process manually.
+3. Optionally set a **Window title regex** to target a specific document, chat, or channel.
+4. Enter the **Prompt override** for that app/window.
+
+When dictating, Whisper Dictate detects the active process/window and applies the most specific matching prompt before
+sending text to the LLM cleanup step. Clear entries to fall back to the global prompt.
 
 ---
 
@@ -75,6 +95,9 @@ When the **Auto-paste** checkbox (GUI) is enabled:
 If you toggle recording from inside Word, Notion, VS Code, or a chat window, the cleaned text appears directly where your cursor is.
 
 > Tip: Trigger the hotkey, don't click the GUI button — clicking steals focus and will paste into the GUI itself.
+
+If you move the floating status indicator off-screen, use **Settings → Reset status indicator position** to snap it back to the
+default location.
 
 ---
 
@@ -102,7 +125,10 @@ whisper-dictate/
 ├─ whisper_dictate/
 │   ├─ __init__.py           # Package initialization
 │   ├─ config.py             # Configuration defaults and CUDA setup
+│   ├─ app_context.py        # Active-window context (process and title)
 │   ├─ prompt.py             # LLM prompt management (load/save)
+│   ├─ app_prompts.py        # Per-application prompt resolution helpers
+│   ├─ app_prompt_dialog.py  # GUI dialog for managing per-app prompt overrides
 │   ├─ audio.py              # Audio recording functionality
 │   ├─ transcription.py      # Whisper transcription logic
 │   ├─ llm_cleanup.py        # LLM text cleanup functionality
@@ -115,6 +141,8 @@ whisper-dictate/
 │   └─ gui.py                # Main GUI application
 │
 ├─ tests/                    # Comprehensive test suite
+│   ├─ test_app_context.py
+│   ├─ test_app_prompts.py
 │   ├─ test_config.py
 │   ├─ test_prompt.py
 │   ├─ test_hotkeys.py
