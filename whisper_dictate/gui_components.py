@@ -144,14 +144,17 @@ class StatusIndicator:
 
         self.window.update_idletasks()
 
+        screen_w = self.master.winfo_screenwidth()
+        screen_h = self.master.winfo_screenheight()
+        window_w = self.window.winfo_width()
+        window_h = self.window.winfo_height()
+
         # If user has placed it, respect that unless actively dragging
         if self.user_position is not None and not self._dragging:
             x, y = self.user_position
+            x = max(0, min(int(x), screen_w - window_w))
+            y = max(0, min(int(y), screen_h - window_h))
         else:
-            screen_w = self.master.winfo_screenwidth()
-            screen_h = self.master.winfo_screenheight()
-            window_w = self.window.winfo_width()
-            window_h = self.window.winfo_height()
             margin_x = 24
             margin_y = 96
             x = screen_w - window_w - margin_x
