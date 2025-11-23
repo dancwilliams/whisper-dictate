@@ -12,7 +12,12 @@ from whisper_dictate import app_prompts
 class AppPromptDialog(Toplevel):
     """Manage prompts scoped to specific applications."""
 
-    def __init__(self, parent: tk.Tk, rules: app_prompts.AppPromptMap):
+    def __init__(
+        self,
+        parent: tk.Tk,
+        rules: app_prompts.AppPromptMap,
+        recent_processes: list[str] | None = None,
+    ):
         super().__init__(parent)
         self.title("Per-app prompts")
         self.transient(parent)
@@ -21,6 +26,7 @@ class AppPromptDialog(Toplevel):
 
         self.entries = app_prompts.rules_to_entries(app_prompts.clone_rules(rules))
         self.result: app_prompts.AppPromptMap | None = None
+        self.recent_processes = recent_processes or []
 
         ttk.Label(
             self,
@@ -30,10 +36,15 @@ class AppPromptDialog(Toplevel):
             ),
             wraplength=520,
             justify="left",
-        ).grid(row=0, column=0, sticky="we", padx=12, pady=(12, 8))
+        ).grid(row=0, column=0, columnspan=2, sticky="we", padx=12, pady=(12, 8))
+
+        content = ttk.Frame(self)
+        content.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=12)
+        content.columnconfigure(0, weight=1)
+        content.rowconfigure(0, weight=1)
 
         self.tree = ttk.Treeview(
-            self,
+            content,
             columns=("process", "window_regex", "prompt"),
             show="headings",
             height=8,
@@ -45,10 +56,23 @@ class AppPromptDialog(Toplevel):
         ):
             self.tree.heading(col, text=heading)
             self.tree.column(col, width=width, anchor="w")
-        self.tree.grid(row=1, column=0, sticky="nsew", padx=12)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+
+        recent_frame = ttk.Labelframe(content, text="Recent apps")
+        recent_frame.grid(row=0, column=1, sticky="nsw", padx=(12, 0))
+        self.lst_recent = tk.Listbox(recent_frame, height=8, width=18, exportselection=False)
+        for name in self.recent_processes:
+            self.lst_recent.insert("end", name)
+        self.lst_recent.grid(row=0, column=0, sticky="nsew", padx=8, pady=(6, 4))
+        self.lst_recent.bind("<Double-Button-1>", lambda event: self._on_add_from_recent())
+        ttk.Button(
+            recent_frame, text="Add from recent", command=self._on_add_from_recent
+        ).grid(row=1, column=0, padx=8, pady=(0, 8))
+        recent_frame.columnconfigure(0, weight=1)
+        recent_frame.rowconfigure(0, weight=1)
 
         btns = ttk.Frame(self)
-        btns.grid(row=2, column=0, sticky="ew", padx=12, pady=10)
+        btns.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=10)
         btns.columnconfigure(0, weight=1)
 
         ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, 6))
@@ -56,7 +80,7 @@ class AppPromptDialog(Toplevel):
         ttk.Button(btns, text="Delete", command=self._on_delete).grid(row=0, column=2)
 
         actions = ttk.Frame(self)
-        actions.grid(row=3, column=0, sticky="e", padx=12, pady=(0, 12))
+        actions.grid(row=3, column=0, columnspan=2, sticky="e", padx=12, pady=(0, 12))
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
@@ -96,15 +120,29 @@ class AppPromptDialog(Toplevel):
         except (IndexError, ValueError):
             return None, None
 
+    def _selected_recent_process(self) -> str | None:
+        selection = self.lst_recent.curselection()
+        if not selection:
+            return None
+        return self.lst_recent.get(selection[0])
+
     # ------------------------------------------------------------------
     # Button callbacks
     # ------------------------------------------------------------------
-    def _on_add(self) -> None:
-        dialog = AppPromptEntryDialog(self)
+    def _on_add(self, process_name: str | None = None) -> None:
+        initial = {"process_name": process_name} if process_name else None
+        dialog = AppPromptEntryDialog(self, initial)
         dialog.wait_window()
         if dialog.result:
             self.entries.append(dialog.result)
             self._refresh_tree()
+
+    def _on_add_from_recent(self) -> None:
+        process_name = self._selected_recent_process()
+        if not process_name:
+            messagebox.showinfo("Per-app prompts", "Select a recent app to prefill.")
+            return
+        self._on_add(process_name)
 
     def _on_edit(self) -> None:
         idx, entry = self._selected_entry()
