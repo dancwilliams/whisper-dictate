@@ -2,6 +2,7 @@
 
 import threading
 import time
+from collections import deque
 from typing import Optional
 
 try:
@@ -59,7 +60,9 @@ threading.Thread(target=audio.recorder_loop, daemon=True).start()
 
 class App(Tk):
     """Main application window."""
-    
+
+    RECENT_PROCESSES_MAX = 15
+
     def __init__(self):
         super().__init__()
         self.title("Whisper Dictate + LLM")
@@ -77,6 +80,7 @@ class App(Tk):
         self.prompt_content = prompt.load_saved_prompt()
         self.glossary_manager = glossary.load_glossary_manager()
         self.app_prompts: app_prompts.AppPromptMap = {}
+        self.recent_processes: deque[str] = deque(maxlen=self.RECENT_PROCESSES_MAX)
 
         # Model and hotkey manager
         self.model: Optional[WhisperModel] = None
@@ -368,6 +372,11 @@ class App(Tk):
             return
 
         self.app_prompts = app_prompts.normalize_app_prompts(saved.get("app_prompts", {}))
+        recent = saved.get("recent_processes")
+        if isinstance(recent, list):
+            for name in recent:
+                if isinstance(name, str) and name.strip():
+                    self._record_recent_process(name)
 
         def set_if_present(key, var, cast=None):
             if key not in saved:
@@ -421,6 +430,7 @@ class App(Tk):
             "llm_debug": bool(self.var_llm_debug.get()),
             "glossary_enable": bool(self.var_glossary_enable.get()),
             "app_prompts": self.app_prompts,
+            "recent_processes": list(self.recent_processes),
         }
 
         if hasattr(self, "indicator"):
@@ -468,7 +478,7 @@ class App(Tk):
 
     def _open_app_prompt_dialog(self) -> None:
         """Open application-specific prompt dialog."""
-        dialog = AppPromptDialog(self, self.app_prompts)
+        dialog = AppPromptDialog(self, self.app_prompts, list(self.recent_processes))
         self.wait_window(dialog)
         if dialog.result is not None:
             self.app_prompts = dialog.result
@@ -586,6 +596,8 @@ class App(Tk):
             return
 
         active_context = app_context.get_active_context()
+        if active_context and active_context.process_name:
+            self._record_recent_process(active_context.process_name)
         prompt_context = app_context.format_context_for_prompt(active_context)
         app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
@@ -660,6 +672,17 @@ class App(Tk):
         
         if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
             self._set_status("ready", "Ready")
+
+    def _record_recent_process(self, process_name: str) -> None:
+        """Track recently seen process names for quick prompt overrides."""
+        normalized = process_name.strip()
+        if not normalized:
+            return
+        try:
+            self.recent_processes.remove(normalized)
+        except ValueError:
+            pass
+        self.recent_processes.appendleft(normalized)
 
 
 def main() -> None:
