@@ -46,7 +46,7 @@ from whisper_dictate.config import (
 from whisper_dictate.gui_components import PromptDialog, StatusIndicator
 from whisper_dictate.app_prompt_dialog import AppPromptDialog
 from whisper_dictate.glossary_dialog import GlossaryDialog
-from whisper_dictate.logging_config import setup_logging
+from whisper_dictate.logging_config import LOG_FILE, setup_logging
 
 # Set up CUDA paths before importing other modules
 set_cuda_paths()
@@ -93,6 +93,7 @@ class App(Tk):
         self._speech_window: Optional[Toplevel] = None
         self._automation_window: Optional[Toplevel] = None
         self._llm_window: Optional[Toplevel] = None
+        self._log_window: Optional[Toplevel] = None
 
         self._build_menus()
         self._build_ui()
@@ -116,6 +117,10 @@ class App(Tk):
             label="Reset status indicator position", command=self._reset_status_indicator
         )
         menubar.add_cascade(label="Settings", menu=settings_menu)
+
+        about_menu = Menu(menubar, tearoff=False)
+        about_menu.add_command(label="View logs", command=self._open_log_viewer)
+        menubar.add_cascade(label="About", menu=about_menu)
 
         self.config(menu=menubar)
 
@@ -296,6 +301,51 @@ class App(Tk):
         if hasattr(self, "indicator"):
             self.indicator.reset_position()
             self._set_status("ready", "Status indicator reset")
+
+    def _open_log_viewer(self) -> None:
+        """Open a window to view the current log file."""
+
+        def build(window: Toplevel) -> None:
+            frame = ttk.Frame(window, padding=12)
+            frame.pack(fill="both", expand=True)
+            frame.columnconfigure(0, weight=1)
+            frame.rowconfigure(1, weight=1)
+
+            text = Text(frame, wrap="none")
+            text.grid(row=1, column=0, sticky="nsew")
+            scrollbar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
+            scrollbar.grid(row=1, column=1, sticky="ns")
+            text.configure(yscrollcommand=scrollbar.set, state="disabled")
+
+            def load_logs() -> None:
+                text.configure(state="normal")
+                text.delete("1.0", END)
+                try:
+                    content = LOG_FILE.read_text(encoding="utf-8")
+                except FileNotFoundError:
+                    content = "Log file not found."
+                except Exception as e:
+                    content = f"Could not read log file: {e}"
+                text.insert("1.0", content)
+                text.see("end")
+                text.configure(state="disabled")
+
+            header = ttk.Frame(frame)
+            header.grid(row=0, column=0, sticky="we", pady=(0, 8))
+            header.columnconfigure(0, weight=1)
+            ttk.Label(
+                header,
+                text=f"Logs are written to {LOG_FILE}",
+                wraplength=420,
+                justify="left",
+            ).grid(row=0, column=0, sticky="w")
+            ttk.Button(header, text="Refresh", command=load_logs).grid(
+                row=0, column=1, padx=(12, 0)
+            )
+
+            load_logs()
+
+        self._open_window("_log_window", "Logs", build)
 
     def _refresh_llm_models(self) -> None:
         """Fetch available LLM models from the configured endpoint."""
