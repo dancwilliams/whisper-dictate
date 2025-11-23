@@ -54,6 +54,7 @@ def clean_with_llm(
     temperature: float,
     prompt_context: Optional[str] = None,
     glossary: Optional[Union[str, GlossaryManager]] = None,
+    app_prompt: Optional[str] = None,
     debug_logging: bool = False,
     timeout: float = 15.0,
 ) -> Optional[str]:
@@ -69,6 +70,7 @@ def clean_with_llm(
         temperature: Temperature for generation
         prompt_context: Optional runtime context to append to the prompt
         glossary: Optional glossary text prepended to the prompt
+        app_prompt: Optional application-specific prompt appended to the system prompt
         debug_logging: When True, log the full prompt payload before sending
         timeout: Request timeout in seconds
         
@@ -91,6 +93,10 @@ def clean_with_llm(
     system_prompt = prompt.rstrip()
     if glossary_text:
         system_prompt = f"Glossary entries (prioritized):\n{glossary_text}\n\n{system_prompt}"
+    if app_prompt:
+        system_prompt = (
+            f"{system_prompt}\n\nApplication-specific instructions:\n{app_prompt.strip()}"
+        )
     if prompt_context:
         system_prompt = (
             f"{system_prompt}\n\nContext about the active application:\n{prompt_context}"

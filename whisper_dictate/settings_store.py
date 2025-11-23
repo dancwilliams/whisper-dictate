@@ -11,10 +11,13 @@ def load_settings() -> Dict[str, Any]:
     """Load saved settings from disk, returning an empty dict on failure."""
     try:
         if SETTINGS_FILE.is_file():
-            return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            if "app_prompts" not in settings:
+                settings["app_prompts"] = {}
+            return settings
     except Exception as e:  # pragma: no cover - best effort load
         print(f"(Settings) Could not read saved settings: {e}")
-    return {}
+    return {"app_prompts": {}}
 
 
 def save_settings(settings: Dict[str, Any]) -> bool:
