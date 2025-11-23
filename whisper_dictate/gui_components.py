@@ -137,6 +137,10 @@ class StatusIndicator:
         self.user_position = None
         self._reposition()
 
+    def reset_position(self) -> None:
+        """Public helper to reset to the default position."""
+        self._reset_position()
+
     def _reposition(self, event=None) -> None:
         """Reposition the indicator window."""
         if not self.window.winfo_viewable():

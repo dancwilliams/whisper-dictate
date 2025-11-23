@@ -103,6 +103,10 @@ class App(Tk):
         settings_menu.add_command(label="Speech recognition...", command=self._open_speech_settings)
         settings_menu.add_command(label="LLM cleanup...", command=self._open_llm_settings)
         settings_menu.add_command(label="Automation...", command=self._open_automation_settings)
+        settings_menu.add_separator()
+        settings_menu.add_command(
+            label="Reset status indicator position", command=self._reset_status_indicator
+        )
         menubar.add_cascade(label="Settings", menu=settings_menu)
 
         self.config(menu=menubar)
@@ -277,6 +281,13 @@ class App(Tk):
             ).grid(row=8, column=0, columnspan=2, sticky="w")
 
         self._open_window("_llm_window", "LLM cleanup", build)
+
+    def _reset_status_indicator(self) -> None:
+        """Reset the floating status indicator to its default location."""
+        self._indicator_position = None
+        if hasattr(self, "indicator"):
+            self.indicator.reset_position()
+            self._set_status("ready", "Status indicator reset")
 
     def _refresh_llm_models(self) -> None:
         """Fetch available LLM models from the configured endpoint."""
