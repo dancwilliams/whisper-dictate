@@ -80,7 +80,9 @@ class App(Tk):
         self.prompt_content = prompt.load_saved_prompt()
         self.glossary_manager = glossary.load_glossary_manager()
         self.app_prompts: app_prompts.AppPromptMap = {}
-        self.recent_processes: deque[str] = deque(maxlen=self.RECENT_PROCESSES_MAX)
+        self.recent_processes: deque[dict[str, str | None]] = deque(
+            maxlen=self.RECENT_PROCESSES_MAX
+        )
 
         # Model and hotkey manager
         self.model: Optional[WhisperModel] = None
@@ -424,9 +426,21 @@ class App(Tk):
         self.app_prompts = app_prompts.normalize_app_prompts(saved.get("app_prompts", {}))
         recent = saved.get("recent_processes")
         if isinstance(recent, list):
-            for name in recent:
-                if isinstance(name, str) and name.strip():
-                    self._record_recent_process(name)
+            for entry in recent:
+                if isinstance(entry, str):
+                    self._record_recent_process(entry, None)
+                    continue
+
+                if isinstance(entry, dict):
+                    process = entry.get("process_name")
+                    window_title = entry.get("window_title")
+                    self._record_recent_process(process, window_title)
+                    continue
+
+                if isinstance(entry, (list, tuple)) and len(entry) >= 1:
+                    process = entry[0]
+                    window_title = entry[1] if len(entry) > 1 else None
+                    self._record_recent_process(process, window_title)
 
         def set_if_present(key, var, cast=None):
             if key not in saved:
@@ -480,7 +494,14 @@ class App(Tk):
             "llm_debug": bool(self.var_llm_debug.get()),
             "glossary_enable": bool(self.var_glossary_enable.get()),
             "app_prompts": self.app_prompts,
-            "recent_processes": list(self.recent_processes),
+            "recent_processes": [
+                {
+                    "process_name": entry.get("process_name", ""),
+                    "window_title": entry.get("window_title"),
+                }
+                for entry in self.recent_processes
+                if entry.get("process_name")
+            ],
         }
 
         if hasattr(self, "indicator"):
@@ -500,6 +521,17 @@ class App(Tk):
         finally:
             self._settings_saved = True
             self.destroy()
+
+    def _format_recent_processes_for_dialog(self) -> list[dict[str, str]]:
+        formatted: list[dict[str, str]] = []
+        for entry in self.recent_processes:
+            process = (entry.get("process_name") or "").strip()
+            if not process:
+                continue
+            window_title = entry.get("window_title")
+            label = f"{process} — {window_title}" if window_title else process
+            formatted.append({"label": label, "process_name": process})
+        return formatted
 
     def _open_prompt_dialog(self) -> None:
         """Open prompt editing dialog."""
@@ -528,7 +560,11 @@ class App(Tk):
 
     def _open_app_prompt_dialog(self) -> None:
         """Open application-specific prompt dialog."""
-        dialog = AppPromptDialog(self, self.app_prompts, list(self.recent_processes))
+        dialog = AppPromptDialog(
+            self,
+            self.app_prompts,
+            list(self._format_recent_processes_for_dialog()),
+        )
         self.wait_window(dialog)
         if dialog.result is not None:
             self.app_prompts = dialog.result
@@ -647,7 +683,9 @@ class App(Tk):
 
         active_context = app_context.get_active_context()
         if active_context and active_context.process_name:
-            self._record_recent_process(active_context.process_name)
+            self._record_recent_process(
+                active_context.process_name, active_context.window_title
+            )
         prompt_context = app_context.format_context_for_prompt(active_context)
         app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
@@ -723,16 +761,33 @@ class App(Tk):
         if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
             self._set_status("ready", "Ready")
 
-    def _record_recent_process(self, process_name: str) -> None:
-        """Track recently seen process names for quick prompt overrides."""
-        normalized = process_name.strip()
-        if not normalized:
+    def _record_recent_process(
+        self, process_name: str | None, window_title: str | None
+    ) -> None:
+        """Track recently seen applications using process and window title."""
+
+        normalized_process = (process_name or "").strip()
+        if not normalized_process:
             return
+
+        normalized_window = window_title.strip() if isinstance(window_title, str) else None
+        entry = {"process_name": normalized_process, "window_title": normalized_window}
+
         try:
-            self.recent_processes.remove(normalized)
+            self.recent_processes.remove(entry)
         except ValueError:
-            pass
-        self.recent_processes.appendleft(normalized)
+            for existing in list(self.recent_processes):
+                if existing.get("process_name") != normalized_process:
+                    continue
+                existing_window = existing.get("window_title") or None
+                if existing_window == normalized_window:
+                    try:
+                        self.recent_processes.remove(existing)
+                    except ValueError:
+                        pass
+                    break
+
+        self.recent_processes.appendleft(entry)
 
 
 def main() -> None:
