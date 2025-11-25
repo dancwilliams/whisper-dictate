@@ -16,7 +16,7 @@ class AppPromptDialog(Toplevel):
         self,
         parent: tk.Tk,
         rules: app_prompts.AppPromptMap,
-        recent_processes: list[dict[str, str]] | None = None,
+        recent_processes: list[dict[str, str | None]] | None = None,
     ):
         super().__init__(parent)
         self.title("Per-app prompts")
@@ -26,8 +26,8 @@ class AppPromptDialog(Toplevel):
 
         self.entries = app_prompts.rules_to_entries(app_prompts.clone_rules(rules))
         self.result: app_prompts.AppPromptMap | None = None
-        self.recent_processes = recent_processes or []
-        self._recent_labels: list[str] = []
+        self._recent_entries: list[dict[str, str | None]] = []
+        self._prepare_recent_entries(recent_processes or [])
 
         ttk.Label(
             self,
@@ -62,12 +62,10 @@ class AppPromptDialog(Toplevel):
         recent_frame = ttk.Labelframe(content, text="Recent apps")
         recent_frame.grid(row=0, column=1, sticky="nsw", padx=(12, 0))
         self.lst_recent = tk.Listbox(recent_frame, height=8, width=18, exportselection=False)
-        for entry in self.recent_processes:
-            label = entry.get("label")
-            process_name = entry.get("process_name")
-            if not label or not process_name:
-                continue
-            self._recent_labels.append(process_name)
+        for entry in self._recent_entries:
+            label = entry["process_name"]
+            if entry.get("window_title"):
+                label = f"{label} — {entry['window_title']}"
             self.lst_recent.insert("end", label)
         self.lst_recent.grid(row=0, column=0, sticky="nsew", padx=8, pady=(6, 4))
         self.lst_recent.bind("<Double-Button-1>", lambda event: self._on_add_from_recent())
@@ -131,9 +129,29 @@ class AppPromptDialog(Toplevel):
         if not selection:
             return None
         try:
-            return self._recent_labels[selection[0]]
+            return self._recent_entries[selection[0]]["process_name"]
         except IndexError:
             return None
+
+    def _prepare_recent_entries(
+        self, recent_processes: list[str | dict[str, str | None]]
+    ) -> None:
+        for entry in recent_processes:
+            if isinstance(entry, str):
+                process_name = entry.strip()
+                window_title = None
+            elif isinstance(entry, dict):
+                process_name = (entry.get("process_name") or "").strip()
+                window_title = entry.get("window_title")
+            else:
+                continue
+
+            if not process_name:
+                continue
+
+            self._recent_entries.append(
+                {"process_name": process_name, "window_title": window_title}
+            )
 
     # ------------------------------------------------------------------
     # Button callbacks
