@@ -522,15 +522,16 @@ class App(Tk):
             self._settings_saved = True
             self.destroy()
 
-    def _format_recent_processes_for_dialog(self) -> list[dict[str, str]]:
-        formatted: list[dict[str, str]] = []
+    def _format_recent_processes_for_dialog(self) -> list[dict[str, str | None]]:
+        formatted: list[dict[str, str | None]] = []
         for entry in self.recent_processes:
             process = (entry.get("process_name") or "").strip()
             if not process:
                 continue
-            window_title = entry.get("window_title")
-            label = f"{process} — {window_title}" if window_title else process
-            formatted.append({"label": label, "process_name": process})
+            formatted.append({
+                "process_name": process,
+                "window_title": entry.get("window_title"),
+            })
         return formatted
 
     def _open_prompt_dialog(self) -> None:
