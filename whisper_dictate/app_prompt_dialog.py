@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from tkinter import StringVar, Toplevel, messagebox
 from tkinter import ttk
@@ -124,12 +125,13 @@ class AppPromptDialog(Toplevel):
         except (IndexError, ValueError):
             return None, None
 
-    def _selected_recent_process(self) -> str | None:
+    def _selected_recent_process(self) -> tuple[str, str | None] | None:
         selection = self.lst_recent.curselection()
         if not selection:
             return None
         try:
-            return self._recent_entries[selection[0]]["process_name"]
+            entry = self._recent_entries[selection[0]]
+            return entry["process_name"], entry.get("window_title")
         except IndexError:
             return None
 
@@ -156,8 +158,17 @@ class AppPromptDialog(Toplevel):
     # ------------------------------------------------------------------
     # Button callbacks
     # ------------------------------------------------------------------
-    def _on_add(self, process_name: str | None = None) -> None:
-        initial = {"process_name": process_name} if process_name else None
+    def _on_add(self, process_name: str | None = None, window_title: str | None = None) -> None:
+        window_regex = f"^{re.escape(window_title)}$" if window_title else None
+        initial = {
+            key: value
+            for key, value in {
+                "process_name": process_name,
+                "window_title_regex": window_regex,
+            }.items()
+            if value
+        }
+        initial = initial or None
         dialog = AppPromptEntryDialog(self, initial)
         dialog.wait_window()
         if dialog.result:
@@ -165,11 +176,12 @@ class AppPromptDialog(Toplevel):
             self._refresh_tree()
 
     def _on_add_from_recent(self) -> None:
-        process_name = self._selected_recent_process()
-        if not process_name:
+        recent = self._selected_recent_process()
+        if not recent:
             messagebox.showinfo("Per-app prompts", "Select a recent app to prefill.")
             return
-        self._on_add(process_name)
+        process_name, window_title = recent
+        self._on_add(process_name, window_title)
 
     def _on_edit(self) -> None:
         idx, entry = self._selected_entry()
