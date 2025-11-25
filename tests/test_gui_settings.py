@@ -14,9 +14,13 @@ ctypes.windll = types.SimpleNamespace(
         TranslateMessage=lambda *args, **kwargs: None,
         DispatchMessageW=lambda *args, **kwargs: None,
         PostThreadMessageW=lambda *args, **kwargs: True,
+        MessageBoxW=lambda *args, **kwargs: 0,
     )
 )
 
+sys.modules.setdefault(
+    "pyautogui", types.SimpleNamespace(FAILSAFE=False, hotkey=lambda *args, **kwargs: None)
+)
 sys.modules.setdefault("pyperclip", types.SimpleNamespace(copy=lambda text: None))
 sys.modules.setdefault(
     "sounddevice",
