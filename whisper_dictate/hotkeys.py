@@ -6,7 +6,15 @@ import threading
 from typing import Callable, Optional
 
 # Windows hotkey constants
-user32 = ctypes.windll.user32
+_windll = getattr(ctypes, "windll", None)
+if _windll and hasattr(_windll, "user32"):
+    user32 = _windll.user32
+    _kernel32 = _windll.kernel32
+    _native_hotkeys_available = True
+else:
+    user32 = None
+    _kernel32 = None
+    _native_hotkeys_available = False
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
@@ -104,11 +112,17 @@ class HotkeyManager:
         if self.msg_thread and self.msg_thread.is_alive():
             try:
                 # Post WM_QUIT to that thread to end GetMessageW
-                ctypes.windll.user32.PostThreadMessageW(self._msg_tid, 0x0012, 0, 0)  # WM_QUIT
+                if user32:
+                    user32.PostThreadMessageW(self._msg_tid, 0x0012, 0, 0)  # WM_QUIT
             except Exception:
                 pass
             self.msg_thread.join(timeout=0.5)
         
+        if not _native_hotkeys_available:
+            raise HotkeyError(
+                "Failed to register hotkey: Windows APIs unavailable on this platform."
+            )
+
         # Start a fresh message pump that registers the hotkey in the same thread
         self._running = True
         self._registration_event = threading.Event()
@@ -130,26 +144,34 @@ class HotkeyManager:
     def unregister(self) -> None:
         """Unregister hotkey and stop message pump."""
         self._running = False
-        if self._msg_tid:
+        if self._msg_tid and user32:
             try:
-                ctypes.windll.user32.PostThreadMessageW(self._msg_tid, 0x0012, 0, 0)  # WM_QUIT
+                user32.PostThreadMessageW(self._msg_tid, 0x0012, 0, 0)  # WM_QUIT
             except Exception:
                 pass
         if self.msg_thread:
             self.msg_thread.join(timeout=1.0)
-        user32.UnregisterHotKey(None, TOGGLE_ID)
+        if user32:
+            user32.UnregisterHotKey(None, TOGGLE_ID)
     
     def _message_pump(self) -> None:
         """Windows message pump for hotkey handling (runs in background thread)."""
         # Save this thread's id so we can post WM_QUIT when re-registering
-        self._msg_tid = ctypes.windll.kernel32.GetCurrentThreadId()
-        
+        if not _kernel32 or not user32:
+            self._registration_error = (
+                "Failed to register hotkey: Windows APIs unavailable on this platform."
+            )
+            if self._registration_event:
+                self._registration_event.set()
+            self._running = False
+            return
+
+        self._msg_tid = _kernel32.GetCurrentThreadId()
+
         # Register the hotkey in THIS thread so WM_HOTKEY arrives here
         if not user32.RegisterHotKey(None, TOGGLE_ID, self._hotkey_mods, self._hotkey_vk):
             # Registration failed; signal the waiting register() call
-            self._registration_error = (
-                "Failed to register hotkey. The combination may already be in use."
-            )
+            self._registration_error = "Failed to register hotkey. The combination may already be in use."
             if self._registration_event:
                 self._registration_event.set()
             self._running = False
@@ -170,5 +192,6 @@ class HotkeyManager:
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
         finally:
-            user32.UnregisterHotKey(None, TOGGLE_ID)
+            if user32:
+                user32.UnregisterHotKey(None, TOGGLE_ID)
 
