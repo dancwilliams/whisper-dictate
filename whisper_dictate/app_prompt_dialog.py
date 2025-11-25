@@ -16,7 +16,7 @@ class AppPromptDialog(Toplevel):
         self,
         parent: tk.Tk,
         rules: app_prompts.AppPromptMap,
-        recent_processes: list[str] | None = None,
+        recent_processes: list[dict[str, str]] | None = None,
     ):
         super().__init__(parent)
         self.title("Per-app prompts")
@@ -27,6 +27,7 @@ class AppPromptDialog(Toplevel):
         self.entries = app_prompts.rules_to_entries(app_prompts.clone_rules(rules))
         self.result: app_prompts.AppPromptMap | None = None
         self.recent_processes = recent_processes or []
+        self._recent_labels: list[str] = []
 
         ttk.Label(
             self,
@@ -61,8 +62,13 @@ class AppPromptDialog(Toplevel):
         recent_frame = ttk.Labelframe(content, text="Recent apps")
         recent_frame.grid(row=0, column=1, sticky="nsw", padx=(12, 0))
         self.lst_recent = tk.Listbox(recent_frame, height=8, width=18, exportselection=False)
-        for name in self.recent_processes:
-            self.lst_recent.insert("end", name)
+        for entry in self.recent_processes:
+            label = entry.get("label")
+            process_name = entry.get("process_name")
+            if not label or not process_name:
+                continue
+            self._recent_labels.append(process_name)
+            self.lst_recent.insert("end", label)
         self.lst_recent.grid(row=0, column=0, sticky="nsew", padx=8, pady=(6, 4))
         self.lst_recent.bind("<Double-Button-1>", lambda event: self._on_add_from_recent())
         ttk.Button(
@@ -124,7 +130,10 @@ class AppPromptDialog(Toplevel):
         selection = self.lst_recent.curselection()
         if not selection:
             return None
-        return self.lst_recent.get(selection[0])
+        try:
+            return self._recent_labels[selection[0]]
+        except IndexError:
+            return None
 
     # ------------------------------------------------------------------
     # Button callbacks
