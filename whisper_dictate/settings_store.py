@@ -15,7 +15,10 @@ def load_settings() -> dict[str, Any]:
             if "app_prompts" not in settings:
                 settings["app_prompts"] = {}
             return settings
-    except Exception as e:  # pragma: no cover - best effort load
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:  # pragma: no cover
+        # OSError: File access errors
+        # UnicodeDecodeError: Invalid UTF-8 encoding
+        # JSONDecodeError: Invalid JSON format
         print(f"(Settings) Could not read saved settings: {e}")
     return {"app_prompts": {}}
 
@@ -26,6 +29,10 @@ def save_settings(settings: dict[str, Any]) -> bool:
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
         SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
         return True
-    except Exception as e:  # pragma: no cover - best effort save
+    except (OSError, UnicodeEncodeError, TypeError, ValueError) as e:  # pragma: no cover
+        # OSError: File/directory write errors
+        # UnicodeEncodeError: Invalid character encoding
+        # TypeError: Non-serializable values in settings
+        # ValueError: Invalid JSON structure
         print(f"(Settings) Could not save settings: {e}")
         return False

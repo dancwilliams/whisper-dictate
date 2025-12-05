@@ -105,7 +105,9 @@ class HotkeyManager:
             try:
                 # Post WM_QUIT to that thread to end GetMessageW
                 ctypes.windll.user32.PostThreadMessageW(self._msg_tid, 0x0012, 0, 0)  # WM_QUIT
-            except Exception:
+            except (OSError, AttributeError):
+                # OSError: Windows API call failed (includes WinError)
+                # AttributeError: Invalid thread ID
                 pass
             self.msg_thread.join(timeout=0.5)
 
@@ -133,7 +135,9 @@ class HotkeyManager:
         if self._msg_tid:
             try:
                 ctypes.windll.user32.PostThreadMessageW(self._msg_tid, 0x0012, 0, 0)  # WM_QUIT
-            except Exception:
+            except (OSError, AttributeError):
+                # OSError: Windows API call failed (includes WinError)
+                # AttributeError: Invalid thread ID
                 pass
         if self.msg_thread:
             self.msg_thread.join(timeout=1.0)

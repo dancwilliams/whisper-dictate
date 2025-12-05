@@ -279,19 +279,27 @@ class App(Tk):
             ttk.Checkbutton(
                 frame, text="Log full LLM prompts for debugging", variable=self.var_llm_debug
             ).grid(row=5, column=0, columnspan=2, sticky="w")
+            ttk.Label(
+                frame,
+                text="⚠ Warning: Debug mode logs transcribed speech and prompts to disk",
+                foreground="#cc6600",
+                wraplength=440,
+                justify="left",
+                font=("Segoe UI", 9, "italic"),
+            ).grid(row=6, column=0, columnspan=2, sticky="w", padx=(20, 0))
             ttk.Checkbutton(
                 frame, text="Use glossary before prompt", variable=self.var_glossary_enable
-            ).grid(row=6, column=0, columnspan=2, sticky="w")
+            ).grid(row=7, column=0, columnspan=2, sticky="w")
             ttk.Label(
                 frame, text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
                 wraplength=440, justify="left"
-            ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
             ttk.Label(
                 frame,
                 text=f"Glossary saved to {glossary.GLOSSARY_FILE} (Edit → Glossary…)",
                 wraplength=440,
                 justify="left",
-            ).grid(row=8, column=0, columnspan=2, sticky="w")
+            ).grid(row=9, column=0, columnspan=2, sticky="w")
 
         self._open_window("_llm_window", "LLM cleanup", build)
 
@@ -357,7 +365,9 @@ class App(Tk):
                     content = LOG_FILE.read_text(encoding="utf-8")
                 except FileNotFoundError:
                     content = "Log file not found."
-                except Exception as e:
+                except (OSError, UnicodeDecodeError) as e:
+                    # OSError: File access errors
+                    # UnicodeDecodeError: Invalid UTF-8 encoding
                     content = f"Could not read log file: {e}"
                 text.insert("1.0", content)
                 text.see("end")
@@ -535,7 +545,10 @@ class App(Tk):
         """Handle window close event by saving settings then destroying."""
         try:
             self._save_settings()
-        except Exception as e:
+        except (OSError, UnicodeEncodeError, ValueError) as e:
+            # OSError: File write errors
+            # UnicodeEncodeError: Invalid character encoding
+            # ValueError: Invalid settings data
             logger.error(f"Failed to save settings on close: {e}", exc_info=True)
         finally:
             self._settings_saved = True
@@ -593,7 +606,9 @@ class App(Tk):
         """Show available audio input devices."""
         try:
             devices = sd.query_devices()
-        except Exception as e:
+        except (sd.PortAudioError, RuntimeError) as e:
+            # PortAudioError: PortAudio library errors
+            # RuntimeError: sounddevice initialization errors
             messagebox.showerror("Audio", f"Could not query devices:\n{e}")
             return
         names = [f"{i}: {d.get('name', '')}" for i, d in enumerate(devices) if d.get("max_input_channels", 0) > 0]
@@ -632,7 +647,10 @@ class App(Tk):
             self.btn_hotkey.config(state="normal")
             self.btn_toggle.config(state="normal")
             logger.info(f"Model loaded: {model_name} on {device} ({compute})")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
+            # OSError: Model file access errors
+            # RuntimeError: CUDA/device initialization errors
+            # ValueError: Invalid model parameters
             self._set_status("error", "Model load failed")
             logger.error(f"Model load failed: {e}", exc_info=True)
             messagebox.showerror("Model error", str(e))
@@ -679,7 +697,10 @@ class App(Tk):
 
             try:
                 audio.start_recording(device_id)
-            except Exception as e:
+            except (sd.PortAudioError, RuntimeError, ValueError) as e:
+                # PortAudioError: PortAudio device errors
+                # RuntimeError: sounddevice initialization errors
+                # ValueError: Invalid device ID
                 self._set_status("error", "Audio input failed")
                 logger.error(f"Audio start failed: {e}", exc_info=True)
                 messagebox.showerror("Audio", f"Could not start input:\n{e}")
@@ -772,10 +793,14 @@ class App(Tk):
                     try:
                         pyautogui.hotkey("ctrl", "v")
                         self._set_status("ready", "Pasted into active window")
-                    except Exception as e:
+                    except (pyautogui.FailSafeException, pyautogui.PyAutoGUIException) as e:
+                        # FailSafeException: Mouse moved to corner (failsafe triggered)
+                        # PyAutoGUIException: Other pyautogui errors
                         self._set_status("error", f"Auto-paste failed: {e}")
                         logger.error(f"Auto-paste failed: {e}", exc_info=True)
-        except Exception as e:
+        except (pyperclip.PyperclipException, RuntimeError) as e:
+            # PyperclipException: Clipboard access errors
+            # RuntimeError: Other clipboard-related errors
             logger.error(f"Clipboard copy failed: {e}", exc_info=True)
 
         if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
