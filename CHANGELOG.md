@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced broad `except Exception` with specific exception types
   - Added inline comments documenting exception types
   - Better error diagnostics in 9 modules
+- Refactored audio module to class-based design (#TBD)
+  - Converted global variable pattern to `AudioRecorder` class
+  - Improved encapsulation and thread management
+  - Maintained backward compatibility with wrapper functions
 
 ## [0.1.0] - 2025-01-XX
 
