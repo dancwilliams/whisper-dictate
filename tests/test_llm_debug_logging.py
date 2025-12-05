@@ -7,18 +7,25 @@ import logging
 from whisper_dictate import llm_cleanup
 
 
-class DummyResponse:
-    def __init__(self, content: str):
-        self.choices = [type("Choice", (), {"message": type("Msg", (), {"content": content})()})]
+class DummyChunk:
+    def __init__(self, content: str = None, has_usage: bool = False):
+        self.choices = [type("Choice", (), {"delta": type("Delta", (), {"content": content})()})]
+        if has_usage:
+            self.usage = type("Usage", (), {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})()
+        else:
+            self.usage = None
 
 
 class DummyCompletions:
-    def create(self, *, model, messages, temperature, timeout):  # noqa: D417
+    def create(self, *, model, messages, temperature, timeout, stream=False, stream_options=None):  # noqa: D417
         assert model
         assert messages
         assert temperature is not None
         assert timeout is not None
-        return DummyResponse("cleaned")
+        if stream:
+            # Return an iterator of chunks
+            return iter([DummyChunk("cleaned"), DummyChunk(None, has_usage=True)])
+        return DummyChunk("cleaned")
 
 
 class DummyChat:
@@ -49,5 +56,10 @@ def test_logs_full_prompt_when_debug_enabled(monkeypatch, caplog):
         )
 
     assert result == "cleaned"
+    # Check for prompt logging
     assert any("LLM prompt payload" in rec.message for rec in caplog.records)
+    # Check for statistics logging
+    assert any("LLM statistics" in rec.message for rec in caplog.records)
+    # Check for response logging (when debug enabled)
+    assert any("LLM response" in rec.message for rec in caplog.records)
 

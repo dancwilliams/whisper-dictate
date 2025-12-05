@@ -19,6 +19,18 @@ TEST_API_KEY = "not-needed"
 TEST_TEMPERATURE = 0.7
 
 
+def create_streaming_response(content: str):
+    """Helper to create a streaming response mock."""
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [MagicMock()]
+    mock_chunk.choices[0].delta.content = content
+    mock_chunk.usage = MagicMock()
+    mock_chunk.usage.prompt_tokens = 10
+    mock_chunk.usage.completion_tokens = 5
+    mock_chunk.usage.total_tokens = 15
+    return iter([mock_chunk])
+
+
 class TestTranscriptionToLLMPipeline:
     """Test the full pipeline from audio to cleaned text."""
 
@@ -30,15 +42,12 @@ class TestTranscriptionToLLMPipeline:
             GlossaryRule(trigger="ai", replacement="AI", match_type="word"),
         ])
 
-        # Mock the OpenAI client response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Testing whisper dictate with ai technology"
-
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
-            mock_client.chat.completions.create.return_value = mock_response
+            mock_client.chat.completions.create.return_value = create_streaming_response(
+                "Testing whisper dictate with ai technology"
+            )
 
             # Simulate transcribed text
             transcribed_text = "testing whisper dictate with ai technology"
@@ -106,15 +115,12 @@ class TestAppContextToLLMPipeline:
         assert context_string is not None
         assert "notepad.exe" in context_string
 
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Cleaned text for notepad"
-
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
-            mock_client.chat.completions.create.return_value = mock_response
+            mock_client.chat.completions.create.return_value = create_streaming_response(
+                "Cleaned text for notepad"
+            )
 
             result = clean_with_llm(
                 raw_text="raw text",
@@ -167,15 +173,12 @@ class TestAppPromptResolutionPipeline:
 
         assert resolved_prompt == "You are editing code. Format as proper code syntax."
 
-        # Mock LLM
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "def main():\n    pass"
-
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
-            mock_client.chat.completions.create.return_value = mock_response
+            mock_client.chat.completions.create.return_value = create_streaming_response(
+                "def main():\n    pass"
+            )
 
             result = clean_with_llm(
                 raw_text="define main function",
@@ -252,15 +255,13 @@ class TestGlossaryWithLLMIntegration:
             GlossaryRule(trigger="gpt", replacement="GPT", match_type="word"),
         ])
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        # LLM returns text (glossary guides LLM but isn't applied to output)
-        mock_response.choices[0].message.content = "We use open ai and gpt models"
-
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
-            mock_client.chat.completions.create.return_value = mock_response
+            # LLM returns text (glossary guides LLM but isn't applied to output)
+            mock_client.chat.completions.create.return_value = create_streaming_response(
+                "We use open ai and gpt models"
+            )
 
             result = clean_with_llm(
                 raw_text="we use open ai and gpt models",
@@ -291,14 +292,12 @@ class TestGlossaryWithLLMIntegration:
             GlossaryRule(trigger="api", replacement="API", match_type="word"),
         ])
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "The USA uses the API"
-
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
-            mock_client.chat.completions.create.return_value = mock_response
+            mock_client.chat.completions.create.return_value = create_streaming_response(
+                "The USA uses the API"
+            )
 
             result = clean_with_llm(
                 raw_text="the usa uses the api",
@@ -353,17 +352,12 @@ class TestEndToEndWorkflow:
         context_str = app_context.format_context_for_prompt(context)
         assert "vscode.exe" in context_str
 
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = (
-            "# whisper dictate\n\nThis llm integration is powerful."
-        )
-
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
-            mock_client.chat.completions.create.return_value = mock_response
+            mock_client.chat.completions.create.return_value = create_streaming_response(
+                "# whisper dictate\n\nThis llm integration is powerful."
+            )
 
             # Run full pipeline
             result = clean_with_llm(
@@ -395,14 +389,12 @@ class TestEndToEndWorkflow:
     def test_workflow_with_missing_components(self):
         """Test that workflow works when optional components are missing."""
         # No context, no app prompt, no glossary
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Clean text output"
-
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
-            mock_client.chat.completions.create.return_value = mock_response
+            mock_client.chat.completions.create.return_value = create_streaming_response(
+                "Clean text output"
+            )
 
             result = clean_with_llm(
                 raw_text="raw input text",
