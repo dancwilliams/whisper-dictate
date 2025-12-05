@@ -52,8 +52,7 @@ set_cuda_paths()
 # Set up logging
 logger = setup_logging()
 
-# Start audio recorder thread
-threading.Thread(target=audio.recorder_loop, daemon=True).start()
+# Note: Audio recorder thread is now managed internally by AudioRecorder class
 
 
 class App(Tk):
