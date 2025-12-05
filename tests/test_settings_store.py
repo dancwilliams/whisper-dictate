@@ -2,9 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from whisper_dictate.settings_store import SETTINGS_FILE, load_settings, save_settings
 
@@ -77,7 +75,7 @@ class TestLoadSettings:
         """Test that load_settings handles I/O errors gracefully."""
         mock_path = MagicMock(spec=Path)
         mock_path.is_file.return_value = True
-        mock_path.read_text.side_effect = IOError("Permission denied")
+        mock_path.read_text.side_effect = OSError("Permission denied")
         monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
 
         result = load_settings()
@@ -167,7 +165,7 @@ class TestSaveSettings:
         mock_path = MagicMock(spec=Path)
         mock_parent = MagicMock()
         mock_path.parent = mock_parent
-        mock_path.write_text.side_effect = IOError("Permission denied")
+        mock_path.write_text.side_effect = OSError("Permission denied")
         monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
 
         result = save_settings(test_settings)

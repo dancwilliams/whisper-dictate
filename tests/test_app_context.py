@@ -1,9 +1,6 @@
 """Tests for app_context.py - Active window detection and context formatting."""
 
-import ctypes
-import ctypes.wintypes
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

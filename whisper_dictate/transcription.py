@@ -1,6 +1,5 @@
 """Whisper transcription functionality."""
 
-from typing import Optional
 
 from faster_whisper import WhisperModel
 
@@ -20,17 +19,17 @@ def transcribe_audio(
 ) -> str:
     """
     Transcribe audio using Whisper model.
-    
+
     Args:
         model: Loaded WhisperModel instance
         audio: Audio data as numpy array or compatible format
         beam_size: Beam size for decoding
         language: Language code (default: "en")
         vad_filter: Whether to use VAD filtering
-        
+
     Returns:
         Transcribed text
-        
+
     Raises:
         TranscriptionError: If transcription fails
     """
@@ -54,12 +53,12 @@ def load_model(
 ) -> WhisperModel:
     """
     Load a Whisper model with normalized compute type.
-    
+
     Args:
         model_name: Model name (e.g., "small", "medium", "large-v3")
         device: Device ("cpu" or "cuda")
         compute_type: Compute type (will be normalized based on device)
-        
+
     Returns:
         Loaded WhisperModel instance
     """

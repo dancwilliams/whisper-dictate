@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from whisper_dictate.app_context import ActiveContext
 
-AppPromptRule = Dict[str, str]
-AppPromptMap = Dict[str, List[AppPromptRule]]
+AppPromptRule = dict[str, str]
+AppPromptMap = dict[str, list[AppPromptRule]]
 
 
 def normalize_app_prompts(data: Any) -> AppPromptMap:
     """Normalize raw settings data into a consistent app prompt map."""
 
-    def _rule_from_value(value: Any) -> Optional[AppPromptRule]:
+    def _rule_from_value(value: Any) -> AppPromptRule | None:
         if isinstance(value, str) and value.strip():
             return {"prompt": value}
         if isinstance(value, dict) and isinstance(value.get("prompt"), str):
@@ -84,7 +84,7 @@ def entries_to_rules(entries: list[dict[str, str]]) -> AppPromptMap:
     return rules
 
 
-def resolve_app_prompt(app_prompts: AppPromptMap, context: Optional[ActiveContext]) -> Optional[str]:
+def resolve_app_prompt(app_prompts: AppPromptMap, context: ActiveContext | None) -> str | None:
     """Return the best-matching prompt for the given active context."""
 
     if context is None or not context.process_name:
@@ -95,7 +95,7 @@ def resolve_app_prompt(app_prompts: AppPromptMap, context: Optional[ActiveContex
         return None
 
     window_title = context.window_title or ""
-    default_prompt: Optional[str] = None
+    default_prompt: str | None = None
 
     for rule in rules:
         prompt = rule.get("prompt")

@@ -3,7 +3,7 @@
 import ctypes
 import ctypes.wintypes
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
 
 # Windows hotkey constants
 user32 = ctypes.windll.user32
@@ -24,24 +24,24 @@ class HotkeyError(Exception):
 def parse_hotkey_string(s: str) -> tuple[int, int]:
     """
     Parse a hotkey string like 'CTRL+WIN+G' into modifier flags and virtual key code.
-    
+
     Args:
         s: Hotkey string (e.g., "CTRL+WIN+G")
-        
+
     Returns:
         Tuple of (modifier_flags, virtual_key_code)
-        
+
     Raises:
         ValueError: If hotkey string is invalid
     """
     parts = [p.strip().upper() for p in s.split("+") if p.strip()]
     if not parts:
         raise ValueError("Empty hotkey")
-    
+
     key = parts[-1]
     mods_tokens = parts[:-1]
     mods = 0
-    
+
     for m in mods_tokens:
         if m == "CTRL":
             mods |= MOD_CONTROL
@@ -53,41 +53,41 @@ def parse_hotkey_string(s: str) -> tuple[int, int]:
             mods |= MOD_WIN
         else:
             raise ValueError(f"Unknown modifier: {m}")
-    
+
     if len(key) == 1 and key.isalpha():
         vk = VK[key]
     else:
         raise ValueError("Only single A..Z keys supported")
-    
+
     return mods, vk
 
 
 class HotkeyManager:
     """Manages Windows global hotkey registration and message pumping."""
-    
+
     def __init__(self, callback: Callable[[], None]):
         """
         Initialize hotkey manager.
-        
+
         Args:
             callback: Function to call when hotkey is pressed
         """
         self.callback = callback
-        self.msg_thread: Optional[threading.Thread] = None
-        self._hotkey_mods: Optional[int] = None
-        self._hotkey_vk: Optional[int] = None
-        self._msg_tid: Optional[int] = None
+        self.msg_thread: threading.Thread | None = None
+        self._hotkey_mods: int | None = None
+        self._hotkey_vk: int | None = None
+        self._msg_tid: int | None = None
         self._running = False
-        self._registration_event: Optional[threading.Event] = None
-        self._registration_error: Optional[str] = None
-    
+        self._registration_event: threading.Event | None = None
+        self._registration_error: str | None = None
+
     def register(self, hotkey_string: str) -> None:
         """
         Register a hotkey and start the message pump thread.
-        
+
         Args:
             hotkey_string: Hotkey string (e.g., "CTRL+WIN+G")
-            
+
         Raises:
             HotkeyError: If registration fails
         """
@@ -95,11 +95,11 @@ class HotkeyManager:
             mods, key = parse_hotkey_string(hotkey_string)
         except ValueError as e:
             raise HotkeyError(f"Invalid hotkey: {e}") from e
-        
+
         # Store for the worker thread
         self._hotkey_mods = mods
         self._hotkey_vk = key
-        
+
         # If a previous message thread is running, stop it
         if self.msg_thread and self.msg_thread.is_alive():
             try:
@@ -108,7 +108,7 @@ class HotkeyManager:
             except Exception:
                 pass
             self.msg_thread.join(timeout=0.5)
-        
+
         # Start a fresh message pump that registers the hotkey in the same thread
         self._running = True
         self._registration_event = threading.Event()
@@ -126,7 +126,7 @@ class HotkeyManager:
             if self.msg_thread:
                 self.msg_thread.join(timeout=0.5)
             raise HotkeyError(self._registration_error)
-    
+
     def unregister(self) -> None:
         """Unregister hotkey and stop message pump."""
         self._running = False
@@ -138,12 +138,12 @@ class HotkeyManager:
         if self.msg_thread:
             self.msg_thread.join(timeout=1.0)
         user32.UnregisterHotKey(None, TOGGLE_ID)
-    
+
     def _message_pump(self) -> None:
         """Windows message pump for hotkey handling (runs in background thread)."""
         # Save this thread's id so we can post WM_QUIT when re-registering
         self._msg_tid = ctypes.windll.kernel32.GetCurrentThreadId()
-        
+
         # Register the hotkey in THIS thread so WM_HOTKEY arrives here
         if not user32.RegisterHotKey(None, TOGGLE_ID, self._hotkey_mods, self._hotkey_vk):
             # Registration failed; signal the waiting register() call
@@ -157,7 +157,7 @@ class HotkeyManager:
 
         if self._registration_event:
             self._registration_event.set()
-        
+
         try:
             msg = ctypes.wintypes.MSG()
             while self._running:

@@ -7,7 +7,6 @@ import ctypes.wintypes
 import platform
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 if platform.system() == "Windows":
     USER32 = ctypes.windll.user32
@@ -21,12 +20,12 @@ else:
 class ActiveContext:
     """Information about the currently active application."""
 
-    window_title: Optional[str]
-    process_name: Optional[str]
-    cursor_position: Optional[tuple[int, int]]
+    window_title: str | None
+    process_name: str | None
+    cursor_position: tuple[int, int] | None
 
 
-def _get_window_title(hwnd: int) -> Optional[str]:
+def _get_window_title(hwnd: int) -> str | None:
     length = USER32.GetWindowTextLengthW(hwnd)
     if length == 0:
         return None
@@ -37,11 +36,11 @@ def _get_window_title(hwnd: int) -> Optional[str]:
     return None
 
 
-def _get_process_name(hwnd: int) -> Optional[str]:
+def _get_process_name(hwnd: int) -> str | None:
     pid = ctypes.wintypes.DWORD()
     USER32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-    handle = KERNEL32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    process_query_limited_information = 0x1000
+    handle = KERNEL32.OpenProcess(process_query_limited_information, False, pid.value)
     if not handle:
         return None
 
@@ -56,14 +55,14 @@ def _get_process_name(hwnd: int) -> Optional[str]:
     return None
 
 
-def _get_cursor_position() -> Optional[tuple[int, int]]:
+def _get_cursor_position() -> tuple[int, int] | None:
     point = ctypes.wintypes.POINT()
     if USER32.GetCursorPos(ctypes.byref(point)):
         return point.x, point.y
     return None
 
 
-def get_active_context() -> Optional[ActiveContext]:
+def get_active_context() -> ActiveContext | None:
     """Return information about the active application on Windows."""
     if USER32 is None or KERNEL32 is None:
         return None
@@ -82,7 +81,7 @@ def get_active_context() -> Optional[ActiveContext]:
         return None
 
 
-def format_context_for_prompt(context: Optional[ActiveContext]) -> Optional[str]:
+def format_context_for_prompt(context: ActiveContext | None) -> str | None:
     """Render the context into a short description for prompt conditioning."""
     if context is None:
         return None

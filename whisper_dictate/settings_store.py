@@ -2,12 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 SETTINGS_FILE = Path.home() / ".whisper_dictate/whisper_dictate_settings.json"
 
 
-def load_settings() -> Dict[str, Any]:
+def load_settings() -> dict[str, Any]:
     """Load saved settings from disk, returning an empty dict on failure."""
     try:
         if SETTINGS_FILE.is_file():
@@ -20,7 +20,7 @@ def load_settings() -> Dict[str, Any]:
     return {"app_prompts": {}}
 
 
-def save_settings(settings: Dict[str, Any]) -> bool:
+def save_settings(settings: dict[str, Any]) -> bool:
     """Persist settings to disk. Returns True on success, False otherwise."""
     try:
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)

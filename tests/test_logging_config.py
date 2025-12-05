@@ -5,8 +5,6 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-import pytest
-
 # Need to patch before importing to prevent directory creation at module level
 with patch("whisper_dictate.logging_config.Path.mkdir"):
     from whisper_dictate.logging_config import LOG_DIR, LOG_FILE, setup_logging
@@ -188,7 +186,7 @@ class TestSetupLogging:
 
             with patch("whisper_dictate.logging_config.logging.FileHandler") as mock_file:
                 # Simulate I/O error
-                mock_file.side_effect = IOError("Disk full")
+                mock_file.side_effect = OSError("Disk full")
 
                 with patch("whisper_dictate.logging_config.logging.StreamHandler"):
                     logger = setup_logging()

@@ -1,7 +1,6 @@
 """Prompt management for LLM cleanup."""
 
 from pathlib import Path
-from typing import Optional
 
 from whisper_dictate.config import DEFAULT_LLM_PROMPT
 

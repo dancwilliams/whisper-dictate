@@ -5,10 +5,11 @@ from __future__ import annotations
 import csv
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
-from typing import Iterable, Literal, Optional
+from typing import Literal
 
 MatchType = Literal["word", "phrase", "regex"]
 
@@ -25,7 +26,7 @@ class GlossaryRule:
     match_type: MatchType = "phrase"
     case_sensitive: bool = False
     word_boundary: bool = True
-    description: Optional[str] = None
+    description: str | None = None
     _compiled: re.Pattern[str] | None = field(init=False, default=None, repr=False)
 
     def to_dict(self) -> dict:
@@ -41,7 +42,7 @@ class GlossaryRule:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "GlossaryRule":
+    def from_dict(cls, data: dict) -> GlossaryRule:
         """Create a rule from a persisted dictionary."""
 
         return cls(
@@ -87,7 +88,7 @@ class GlossaryManager:
     # Loading / saving
     # ------------------------------------------------------------------
     @classmethod
-    def load(cls, path: Path | None = None) -> "GlossaryManager":
+    def load(cls, path: Path | None = None) -> GlossaryManager:
         """Load glossary rules from disk.
 
         JSON is preferred, but we also parse legacy "trigger => replacement" text.
@@ -273,7 +274,7 @@ def write_saved_glossary(glossary_text: str) -> bool:
     return manager.save()
 
 
-def apply_glossary(text: str, manager: Optional[GlossaryManager]) -> str:
+def apply_glossary(text: str, manager: GlossaryManager | None) -> str:
     """Apply glossary normalization when a manager is present."""
 
     if manager is None:

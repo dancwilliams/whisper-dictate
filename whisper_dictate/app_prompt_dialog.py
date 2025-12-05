@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import re
 import tkinter as tk
-from tkinter import StringVar, Toplevel, messagebox
-from tkinter import ttk
+from tkinter import StringVar, Toplevel, messagebox, ttk
 
 from whisper_dictate import app_prompts
 
