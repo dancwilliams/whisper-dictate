@@ -169,7 +169,7 @@ class App(Tk):
         self.txt_out = Text(out, wrap="word")
         self.txt_out.pack(fill="both", expand=True)
 
-    def _open_window(self, window_attr: str, title: str, builder) -> None:
+    def _open_window(self, window_attr: str, title: str, builder, resizable: bool = False) -> None:
         """Open or focus a configuration window."""
         existing = getattr(self, window_attr)
         if existing and existing.winfo_exists():
@@ -180,7 +180,7 @@ class App(Tk):
 
         window = Toplevel(self)
         window.title(title)
-        window.resizable(False, False)
+        window.resizable(resizable, resizable)
         setattr(self, window_attr, window)
         window.protocol("WM_DELETE_WINDOW", lambda: self._close_window(window_attr))
         builder(window)
@@ -308,16 +308,49 @@ class App(Tk):
         """Open a window to view the current log file."""
 
         def build(window: Toplevel) -> None:
+            # Set a reasonable default size
+            window.geometry("900x600")
+
             frame = ttk.Frame(window, padding=12)
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(0, weight=1)
             frame.rowconfigure(1, weight=1)
 
-            text = Text(frame, wrap="none")
+            # Header with controls
+            header = ttk.Frame(frame)
+            header.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            header.columnconfigure(0, weight=1)
+            ttk.Label(
+                header,
+                text=f"Logs are written to {LOG_FILE}",
+                wraplength=600,
+                justify="left",
+            ).grid(row=0, column=0, sticky="w")
+
+            # Wrap toggle
+            wrap_var = BooleanVar(value=True)
+            ttk.Checkbutton(
+                header, text="Wrap text", variable=wrap_var,
+                command=lambda: text.configure(wrap="word" if wrap_var.get() else "none")
+            ).grid(row=0, column=1, padx=(12, 0))
+
+            ttk.Button(header, text="Refresh", command=lambda: load_logs()).grid(
+                row=0, column=2, padx=(12, 0)
+            )
+
+            # Text widget with scrollbars
+            text = Text(frame, wrap="word")
             text.grid(row=1, column=0, sticky="nsew")
-            scrollbar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
-            scrollbar.grid(row=1, column=1, sticky="ns")
-            text.configure(yscrollcommand=scrollbar.set, state="disabled")
+
+            # Vertical scrollbar
+            vscrollbar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
+            vscrollbar.grid(row=1, column=1, sticky="ns")
+            text.configure(yscrollcommand=vscrollbar.set)
+
+            # Horizontal scrollbar
+            hscrollbar = ttk.Scrollbar(frame, orient="horizontal", command=text.xview)
+            hscrollbar.grid(row=2, column=0, sticky="ew")
+            text.configure(xscrollcommand=hscrollbar.set, state="disabled")
 
             def load_logs() -> None:
                 text.configure(state="normal")
@@ -332,22 +365,9 @@ class App(Tk):
                 text.see("end")
                 text.configure(state="disabled")
 
-            header = ttk.Frame(frame)
-            header.grid(row=0, column=0, sticky="we", pady=(0, 8))
-            header.columnconfigure(0, weight=1)
-            ttk.Label(
-                header,
-                text=f"Logs are written to {LOG_FILE}",
-                wraplength=420,
-                justify="left",
-            ).grid(row=0, column=0, sticky="w")
-            ttk.Button(header, text="Refresh", command=load_logs).grid(
-                row=0, column=1, padx=(12, 0)
-            )
-
             load_logs()
 
-        self._open_window("_log_window", "Logs", build)
+        self._open_window("_log_window", "Logs", build, resizable=True)
 
     def _refresh_llm_models(self) -> None:
         """Fetch available LLM models from the configured endpoint."""
