@@ -670,6 +670,7 @@ class App(Tk):
             self.hotkey_manager = hotkeys.HotkeyManager(hotkey_callback)
             self.hotkey_manager.register(combo)
             self._set_status("ready", f"Hotkey set: {combo}")
+            self.btn_hotkey.config(state="disabled")
             logger.info(f"Hotkey registered: {combo}")
         except hotkeys.HotkeyError as e:
             self._set_status("error", "Invalid hotkey")

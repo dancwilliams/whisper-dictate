@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved encapsulation and thread management
   - Maintained backward compatibility with wrapper functions
   - Improved performance and responsiveness
+- GUI improvements
+  - "Register hotkey" button now greys out after successful registration (similar to "Load model")
+  - Provides clearer visual feedback that hotkey is active
 
 ## [0.1.0] - 2025-01-XX
 
