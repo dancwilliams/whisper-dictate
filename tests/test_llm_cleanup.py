@@ -28,11 +28,29 @@ class TestLLMCleanup:
     def test_clean_with_llm_success(self):
         """Test successful LLM cleanup."""
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Cleaned text"
-        mock_client.chat.completions.create.return_value = mock_response
-        
+
+        # Mock streaming response with chunks
+        mock_chunk1 = MagicMock()
+        mock_chunk1.choices = [MagicMock()]
+        mock_chunk1.choices[0].delta.content = "Cleaned "
+        mock_chunk1.usage = None
+
+        mock_chunk2 = MagicMock()
+        mock_chunk2.choices = [MagicMock()]
+        mock_chunk2.choices[0].delta.content = "text"
+        mock_chunk2.usage = None
+
+        # Final chunk with usage info
+        mock_chunk3 = MagicMock()
+        mock_chunk3.choices = [MagicMock()]
+        mock_chunk3.choices[0].delta.content = None
+        mock_chunk3.usage = MagicMock()
+        mock_chunk3.usage.prompt_tokens = 10
+        mock_chunk3.usage.completion_tokens = 5
+        mock_chunk3.usage.total_tokens = 15
+
+        mock_client.chat.completions.create.return_value = iter([mock_chunk1, mock_chunk2, mock_chunk3])
+
         with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
             result = clean_with_llm(
                 "raw text", "http://test", "model", "key", "prompt", 0.1
@@ -58,9 +76,8 @@ class TestLLMCleanup:
     def test_clean_with_llm_empty_response(self):
         """Test handling of empty response."""
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = []
-        mock_client.chat.completions.create.return_value = mock_response
+        # Mock empty streaming response
+        mock_client.chat.completions.create.return_value = iter([])
 
         with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
             result = clean_with_llm("text", "http://test", "model", None, "prompt", 0.1)
@@ -70,10 +87,14 @@ class TestLLMCleanup:
         """Ensure glossary rules are summarized in the system prompt when provided."""
         glossary_manager = GlossaryManager([GlossaryRule(trigger="AppName", replacement="Whisper Dictate")])
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Cleaned text"
-        mock_client.chat.completions.create.return_value = mock_response
+
+        # Mock streaming response
+        mock_chunk = MagicMock()
+        mock_chunk.choices = [MagicMock()]
+        mock_chunk.choices[0].delta.content = "Cleaned text"
+        mock_chunk.usage = None
+
+        mock_client.chat.completions.create.return_value = iter([mock_chunk])
 
         with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
             clean_with_llm(
@@ -95,10 +116,14 @@ class TestLLMCleanup:
     def test_clean_with_llm_includes_app_prompt(self):
         """Application-specific prompt should be appended to the system prompt."""
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Cleaned text"
-        mock_client.chat.completions.create.return_value = mock_response
+
+        # Mock streaming response
+        mock_chunk = MagicMock()
+        mock_chunk.choices = [MagicMock()]
+        mock_chunk.choices[0].delta.content = "Cleaned text"
+        mock_chunk.usage = None
+
+        mock_client.chat.completions.create.return_value = iter([mock_chunk])
 
         with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
             clean_with_llm(

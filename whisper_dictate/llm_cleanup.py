@@ -1,6 +1,7 @@
 """LLM cleanup functionality for text refinement."""
 
 import logging
+import time
 from typing import Optional, Union
 
 from whisper_dictate.glossary import GlossaryManager
@@ -118,16 +119,82 @@ def clean_with_llm(
 
     try:
         client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key")
-        resp = client.chat.completions.create(
+
+        # Start timing
+        start_time = time.perf_counter()
+        first_token_time = None
+
+        # Use streaming to capture time to first token
+        stream = client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
             timeout=timeout,
+            stream=True,
+            stream_options={"include_usage": True},
         )
-        if resp.choices:
-            text = resp.choices[0].message.content or ""
-            return text.strip()
-        return None
+
+        # Collect response and measure first token time
+        collected_text = []
+        usage_info = None
+
+        for chunk in stream:
+            # Capture time to first token
+            if first_token_time is None and chunk.choices:
+                if chunk.choices[0].delta.content:
+                    first_token_time = time.perf_counter()
+
+            # Collect content
+            if chunk.choices:
+                content = chunk.choices[0].delta.content
+                if content:
+                    collected_text.append(content)
+
+            # Capture usage information (typically in the last chunk)
+            if hasattr(chunk, 'usage') and chunk.usage is not None:
+                usage_info = chunk.usage
+
+        # Calculate total time
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        time_to_first_token = (first_token_time - start_time) if first_token_time else None
+
+        # Assemble the response text
+        text = "".join(collected_text).strip()
+
+        # Log statistics
+        if usage_info:
+            input_tokens = getattr(usage_info, 'prompt_tokens', 0)
+            output_tokens = getattr(usage_info, 'completion_tokens', 0)
+            total_tokens = getattr(usage_info, 'total_tokens', input_tokens + output_tokens)
+
+            # Calculate token rate (tokens per second)
+            token_rate = output_tokens / total_time if total_time > 0 else 0
+
+            logger.info(
+                "LLM statistics: time_to_first_token=%.3fs total_time=%.3fs "
+                "input_tokens=%d output_tokens=%d total_tokens=%d token_rate=%.1f tok/s",
+                time_to_first_token if time_to_first_token else 0,
+                total_time,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                token_rate,
+            )
+        else:
+            # Log timing even if usage info not available
+            logger.info(
+                "LLM statistics: time_to_first_token=%.3fs total_time=%.3fs "
+                "(token usage not available)",
+                time_to_first_token if time_to_first_token else 0,
+                total_time,
+            )
+
+        # Also log the output text if debug logging is enabled
+        if debug_logging:
+            logger.info("LLM response: %s", text)
+
+        return text if text else None
     except Exception as e:
         raise LLMCleanupError(f"LLM cleanup failed: {e}") from e
 
