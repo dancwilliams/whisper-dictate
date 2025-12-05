@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from pathlib import Path
-from tkinter import BooleanVar, StringVar, Toplevel, filedialog, messagebox
-from tkinter import ttk
+from tkinter import BooleanVar, StringVar, Toplevel, filedialog, messagebox, ttk
 
 from whisper_dictate.glossary import GlossaryManager, GlossaryRule
 

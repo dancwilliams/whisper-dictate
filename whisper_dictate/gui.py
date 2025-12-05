@@ -3,7 +3,6 @@
 import threading
 import time
 from collections import deque
-from typing import Optional
 
 try:
     import pyautogui
@@ -11,12 +10,11 @@ try:
 except ImportError:
     pyautogui = None
 
+from tkinter import END, BooleanVar, DoubleVar, Menu, StringVar, Text, Tk, Toplevel, messagebox, ttk
+
 import pyperclip
 import sounddevice as sd
 from faster_whisper import WhisperModel
-from tkinter import Tk, StringVar, BooleanVar, DoubleVar, Text, END, Menu, Toplevel
-from tkinter import messagebox
-from tkinter import ttk
 
 from whisper_dictate import (
     app_context,
@@ -30,22 +28,22 @@ from whisper_dictate import (
     settings_store,
     transcription,
 )
+from whisper_dictate.app_prompt_dialog import AppPromptDialog
 from whisper_dictate.config import (
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
+    DEFAULT_LLM_DEBUG,
     DEFAULT_LLM_ENABLED,
     DEFAULT_LLM_ENDPOINT,
     DEFAULT_LLM_KEY,
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_PROMPT,
     DEFAULT_LLM_TEMP,
-    DEFAULT_LLM_DEBUG,
     DEFAULT_MODEL,
     set_cuda_paths,
 )
-from whisper_dictate.gui_components import PromptDialog, StatusIndicator
-from whisper_dictate.app_prompt_dialog import AppPromptDialog
 from whisper_dictate.glossary_dialog import GlossaryDialog
+from whisper_dictate.gui_components import PromptDialog, StatusIndicator
 from whisper_dictate.logging_config import LOG_FILE, setup_logging
 
 # Set up CUDA paths before importing other modules
@@ -85,17 +83,17 @@ class App(Tk):
         )
 
         # Model and hotkey manager
-        self.model: Optional[WhisperModel] = None
-        self.hotkey_manager: Optional[hotkeys.HotkeyManager] = None
+        self.model: WhisperModel | None = None
+        self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self.llm_models: list[str] = []
-        self.cmb_llm_model: Optional[ttk.Combobox] = None
-        self.btn_llm_refresh: Optional[ttk.Button] = None
+        self.cmb_llm_model: ttk.Combobox | None = None
+        self.btn_llm_refresh: ttk.Button | None = None
 
         # Secondary windows
-        self._speech_window: Optional[Toplevel] = None
-        self._automation_window: Optional[Toplevel] = None
-        self._llm_window: Optional[Toplevel] = None
-        self._log_window: Optional[Toplevel] = None
+        self._speech_window: Toplevel | None = None
+        self._automation_window: Toplevel | None = None
+        self._llm_window: Toplevel | None = None
+        self._log_window: Toplevel | None = None
 
         self._build_menus()
         self._build_ui()
@@ -386,11 +384,12 @@ class App(Tk):
             try:
                 models = llm_cleanup.list_llm_models(endpoint, api_key)
             except llm_cleanup.LLMCleanupError as e:
+                error_msg = str(e)
                 def on_error() -> None:
                     if self.btn_llm_refresh:
                         self.btn_llm_refresh.config(state="normal")
                     self._set_status("warning", "LLM model fetch failed")
-                    messagebox.showerror("LLM models", str(e))
+                    messagebox.showerror("LLM models", error_msg)
 
                 self.after(0, on_error)
                 return
@@ -644,13 +643,13 @@ class App(Tk):
             self._set_status("warning", "Load the model first")
             messagebox.showwarning("Hotkey", "Load the model first.")
             return
-        
+
         combo = self.var_hotkey.get().strip()
         try:
             # Wrap callback to ensure it runs on main thread
             def hotkey_callback():
                 self.after(0, self._toggle_record)
-            
+
             self.hotkey_manager = hotkeys.HotkeyManager(hotkey_callback)
             self.hotkey_manager.register(combo)
             self._set_status("ready", f"Hotkey set: {combo}")
@@ -664,7 +663,7 @@ class App(Tk):
         """Toggle recording on/off."""
         if not self.model:
             return
-        
+
         if not audio.is_recording():
             # Start recording
             inp = self.var_input.get().strip()
@@ -677,7 +676,7 @@ class App(Tk):
                     matches = [i for i, d in enumerate(devs) if inp.lower() in d["name"].lower()]
                     if matches:
                         device_id = matches[0]
-            
+
             try:
                 audio.start_recording(device_id)
             except Exception as e:
@@ -685,7 +684,7 @@ class App(Tk):
                 logger.error(f"Audio start failed: {e}", exc_info=True)
                 messagebox.showerror("Audio", f"Could not start input:\n{e}")
                 return
-            
+
             self._set_status("listening", "Recording... press hotkey to stop")
             self.btn_toggle.config(text="Stop and transcribe")
         else:
@@ -762,7 +761,7 @@ class App(Tk):
         ts = time.strftime("%H:%M:%S")
         self.txt_out.insert(END, f"[{ts}] {final_text}\n")
         self.txt_out.see(END)
-        
+
         try:
             pyperclip.copy(final_text)
             if self.var_auto_paste.get():
@@ -778,7 +777,7 @@ class App(Tk):
                         logger.error(f"Auto-paste failed: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"Clipboard copy failed: {e}", exc_info=True)
-        
+
         if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
             self._set_status("ready", "Ready")
 

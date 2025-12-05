@@ -2,7 +2,6 @@
 
 import queue
 import threading
-from typing import Optional
 
 import numpy as np
 import sounddevice as sd
@@ -14,7 +13,7 @@ recording = False
 audio_q: queue.Queue[np.ndarray] = queue.Queue()
 audio_buf: list[np.ndarray] = []
 buffer_lock = threading.Lock()
-stream: Optional[sd.InputStream] = None
+stream: sd.InputStream | None = None
 
 
 def audio_callback(indata: np.ndarray, frames: int, time_info: dict, status) -> None:
@@ -33,13 +32,13 @@ def recorder_loop() -> None:
             audio_buf.append(chunk)
 
 
-def start_recording(device: Optional[int] = None) -> None:
+def start_recording(device: int | None = None) -> None:
     """Start audio recording stream."""
     global stream, recording, audio_buf
-    
+
     with buffer_lock:
         audio_buf = []
-    
+
     stream = sd.InputStream(
         channels=INPUT_CHANNELS,
         samplerate=SAMPLE_RATE,
@@ -55,7 +54,7 @@ def start_recording(device: Optional[int] = None) -> None:
 def stop_recording() -> None:
     """Stop audio recording stream."""
     global stream, recording
-    
+
     if stream:
         try:
             stream.stop()
@@ -66,7 +65,7 @@ def stop_recording() -> None:
     recording = False
 
 
-def get_audio_buffer() -> Optional[np.ndarray]:
+def get_audio_buffer() -> np.ndarray | None:
     """Get and clear the audio buffer. Returns None if empty."""
     with buffer_lock:
         if not audio_buf:

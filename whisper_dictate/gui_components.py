@@ -1,13 +1,11 @@
 """Reusable GUI components for whisper-dictate."""
 
-import threading
-from tkinter import Tk, Toplevel, Text, END, Canvas
-from tkinter import ttk
+from tkinter import END, Canvas, Text, Tk, Toplevel, ttk
 
 
 class PromptDialog(Toplevel):
     """Dialog for editing the LLM cleanup prompt."""
-    
+
     def __init__(self, parent: Tk, prompt: str):
         super().__init__(parent)
         self.title("Edit Cleanup Prompt")

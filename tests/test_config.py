@@ -1,6 +1,5 @@
 """Tests for configuration module."""
 
-import pytest
 
 from whisper_dictate.config import (
     DEFAULT_COMPUTE,
@@ -17,7 +16,7 @@ from whisper_dictate.config import (
 
 class TestConfig:
     """Test configuration defaults and functions."""
-    
+
     def test_defaults_exist(self):
         """Test that all default values are defined."""
         assert DEFAULT_MODEL is not None
@@ -28,13 +27,13 @@ class TestConfig:
         assert DEFAULT_LLM_MODEL is not None
         assert DEFAULT_LLM_KEY is not None
         assert DEFAULT_LLM_TEMP is not None
-    
+
     def test_normalize_compute_type_cpu(self):
         """Test compute type normalization for CPU."""
         assert normalize_compute_type("cpu", "float16") == "int8"
         assert normalize_compute_type("cpu", "int8") == "int8"
         assert normalize_compute_type("cpu", "float32") == "float32"
-    
+
     def test_normalize_compute_type_cuda(self):
         """Test compute type normalization for CUDA."""
         assert normalize_compute_type("cuda", "int8") == "float16"

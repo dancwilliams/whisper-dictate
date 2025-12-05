@@ -2,7 +2,6 @@
 
 import logging
 import time
-from typing import Optional, Union
 
 from whisper_dictate.glossary import GlossaryManager
 
@@ -19,7 +18,7 @@ class LLMCleanupError(Exception):
     """Raised when LLM cleanup fails."""
 
 
-def list_llm_models(endpoint: str, api_key: Optional[str], timeout: float = 10.0) -> list[str]:
+def list_llm_models(endpoint: str, api_key: str | None, timeout: float = 10.0) -> list[str]:
     """
     Retrieve available models from an OpenAI-compatible endpoint.
 
@@ -50,18 +49,18 @@ def clean_with_llm(
     raw_text: str,
     endpoint: str,
     model: str,
-    api_key: Optional[str],
+    api_key: str | None,
     prompt: str,
     temperature: float,
-    prompt_context: Optional[str] = None,
-    glossary: Optional[Union[str, GlossaryManager]] = None,
-    app_prompt: Optional[str] = None,
+    prompt_context: str | None = None,
+    glossary: str | GlossaryManager | None = None,
+    app_prompt: str | None = None,
     debug_logging: bool = False,
     timeout: float = 15.0,
-) -> Optional[str]:
+) -> str | None:
     """
     Send raw_text to an OpenAI-compatible LLM for cleanup.
-    
+
     Args:
         raw_text: Raw transcribed text to clean
         endpoint: Base URL for OpenAI-compatible API
@@ -74,16 +73,16 @@ def clean_with_llm(
         app_prompt: Optional application-specific prompt appended to the system prompt
         debug_logging: When True, log the full prompt payload before sending
         timeout: Request timeout in seconds
-        
+
     Returns:
         Cleaned text, or None on failure
-        
+
     Raises:
         LLMCleanupError: If cleanup fails and OpenAI is available
     """
     if not raw_text.strip():
         return ""
-    
+
     if OpenAI is None:
         raise LLMCleanupError("OpenAI client not installed. Run: uv add openai")
 

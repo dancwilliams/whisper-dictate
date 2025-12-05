@@ -5,8 +5,6 @@ These tests verify that components work together correctly end-to-end.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from whisper_dictate import app_context, app_prompts
 from whisper_dictate.glossary import GlossaryManager, GlossaryRule
 from whisper_dictate.llm_cleanup import clean_with_llm
@@ -299,7 +297,7 @@ class TestGlossaryWithLLMIntegration:
                 "The USA uses the API"
             )
 
-            result = clean_with_llm(
+            clean_with_llm(
                 raw_text="the usa uses the api",
                 endpoint=TEST_ENDPOINT,
                 model=TEST_MODEL,

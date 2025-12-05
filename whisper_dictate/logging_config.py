@@ -13,20 +13,20 @@ LOG_FILE = LOG_DIR / "whisper_dictate.log"
 def setup_logging(level: int = logging.INFO) -> logging.Logger:
     """
     Set up logging configuration.
-    
+
     Args:
         level: Logging level (default: INFO)
-        
+
     Returns:
         Configured logger instance
     """
     logger = logging.getLogger("whisper_dictate")
     logger.setLevel(level)
-    
+
     # Avoid adding handlers multiple times
     if logger.handlers:
         return logger
-    
+
     # Console handler
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(level)
@@ -36,7 +36,7 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     )
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
-    
+
     # File handler
     try:
         file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
@@ -49,6 +49,6 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
         logger.addHandler(file_handler)
     except Exception as e:
         logger.warning(f"Could not set up file logging: {e}")
-    
+
     return logger
 
