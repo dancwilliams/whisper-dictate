@@ -59,7 +59,10 @@ def stop_recording() -> None:
         try:
             stream.stop()
             stream.close()
-        except Exception:
+        except (sd.PortAudioError, RuntimeError, AttributeError):
+            # PortAudioError: PortAudio/sounddevice errors
+            # RuntimeError: Stream already closed or invalid state
+            # AttributeError: Stream object is invalid
             pass
         stream = None
     recording = False

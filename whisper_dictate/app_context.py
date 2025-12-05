@@ -77,7 +77,11 @@ def get_active_context() -> ActiveContext | None:
             process_name=_get_process_name(hwnd),
             cursor_position=_get_cursor_position(),
         )
-    except Exception:
+    except (OSError, AttributeError, ValueError, RuntimeError):
+        # OSError: Windows API failures (includes WinError)
+        # AttributeError: Invalid window handle or buffer operations
+        # ValueError: Invalid data from Windows API
+        # RuntimeError: Other Windows API runtime errors
         return None
 
 

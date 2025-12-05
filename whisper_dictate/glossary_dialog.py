@@ -144,7 +144,10 @@ class GlossaryDialog(Toplevel):
             text = Path(path).read_text(encoding="utf-8")
             self.manager.import_csv(text)
             self._refresh_tree()
-        except Exception as e:
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            # OSError: File access errors
+            # UnicodeDecodeError: Invalid UTF-8 encoding
+            # ValueError: Invalid CSV format from import_csv
             messagebox.showerror("Import glossary", f"Could not import: {e}")
 
     def _on_export(self) -> None:
@@ -159,7 +162,9 @@ class GlossaryDialog(Toplevel):
         try:
             Path(path).write_text(self.manager.export_csv(), encoding="utf-8")
             messagebox.showinfo("Export glossary", f"Saved to {path}")
-        except Exception as e:
+        except (OSError, UnicodeEncodeError) as e:
+            # OSError: File write errors (permission, disk space, etc.)
+            # UnicodeEncodeError: Invalid character encoding
             messagebox.showerror("Export glossary", f"Could not export: {e}")
 
     def _on_save(self) -> None:

@@ -101,7 +101,9 @@ class GlossaryManager:
 
         try:
             content = path.read_text(encoding="utf-8")
-        except Exception as e:  # pragma: no cover - best effort load
+        except (OSError, UnicodeDecodeError) as e:  # pragma: no cover
+            # OSError: File access errors
+            # UnicodeDecodeError: Invalid UTF-8 encoding
             print(f"(Glossary) Could not read saved glossary: {e}")
             return cls()
 
@@ -130,7 +132,11 @@ class GlossaryManager:
             payload = json.dumps([rule.to_dict() for rule in self.rules], indent=2, ensure_ascii=False)
             path.write_text(payload, encoding="utf-8")
             return True
-        except Exception as e:  # pragma: no cover - best effort save
+        except (OSError, UnicodeEncodeError, TypeError, ValueError) as e:  # pragma: no cover
+            # OSError: File/directory write errors
+            # UnicodeEncodeError: Invalid character encoding
+            # TypeError: Non-serializable values in rules
+            # ValueError: Invalid JSON structure
             print(f"(Glossary) Could not save glossary: {e}")
             return False
 

@@ -47,7 +47,9 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
         )
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
-    except Exception as e:
+    except (OSError, PermissionError) as e:
+        # OSError: File creation or access errors
+        # PermissionError: Insufficient permissions to create log file
         logger.warning(f"Could not set up file logging: {e}")
 
     return logger

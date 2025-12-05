@@ -13,7 +13,9 @@ def load_saved_prompt(default: str = DEFAULT_LLM_PROMPT) -> str:
         if PROMPT_FILE.is_file():
             content = PROMPT_FILE.read_text(encoding="utf-8")
             return content if content.strip() else default
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
+        # OSError: File access errors (permission, not found, etc.)
+        # UnicodeDecodeError: Invalid UTF-8 encoding
         print(f"(Prompt) Could not read saved prompt: {e}")
     return default
 
@@ -24,7 +26,9 @@ def write_saved_prompt(prompt: str) -> bool:
         PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
         PROMPT_FILE.write_text(prompt, encoding="utf-8")
         return True
-    except Exception as e:
+    except (OSError, UnicodeEncodeError) as e:
+        # OSError: File/directory creation or write errors
+        # UnicodeEncodeError: Invalid character encoding
         print(f"(Prompt) Could not save prompt: {e}")
         return False
 
