@@ -178,6 +178,18 @@ uv run pytest --cov=whisper_dictate --cov-report=html
 
 ---
 
+## 📚 Documentation
+
+For developers and contributors:
+
+- **[Architecture Documentation](docs/architecture.md)** — System architecture diagrams, data flow, module responsibilities, and design patterns
+- **[Build Instructions](docs/build.md)** — Detailed guide for creating standalone executables
+- **[CLAUDE.md](CLAUDE.md)** — AI assistant context and development guidelines
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Contribution guidelines and coding standards
+- **[CHANGELOG.md](CHANGELOG.md)** — Project history and release notes
+
+---
+
 ## 🧾 Deployment on Another Machine
 
 ```powershell

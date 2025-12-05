@@ -8,24 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Comprehensive test coverage improvements
-  - Added tests for CUDA path configuration (#TBD)
-  - Added tests for app prompt normalization and conversion functions (#TBD)
+- Comprehensive test coverage improvements (#41)
+  - Added tests for CUDA path configuration
+  - Added tests for app prompt normalization and conversion functions
   - Increased `config.py` coverage to 100% (from 66%)
   - Increased `app_prompts.py` coverage to 99% (from 41%)
 - Privacy warning for debug logging mode in GUI (#40)
   - Added prominent warning label when debug mode is enabled
   - Warns users that debug mode logs transcribed speech and prompts to disk
+- Architecture documentation (#42)
+  - Added comprehensive architecture diagram using Mermaid
+  - Documented data flow through the system
+  - Sequence diagrams for recording, transcription, LLM cleanup, and paste flows
+  - Module responsibilities and design patterns
+  - Threading model visualization
 
 ### Changed
 - Improved error handling across the codebase (#40)
   - Replaced broad `except Exception` with specific exception types
   - Added inline comments documenting exception types
   - Better error diagnostics in 9 modules
-- Refactored audio module to class-based design (#TBD)
+- Refactored audio module to class-based design (#42)
   - Converted global variable pattern to `AudioRecorder` class
   - Improved encapsulation and thread management
   - Maintained backward compatibility with wrapper functions
+  - Improved performance and responsiveness
 
 ## [0.1.0] - 2025-01-XX
 
