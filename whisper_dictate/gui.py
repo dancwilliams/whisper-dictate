@@ -212,12 +212,17 @@ class App(Tk):
                 values=["int8", "int8_float32", "float32", "float16", "int8_float16"], width=14
             ))
 
-            input_row = ttk.Frame(frame)
-            input_row.grid(row=3, column=1, sticky="we", pady=4)
-            input_row.columnconfigure(0, weight=1)
-            ttk.Label(frame, text="Input device").grid(row=3, column=0, sticky="w", pady=4)
-            ttk.Entry(input_row, textvariable=self.var_input).grid(row=0, column=0, sticky="we")
-            ttk.Button(input_row, text="List…", command=self._show_inputs).grid(row=0, column=1, padx=(8, 0))
+            # Get available input devices for dropdown
+            input_device_names = self._get_input_device_names()
+
+            # Create combobox for input device selection
+            input_combo = ttk.Combobox(
+                frame,
+                textvariable=self.var_input,
+                values=input_device_names,
+                state="readonly"
+            )
+            self._add_labeled_widget(frame, "Input device", 3, input_combo)
 
         self._open_window("_speech_window", "Speech recognition", build)
 
@@ -484,7 +489,27 @@ class App(Tk):
         set_if_present("model", self.var_model, str)
         set_if_present("device", self.var_device, str)
         set_if_present("compute", self.var_compute, str)
-        set_if_present("input", self.var_input, str)
+
+        # Migrate old integer device ID to new "index: name" format
+        if "input" in saved:
+            input_val = saved["input"]
+            if isinstance(input_val, int) or (isinstance(input_val, str) and input_val.isdigit()):
+                # Old format: just a number - convert to "index: name" format
+                device_id = int(input_val)
+                try:
+                    devices = sd.query_devices()
+                    if 0 <= device_id < len(devices):
+                        device_name = devices[device_id].get("name", "")
+                        self.var_input.set(f"{device_id}: {device_name}")
+                    else:
+                        # Invalid device ID, clear it
+                        self.var_input.set("")
+                except (sd.PortAudioError, RuntimeError):
+                    self.var_input.set("")
+            else:
+                # Already in new format or empty
+                set_if_present("input", self.var_input, str)
+
         set_if_present("hotkey", self.var_hotkey, str)
         set_if_present("auto_paste", self.var_auto_paste, bool)
         set_if_present("paste_delay", self.var_paste_delay, float)
@@ -604,20 +629,45 @@ class App(Tk):
         if dialog.result is not None:
             self.app_prompts = dialog.result
 
-    def _show_inputs(self) -> None:
-        """Show available audio input devices."""
+    def _get_input_device_names(self) -> list[str]:
+        """Get list of available audio input devices for dropdown.
+
+        Returns:
+            List of device names formatted as "index: name"
+        """
         try:
             devices = sd.query_devices()
+            names = [
+                f"{i}: {d.get('name', '')}"
+                for i, d in enumerate(devices)
+                if d.get("max_input_channels", 0) > 0
+            ]
+            return names if names else ["No input devices found"]
         except (sd.PortAudioError, RuntimeError) as e:
             # PortAudioError: PortAudio library errors
             # RuntimeError: sounddevice initialization errors
-            messagebox.showerror("Audio", f"Could not query devices:\n{e}")
-            return
-        names = [f"{i}: {d.get('name', '')}" for i, d in enumerate(devices) if d.get("max_input_channels", 0) > 0]
-        if not names:
-            messagebox.showinfo("Input devices", "No input devices found.")
-        else:
-            messagebox.showinfo("Input devices", "\n".join(names))
+            logger.warning(f"Could not query audio devices: {e}")
+            return [f"Error: {e}"]
+
+    def _parse_input_device_id(self, device_string: str) -> int | None:
+        """Parse device ID from dropdown selection.
+
+        Args:
+            device_string: Device string in format "index: name"
+
+        Returns:
+            Device ID as integer, or None if not found/invalid
+        """
+        if not device_string or device_string.startswith("No input") or device_string.startswith("Error"):
+            return None
+
+        try:
+            # Extract device ID from "index: name" format
+            device_id = int(device_string.split(":", 1)[0].strip())
+            return device_id
+        except (ValueError, IndexError):
+            logger.warning(f"Could not parse device ID from: {device_string}")
+            return None
 
     def _load_model(self) -> None:
         """Load the Whisper model."""
@@ -627,17 +677,8 @@ class App(Tk):
 
         # Set input device if provided
         inp = self.var_input.get().strip()
-        device_id = None
-        if inp:
-            try:
-                device_id = int(inp)
-            except ValueError:
-                devs = sd.query_devices()
-                matches = [i for i, d in enumerate(devs) if inp.lower() in d["name"].lower()]
-                if not matches:
-                    messagebox.showerror("Input", f"Input device not found: {inp}")
-                    return
-                device_id = matches[0]
+        device_id = self._parse_input_device_id(inp)
+        if device_id is not None:
             sd.default.device = (device_id, None)
 
         try:
@@ -688,15 +729,7 @@ class App(Tk):
         if not audio.is_recording():
             # Start recording
             inp = self.var_input.get().strip()
-            device_id = None
-            if inp:
-                try:
-                    device_id = int(inp)
-                except ValueError:
-                    devs = sd.query_devices()
-                    matches = [i for i, d in enumerate(devs) if inp.lower() in d["name"].lower()]
-                    if matches:
-                        device_id = matches[0]
+            device_id = self._parse_input_device_id(inp)
 
             try:
                 audio.start_recording(device_id)
