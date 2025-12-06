@@ -2,9 +2,16 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from whisper_dictate.settings_store import SETTINGS_FILE, load_settings, save_settings
+import pytest
+
+from whisper_dictate.settings_store import (
+    SETTINGS_FILE,
+    get_secure_setting,
+    load_settings,
+    save_settings,
+)
 
 
 class TestLoadSettings:
@@ -57,7 +64,7 @@ class TestLoadSettings:
         assert result["model"] == "base"
         assert result["compute_type"] == "int8"
 
-    def test_load_settings_handles_invalid_json(self, monkeypatch, capsys):
+    def test_load_settings_handles_invalid_json(self, monkeypatch, caplog):
         """Test that load_settings returns default dict when JSON is invalid."""
         mock_path = MagicMock(spec=Path)
         mock_path.is_file.return_value = True
@@ -67,11 +74,10 @@ class TestLoadSettings:
         result = load_settings()
 
         assert result == {"app_prompts": {}}
-        # Verify error was printed
-        captured = capsys.readouterr()
-        assert "(Settings) Could not read saved settings:" in captured.out
+        # Verify error was logged
+        assert "Could not read saved settings:" in caplog.text
 
-    def test_load_settings_handles_io_error(self, monkeypatch, capsys):
+    def test_load_settings_handles_io_error(self, monkeypatch, caplog):
         """Test that load_settings handles I/O errors gracefully."""
         mock_path = MagicMock(spec=Path)
         mock_path.is_file.return_value = True
@@ -81,9 +87,9 @@ class TestLoadSettings:
         result = load_settings()
 
         assert result == {"app_prompts": {}}
-        captured = capsys.readouterr()
-        assert "(Settings) Could not read saved settings:" in captured.out
-        assert "Permission denied" in captured.out
+        # Verify error was logged
+        assert "Could not read saved settings:" in caplog.text
+        assert "Permission denied" in caplog.text
 
     def test_load_settings_handles_empty_file(self, monkeypatch, capsys):
         """Test that load_settings handles empty file."""
@@ -95,8 +101,23 @@ class TestLoadSettings:
         result = load_settings()
 
         assert result == {"app_prompts": {}}
-        captured = capsys.readouterr()
-        assert "(Settings) Could not read saved settings:" in captured.out
+
+    @patch("whisper_dictate.settings_store._migrate_secure_settings")
+    def test_load_settings_migrates_secure_settings(self, mock_migrate, monkeypatch):
+        """Test that load_settings calls migration for secure settings."""
+        test_settings = {"model": "base", "llm_key": "plaintext_key"}
+
+        mock_path = MagicMock(spec=Path)
+        mock_path.is_file.return_value = True
+        mock_path.read_text.return_value = json.dumps(test_settings)
+        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+
+        load_settings()
+
+        mock_migrate.assert_called_once()
+        # Verify settings dict was passed
+        call_args = mock_migrate.call_args[0][0]
+        assert "model" in call_args
 
 
 class TestSaveSettings:
@@ -158,7 +179,8 @@ class TestSaveSettings:
         expected_json = json.dumps(test_settings, indent=2)
         assert written_json == expected_json
 
-    def test_save_settings_handles_write_error(self, monkeypatch, capsys):
+    @patch("whisper_dictate.settings_store._store_secure_settings")
+    def test_save_settings_handles_write_error(self, mock_store, monkeypatch, caplog):
         """Test that save_settings returns False on write error."""
         test_settings = {"model": "base"}
 
@@ -171,11 +193,12 @@ class TestSaveSettings:
         result = save_settings(test_settings)
 
         assert result is False
-        captured = capsys.readouterr()
-        assert "(Settings) Could not save settings:" in captured.out
-        assert "Permission denied" in captured.out
+        # Verify error was logged
+        assert "Could not save settings:" in caplog.text
+        assert "Permission denied" in caplog.text
 
-    def test_save_settings_handles_mkdir_error(self, monkeypatch, capsys):
+    @patch("whisper_dictate.settings_store._store_secure_settings")
+    def test_save_settings_handles_mkdir_error(self, mock_store, monkeypatch, caplog):
         """Test that save_settings returns False when directory creation fails."""
         test_settings = {"model": "base"}
 
@@ -188,9 +211,9 @@ class TestSaveSettings:
         result = save_settings(test_settings)
 
         assert result is False
-        captured = capsys.readouterr()
-        assert "(Settings) Could not save settings:" in captured.out
-        assert "Cannot create directory" in captured.out
+        # Verify error was logged
+        assert "Could not save settings:" in caplog.text
+        assert "Cannot create directory" in caplog.text
 
     def test_save_settings_with_empty_dict(self, monkeypatch):
         """Test saving empty settings dictionary."""
@@ -207,6 +230,86 @@ class TestSaveSettings:
         call_args = mock_path.write_text.call_args
         written_json = call_args[0][0]
         assert json.loads(written_json) == {}
+
+
+    @patch("whisper_dictate.settings_store._store_secure_settings")
+    def test_save_settings_stores_secure_settings(self, mock_store, monkeypatch):
+        """Test that save_settings calls secure storage for API keys."""
+        test_settings = {"model": "base", "llm_key": "my_secret_key"}
+
+        mock_path = MagicMock(spec=Path)
+        mock_parent = MagicMock()
+        mock_path.parent = mock_parent
+        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+
+        save_settings(test_settings)
+
+        mock_store.assert_called_once_with(test_settings)
+
+    def test_save_settings_excludes_secure_keys_from_json(self, monkeypatch):
+        """Test that API keys are not written to JSON file."""
+        test_settings = {
+            "model": "base",
+            "llm_key": "my_secret_key",
+            "llm_endpoint": "http://localhost:1234"
+        }
+
+        mock_path = MagicMock(spec=Path)
+        mock_parent = MagicMock()
+        mock_path.parent = mock_parent
+        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+
+        # Mock the credentials module to prevent actual keyring calls
+        with patch("whisper_dictate.settings_store._store_secure_settings"):
+            save_settings(test_settings)
+
+        # Verify written JSON doesn't contain llm_key
+        call_args = mock_path.write_text.call_args
+        written_json = call_args[0][0]
+        saved_data = json.loads(written_json)
+
+        assert "llm_key" not in saved_data
+        assert "model" in saved_data
+        assert "llm_endpoint" in saved_data
+
+
+class TestGetSecureSetting:
+    """Tests for get_secure_setting function."""
+
+    @patch("whisper_dictate.settings_store.credentials.retrieve_credential")
+    def test_get_secure_setting_success(self, mock_retrieve):
+        """Test retrieving a secure setting."""
+        mock_retrieve.return_value = "my_api_key"
+
+        result = get_secure_setting("llm_key")
+
+        assert result == "my_api_key"
+        mock_retrieve.assert_called_once_with("llm_api_key")
+
+    @patch("whisper_dictate.settings_store.credentials.retrieve_credential")
+    def test_get_secure_setting_not_found(self, mock_retrieve):
+        """Test retrieving non-existent secure setting returns None."""
+        mock_retrieve.return_value = None
+
+        result = get_secure_setting("llm_key")
+
+        assert result is None
+
+    def test_get_secure_setting_invalid_key(self):
+        """Test that invalid key raises ValueError."""
+        with pytest.raises(ValueError, match="not a secure setting"):
+            get_secure_setting("invalid_key")
+
+    @patch("whisper_dictate.settings_store.credentials.retrieve_credential")
+    def test_get_secure_setting_handles_errors(self, mock_retrieve):
+        """Test that errors during retrieval return None."""
+        from whisper_dictate.credentials import CredentialStorageError
+
+        mock_retrieve.side_effect = CredentialStorageError("Backend error")
+
+        result = get_secure_setting("llm_key")
+
+        assert result is None
 
 
 class TestSettingsFileConstant:
