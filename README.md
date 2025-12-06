@@ -9,6 +9,7 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 ## ✨ Features
 
 - **100% local transcription** — no cloud calls
+- **Secure credential storage** — API keys encrypted in Windows Credential Manager
 - **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)
 - **Glossary injection** to enforce product names, jargon, or key phrases during normalization and LLM cleanup
 - **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate_prompt.txt`
@@ -233,6 +234,26 @@ The executable will be created in `dist/whisper-dictate-gui/` with all required 
 | `int8_float16 not supported` | CPU mode only                   | Use `--compute-type int8`              |
 | Nothing pastes               | GUI has focus                   | Trigger with hotkey from target window |
 | Audio errors                 | Mic blocked by privacy settings | Enable mic access for desktop apps     |
+
+---
+
+## 🔒 Security & Privacy
+
+### Credential Storage
+- **API keys are encrypted** using Windows Credential Manager (via `keyring` library)
+- Credentials are **tied to your user account** and encrypted by the operating system
+- API keys are **never stored in plaintext** JSON files
+- **Automatic migration**: Existing plaintext API keys are automatically migrated to secure storage on first run
+
+### Debug Mode Warning
+- When debug logging is enabled, **transcribed speech and prompts are logged to disk**
+- Use debug mode only when troubleshooting, not for regular use
+- The GUI displays a prominent warning when debug mode is active
+
+### Privacy-First Design
+- All transcription happens **100% locally** — no cloud calls
+- LLM cleanup is optional and only used if you configure an endpoint
+- Your data never leaves your machine unless you explicitly enable LLM cleanup
 
 ---
 

@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "ctranslate2>=4.6.0",
     "faster-whisper>=1.2.0",
+    "keyring>=25.0.0",
     "numpy>=2.3.4",
     "nvidia-cublas-cu12==12.4.5.8",
     "nvidia-cuda-nvrtc-cu12==12.4.127",

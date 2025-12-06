@@ -491,7 +491,10 @@ class App(Tk):
         set_if_present("llm_enable", self.var_llm_enable, bool)
         set_if_present("llm_endpoint", self.var_llm_endpoint, str)
         set_if_present("llm_model", self.var_llm_model, str)
-        set_if_present("llm_key", self.var_llm_key, str)
+        # Load API key from secure storage (not from JSON settings)
+        api_key = settings_store.get_secure_setting("llm_key")
+        if api_key:
+            self.var_llm_key.set(api_key)
         set_if_present("llm_temp", self.var_llm_temp, float)
         set_if_present("llm_debug", self.var_llm_debug, bool)
         set_if_present("glossary_enable", self.var_glossary_enable, bool)

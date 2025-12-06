@@ -16,12 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Privacy warning for debug logging mode in GUI (#40)
   - Added prominent warning label when debug mode is enabled
   - Warns users that debug mode logs transcribed speech and prompts to disk
-- Architecture documentation (#42)
+- Architecture documentation (#43)
   - Added comprehensive architecture diagram using Mermaid
   - Documented data flow through the system
   - Sequence diagrams for recording, transcription, LLM cleanup, and paste flows
   - Module responsibilities and design patterns
   - Threading model visualization
+- **Secure API key storage** (#TBD) ⭐ **SECURITY IMPROVEMENT**
+  - API keys now encrypted using Windows Credential Manager via `keyring` library
+  - Automatic migration of plaintext API keys on first run
+  - API keys no longer stored in plaintext JSON settings file
+  - New `credentials.py` module for secure credential management
+  - Comprehensive test coverage (87% for credentials module)
 
 ### Changed
 - Improved error handling across the codebase (#40)
@@ -33,9 +39,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved encapsulation and thread management
   - Maintained backward compatibility with wrapper functions
   - Improved performance and responsiveness
-- GUI improvements
+- GUI improvements (#44)
   - "Register hotkey" button now greys out after successful registration (similar to "Load model")
   - Provides clearer visual feedback that hotkey is active
+- **Settings storage improvements** (#TBD)
+  - Replaced `print()` statements with proper `logger` calls
+  - Secure settings automatically excluded from JSON file
+  - Better error messages and logging
+
+### Security
+- **CRITICAL**: API keys now stored securely in Windows Credential Manager instead of plaintext JSON
+  - Protects against credential theft from disk
+  - Encryption tied to user account
+  - Automatic migration for existing users
 
 ## [0.1.0] - 2025-01-XX
 
