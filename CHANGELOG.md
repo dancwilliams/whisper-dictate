@@ -48,10 +48,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Better error messages and logging
 
 ### Security
-- **CRITICAL**: API keys now stored securely in Windows Credential Manager instead of plaintext JSON
+- **CRITICAL**: API keys now stored securely in Windows Credential Manager instead of plaintext JSON (#45)
   - Protects against credential theft from disk
   - Encryption tied to user account
   - Automatic migration for existing users
+- **CRITICAL**: ReDoS (Regular Expression Denial of Service) protection for app-specific prompts (#TBD)
+  - Regex complexity validation blocks patterns with excessive nesting
+  - Timeout protection prevents infinite regex matching
+  - Maximum regex length limit (500 characters)
+  - Safe regex matching with automatic validation
+  - Comprehensive logging of blocked patterns
 
 ## [0.1.0] - 2025-01-XX
 
