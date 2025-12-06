@@ -1,7 +1,10 @@
 """Tests for per-application prompt resolution."""
 
+import re
 
-from whisper_dictate import app_prompts
+import pytest
+
+from whisper_dictate import app_context, app_prompts
 from whisper_dictate.app_context import ActiveContext
 
 
@@ -304,3 +307,135 @@ class TestCloneRules:
 
         assert cloned == {}
         assert cloned is not original
+
+
+class TestRegexValidation:
+    """Test regex pattern validation for ReDoS protection."""
+
+    def test_validate_regex_pattern_valid(self):
+        """Test validation of safe regex patterns."""
+        # Should not raise
+        app_prompts.validate_regex_pattern("simple")
+        app_prompts.validate_regex_pattern(".*\\.txt")
+        app_prompts.validate_regex_pattern("(group)")
+        app_prompts.validate_regex_pattern("[a-z]+")
+
+    def test_validate_regex_pattern_too_long(self):
+        """Test rejection of overly long patterns."""
+        long_pattern = "a" * (app_prompts.MAX_REGEX_LENGTH + 1)
+
+        with pytest.raises(
+            app_prompts.RegexValidationError, match="Regex pattern too long"
+        ):
+            app_prompts.validate_regex_pattern(long_pattern)
+
+    def test_validate_regex_pattern_nested_repetitions(self):
+        """Test rejection of patterns with excessive nested repetitions."""
+        # Pattern with catastrophic backtracking: (a+)+
+        dangerous_pattern = "(a+)+"
+
+        with pytest.raises(
+            app_prompts.RegexValidationError, match="too many nested repetitions"
+        ):
+            app_prompts.validate_regex_pattern(dangerous_pattern)
+
+    def test_validate_regex_pattern_deeply_nested(self):
+        """Test rejection of deeply nested repetition patterns."""
+        # Pattern with 4 levels of nesting: ((((a)*)*)*)*
+        dangerous_pattern = "((((a)*)*)*)*"
+
+        with pytest.raises(
+            app_prompts.RegexValidationError, match="too many nested repetitions"
+        ):
+            app_prompts.validate_regex_pattern(dangerous_pattern)
+
+    def test_validate_regex_pattern_invalid_syntax(self):
+        """Test rejection of syntactically invalid patterns."""
+        with pytest.raises(re.error):
+            app_prompts.validate_regex_pattern("(unclosed")
+
+        with pytest.raises(re.error):
+            app_prompts.validate_regex_pattern("[invalid")
+
+
+class TestSafeRegexSearch:
+    """Test safe regex searching with timeout protection."""
+
+    def test_safe_regex_search_match(self):
+        """Test safe regex search with matching pattern."""
+        assert app_prompts.safe_regex_search("hello", "hello world") is True
+        assert app_prompts.safe_regex_search("HELLO", "hello world") is True  # Case insensitive
+        assert app_prompts.safe_regex_search(".*world", "hello world") is True
+
+    def test_safe_regex_search_no_match(self):
+        """Test safe regex search with non-matching pattern."""
+        assert app_prompts.safe_regex_search("goodbye", "hello world") is False
+        assert app_prompts.safe_regex_search("^world", "hello world") is False
+
+    def test_safe_regex_search_invalid_pattern(self):
+        """Test safe regex search with invalid pattern returns False."""
+        # Pattern too long
+        long_pattern = "a" * (app_prompts.MAX_REGEX_LENGTH + 1)
+        assert app_prompts.safe_regex_search(long_pattern, "text") is False
+
+        # Nested repetitions
+        assert app_prompts.safe_regex_search("(a+)+", "aaaa") is False
+
+        # Invalid syntax
+        assert app_prompts.safe_regex_search("(unclosed", "text") is False
+
+    def test_safe_regex_search_timeout(self):
+        """Test safe regex search with pattern that would cause ReDoS."""
+        # This pattern can cause catastrophic backtracking
+        # (a+)+ with input like "aaaaaaaaaaaaaaaaaaaaaaaaaX"
+        dangerous_pattern = "(a+)+"
+        dangerous_input = "a" * 25 + "X"
+
+        # Should return False due to validation, not timeout
+        # (pattern is blocked before timeout can occur)
+        assert app_prompts.safe_regex_search(dangerous_pattern, dangerous_input) is False
+
+
+class TestResolveAppPromptWithSafeRegex:
+    """Test that resolve_app_prompt uses safe regex matching."""
+
+    def test_resolve_app_prompt_with_dangerous_regex(self):
+        """Test that dangerous regex patterns don't cause DoS."""
+        rules = {
+            "notepad.exe": [
+                {
+                    "prompt": "Dangerous",
+                    "window_title_regex": "(a+)+",  # Would cause ReDoS
+                }
+            ]
+        }
+
+        context = app_context.ActiveContext(
+            process_name="notepad.exe",
+            window_title="a" * 25 + "X",  # Input that triggers catastrophic backtracking
+            cursor_position=None,
+        )
+
+        # Should return None quickly (pattern blocked), not hang
+        result = app_prompts.resolve_app_prompt(rules, context)
+        assert result is None  # Pattern validation fails, no match
+
+    def test_resolve_app_prompt_with_long_regex(self):
+        """Test that overly long regex patterns are rejected."""
+        long_pattern = "a" * (app_prompts.MAX_REGEX_LENGTH + 1)
+        rules = {
+            "notepad.exe": [
+                {
+                    "prompt": "Long pattern",
+                    "window_title_regex": long_pattern,
+                }
+            ]
+        }
+
+        context = app_context.ActiveContext(
+            process_name="notepad.exe", window_title="test", cursor_position=None
+        )
+
+        # Should return None (pattern validation fails)
+        result = app_prompts.resolve_app_prompt(rules, context)
+        assert result is None

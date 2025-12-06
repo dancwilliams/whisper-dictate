@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Sequence diagrams for recording, transcription, LLM cleanup, and paste flows
   - Module responsibilities and design patterns
   - Threading model visualization
-- **Secure API key storage** (#TBD) ⭐ **SECURITY IMPROVEMENT**
+- **Secure API key storage** (#45) ⭐ **SECURITY IMPROVEMENT**
   - API keys now encrypted using Windows Credential Manager via `keyring` library
   - Automatic migration of plaintext API keys on first run
   - API keys no longer stored in plaintext JSON settings file
@@ -42,16 +42,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GUI improvements (#44)
   - "Register hotkey" button now greys out after successful registration (similar to "Load model")
   - Provides clearer visual feedback that hotkey is active
-- **Settings storage improvements** (#TBD)
+- **Settings storage improvements** (#45)
   - Replaced `print()` statements with proper `logger` calls
   - Secure settings automatically excluded from JSON file
   - Better error messages and logging
 
 ### Security
-- **CRITICAL**: API keys now stored securely in Windows Credential Manager instead of plaintext JSON
+- **CRITICAL**: API keys now stored securely in Windows Credential Manager instead of plaintext JSON (#45)
   - Protects against credential theft from disk
   - Encryption tied to user account
   - Automatic migration for existing users
+- **CRITICAL**: ReDoS (Regular Expression Denial of Service) protection for app-specific prompts (#46)
+  - Regex complexity validation blocks patterns with excessive nesting
+  - Timeout protection prevents infinite regex matching
+  - Maximum regex length limit (500 characters)
+  - Safe regex matching with automatic validation
+  - Comprehensive logging of blocked patterns
 
 ## [0.1.0] - 2025-01-XX
 
