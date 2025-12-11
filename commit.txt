@@ -1,0 +1,27 @@
+Add auto-startup feature for model loading and hotkey registration
+
+Implement optional auto-startup functionality that allows users to automatically
+load the Whisper model and register the global hotkey when the application starts.
+This eliminates the need for manual initialization steps each time the app launches.
+
+Changes:
+- Add DEFAULT_AUTO_LOAD_MODEL and DEFAULT_AUTO_REGISTER_HOTKEY config defaults
+- Add auto-startup settings to Automation dialog UI (new "Startup" section)
+- Implement _auto_startup(), _auto_load_model_task(), and _auto_register_hotkey_task()
+- Add settings persistence for auto_load_model and auto_register_hotkey
+- Add tests for new configuration defaults and settings persistence
+
+Both settings default to False, maintaining existing behavior. When enabled:
+- Auto-load runs in background thread to prevent GUI freeze
+- Auto-register only triggers if model loads successfully
+- Errors are handled gracefully with user notifications
+- App remains usable if auto-startup fails
+
+Tests: 200 passing (3 new tests added)
+- test_auto_startup_defaults
+- test_save_settings_includes_auto_load_model
+- test_save_settings_includes_auto_register_hotkey
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>

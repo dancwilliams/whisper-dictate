@@ -23,6 +23,10 @@ DEFAULT_LLM_KEY = ""  # LM Studio usually does not require a key
 DEFAULT_LLM_TEMP = 0.1
 DEFAULT_LLM_DEBUG = False
 
+# Auto-startup defaults
+DEFAULT_AUTO_LOAD_MODEL = False
+DEFAULT_AUTO_REGISTER_HOTKEY = False
+
 # Default LLM prompt
 DEFAULT_LLM_PROMPT = '''
 You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.
