@@ -4,6 +4,8 @@ import os
 from unittest.mock import MagicMock, patch
 
 from whisper_dictate.config import (
+    DEFAULT_AUTO_LOAD_MODEL,
+    DEFAULT_AUTO_REGISTER_HOTKEY,
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
     DEFAULT_LLM_ENABLED,
@@ -44,6 +46,11 @@ class TestConfig:
         assert normalize_compute_type("cuda", "float32") == "float16"
         assert normalize_compute_type("cuda", "float16") == "float16"
         assert normalize_compute_type("cuda", "int8_float16") == "int8_float16"
+
+    def test_auto_startup_defaults(self):
+        """Test that auto-startup defaults are defined and False by default."""
+        assert DEFAULT_AUTO_LOAD_MODEL is False
+        assert DEFAULT_AUTO_REGISTER_HOTKEY is False
 
 
 class TestSetCudaPaths:

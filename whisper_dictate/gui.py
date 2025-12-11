@@ -30,6 +30,8 @@ from whisper_dictate import (
 )
 from whisper_dictate.app_prompt_dialog import AppPromptDialog
 from whisper_dictate.config import (
+    DEFAULT_AUTO_LOAD_MODEL,
+    DEFAULT_AUTO_REGISTER_HOTKEY,
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
     DEFAULT_LLM_DEBUG,
@@ -97,6 +99,7 @@ class App(Tk):
         self._build_menus()
         self._build_ui()
         self._setup_status_indicator()
+        self._auto_startup()
 
     def _build_menus(self) -> None:
         """Build application menu bar."""
@@ -141,6 +144,8 @@ class App(Tk):
         self.var_llm_temp = DoubleVar(value=DEFAULT_LLM_TEMP)
         self.var_llm_debug = BooleanVar(value=DEFAULT_LLM_DEBUG)
         self.var_glossary_enable = BooleanVar(value=True)
+        self.var_auto_load_model = BooleanVar(value=DEFAULT_AUTO_LOAD_MODEL)
+        self.var_auto_register_hotkey = BooleanVar(value=DEFAULT_AUTO_REGISTER_HOTKEY)
 
         self._indicator_position: tuple[int, int] | None = None
 
@@ -247,6 +252,22 @@ class App(Tk):
                 paste_row, from_=0.0, to=1.0, increment=0.05,
                 textvariable=self.var_paste_delay, width=6
             ).pack(side="left", padx=(8, 0))
+
+            # Auto-startup options
+            ttk.Separator(frame, orient="horizontal").grid(
+                row=4, column=0, sticky="we", pady=(12, 8)
+            )
+            ttk.Label(frame, text="Startup", font=("Segoe UI", 9, "bold")).grid(
+                row=5, column=0, sticky="w"
+            )
+            ttk.Checkbutton(
+                frame, text="Auto-load model on startup", variable=self.var_auto_load_model
+            ).grid(row=6, column=0, sticky="w", pady=(4, 0))
+            ttk.Checkbutton(
+                frame,
+                text="Auto-register hotkey after model loads",
+                variable=self.var_auto_register_hotkey,
+            ).grid(row=7, column=0, sticky="w")
 
         self._open_window("_automation_window", "Automation", build)
 
@@ -436,6 +457,77 @@ class App(Tk):
         self.indicator = StatusIndicator(self, initial_position=self._indicator_position)
         self._set_status("idle", "Idle")
 
+    def _auto_startup(self) -> None:
+        """Perform auto-startup tasks based on settings."""
+        if not self.var_auto_load_model.get():
+            return
+
+        # Schedule model loading for after the event loop starts
+        self.after(100, self._auto_load_model_task)
+
+    def _auto_load_model_task(self) -> None:
+        """Background task for auto-loading model."""
+        def worker():
+            try:
+                model_name = self.var_model.get().strip()
+                device = self.var_device.get().strip()
+                compute = self.var_compute.get().strip()
+
+                # Set input device if provided
+                inp = self.var_input.get().strip()
+                device_id = self._parse_input_device_id(inp)
+                if device_id is not None:
+                    sd.default.device = (device_id, None)
+
+                self._set_status("processing", f"Auto-loading {model_name}...")
+                self.model = transcription.load_model(model_name, device, compute)
+
+                def on_success():
+                    self._set_status("ready", "Model ready (auto-loaded)")
+                    self.btn_load.config(state="disabled")
+                    self.btn_hotkey.config(state="normal")
+                    self.btn_toggle.config(state="normal")
+                    logger.info(f"Auto-loaded model: {model_name} on {device} ({compute})")
+
+                    # Auto-register hotkey if enabled
+                    if self.var_auto_register_hotkey.get():
+                        self.after(100, self._auto_register_hotkey_task)
+
+                self.after(0, on_success)
+
+            except (OSError, RuntimeError, ValueError) as e:
+                error_msg = str(e)
+                def on_error():
+                    self._set_status("error", "Auto-load failed")
+                    logger.error(f"Auto-load model failed: {error_msg}", exc_info=True)
+                    messagebox.showerror(
+                        "Auto-load error",
+                        f"Failed to auto-load model:\n{error_msg}\n\nYou can try loading manually."
+                    )
+                self.after(0, on_error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _auto_register_hotkey_task(self) -> None:
+        """Auto-register hotkey after model loads."""
+        if not self.model:
+            return
+
+        combo = self.var_hotkey.get().strip()
+        try:
+            def hotkey_callback():
+                self.after(0, self._toggle_record)
+
+            self.hotkey_manager = hotkeys.HotkeyManager(hotkey_callback)
+            self.hotkey_manager.register(combo)
+            self._set_status("ready", f"Ready (hotkey: {combo})")
+            self.btn_hotkey.config(state="disabled")
+            logger.info(f"Auto-registered hotkey: {combo}")
+        except hotkeys.HotkeyError as e:
+            self._set_status("warning", "Hotkey auto-register failed")
+            logger.warning(f"Auto-register hotkey failed: {e}")
+            # Don't show error dialog for auto-register - just log it
+
     def _set_status(self, state: str, message: str) -> None:
         """Update status in both label and indicator."""
         if threading.current_thread() is not threading.main_thread():
@@ -523,6 +615,8 @@ class App(Tk):
         set_if_present("llm_temp", self.var_llm_temp, float)
         set_if_present("llm_debug", self.var_llm_debug, bool)
         set_if_present("glossary_enable", self.var_glossary_enable, bool)
+        set_if_present("auto_load_model", self.var_auto_load_model, bool)
+        set_if_present("auto_register_hotkey", self.var_auto_register_hotkey, bool)
 
         pos = saved.get("indicator_position")
         if isinstance(pos, dict):
@@ -549,6 +643,8 @@ class App(Tk):
             "llm_temp": float(self.var_llm_temp.get()),
             "llm_debug": bool(self.var_llm_debug.get()),
             "glossary_enable": bool(self.var_glossary_enable.get()),
+            "auto_load_model": bool(self.var_auto_load_model.get()),
+            "auto_register_hotkey": bool(self.var_auto_register_hotkey.get()),
             "app_prompts": self.app_prompts,
             "recent_processes": [
                 {

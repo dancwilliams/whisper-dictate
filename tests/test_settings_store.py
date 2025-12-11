@@ -321,3 +321,53 @@ class TestSettingsFileConstant:
         assert SETTINGS_FILE == expected_path
         assert SETTINGS_FILE.name == "whisper_dictate_settings.json"
         assert SETTINGS_FILE.parent.name == ".whisper_dictate"
+
+
+class TestAutoStartupSettings:
+    """Tests for auto-startup settings."""
+
+    def test_save_settings_includes_auto_load_model(self, monkeypatch):
+        """Test that auto_load_model setting is saved."""
+        test_settings = {
+            "model": "base",
+            "auto_load_model": True,
+            "auto_register_hotkey": False,
+        }
+
+        mock_path = MagicMock(spec=Path)
+        mock_parent = MagicMock()
+        mock_path.parent = mock_parent
+        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+
+        with patch("whisper_dictate.settings_store._store_secure_settings"):
+            save_settings(test_settings)
+
+        call_args = mock_path.write_text.call_args
+        written_json = call_args[0][0]
+        saved_data = json.loads(written_json)
+
+        assert "auto_load_model" in saved_data
+        assert saved_data["auto_load_model"] is True
+
+    def test_save_settings_includes_auto_register_hotkey(self, monkeypatch):
+        """Test that auto_register_hotkey setting is saved."""
+        test_settings = {
+            "model": "base",
+            "auto_load_model": False,
+            "auto_register_hotkey": True,
+        }
+
+        mock_path = MagicMock(spec=Path)
+        mock_parent = MagicMock()
+        mock_path.parent = mock_parent
+        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+
+        with patch("whisper_dictate.settings_store._store_secure_settings"):
+            save_settings(test_settings)
+
+        call_args = mock_path.write_text.call_args
+        written_json = call_args[0][0]
+        saved_data = json.loads(written_json)
+
+        assert "auto_register_hotkey" in saved_data
+        assert saved_data["auto_register_hotkey"] is True
