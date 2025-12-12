@@ -99,6 +99,7 @@ class App(Tk):
         self._automation_window: Toplevel | None = None
         self._llm_window: Toplevel | None = None
         self._log_window: Toplevel | None = None
+        self._speech_window_traces: list[tuple] = []
 
         self._build_menus()
         self._build_ui()
@@ -205,6 +206,14 @@ class App(Tk):
         if window_attr == "_llm_window":
             self.cmb_llm_model = None
             self.btn_llm_refresh = None
+        elif window_attr == "_speech_window":
+            # Clean up trace callbacks to prevent accessing destroyed widgets
+            for var, trace_id in self._speech_window_traces:
+                try:
+                    var.trace_remove("write", trace_id)
+                except (ValueError, KeyError):
+                    pass
+            self._speech_window_traces = []
 
     def _open_speech_settings(self) -> None:
         """Open speech recognition settings window."""
@@ -286,8 +295,13 @@ class App(Tk):
                         desc_label.config(text=desc)
                         return
 
-            self.var_model_display.trace_add("write", on_model_change)
-            self.var_device.trace_add("write", update_model_display)
+            # Store trace IDs so they can be cleaned up when window closes
+            trace_id1 = self.var_model_display.trace_add("write", on_model_change)
+            trace_id2 = self.var_device.trace_add("write", update_model_display)
+            self._speech_window_traces = [
+                (self.var_model_display, trace_id1),
+                (self.var_device, trace_id2),
+            ]
 
             # Initialize display
             update_model_display()
