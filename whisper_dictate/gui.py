@@ -42,6 +42,9 @@ from whisper_dictate.config import (
     DEFAULT_LLM_PROMPT,
     DEFAULT_LLM_TEMP,
     DEFAULT_MODEL,
+    DEVICE_COMPUTE_DEFAULTS,
+    MODEL_INFO,
+    get_model_choices,
     set_cuda_paths,
 )
 from whisper_dictate.glossary_dialog import GlossaryDialog
@@ -130,6 +133,7 @@ class App(Tk):
         """Build the main UI."""
         # Variables
         self.var_model = StringVar(value=DEFAULT_MODEL)
+        self.var_model_display = StringVar(value="")  # For formatted model name in dropdown
         self.var_device = StringVar(value=DEFAULT_DEVICE)
         self.var_compute = StringVar(value=DEFAULT_COMPUTE)
         self.var_input = StringVar(value="")
@@ -205,29 +209,88 @@ class App(Tk):
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(1, weight=1)
 
-            self._add_labeled_widget(frame, "Model", 0, ttk.Combobox(
-                frame, textvariable=self.var_model,
-                values=["base.en", "small", "medium", "large-v3"], width=18
-            ))
-            self._add_labeled_widget(frame, "Device", 1, ttk.Combobox(
-                frame, textvariable=self.var_device, values=["cpu", "cuda"], width=10
-            ))
-            self._add_labeled_widget(frame, "Compute", 2, ttk.Combobox(
-                frame, textvariable=self.var_compute,
-                values=["int8", "int8_float32", "float32", "float16", "int8_float16"], width=14
-            ))
+            # Device selection (moved to top since it affects model display)
+            device_combo = ttk.Combobox(
+                frame, textvariable=self.var_device, values=["cpu", "cuda"],
+                width=10, state="readonly"
+            )
+            self._add_labeled_widget(frame, "Device", 0, device_combo)
 
-            # Get available input devices for dropdown
+            # Model selection with size info
+            model_combo = ttk.Combobox(
+                frame, textvariable=self.var_model_display,
+                state="readonly", width=45
+            )
+            self._add_labeled_widget(frame, "Model", 1, model_combo)
+
+            # Description label for selected model
+            desc_label = ttk.Label(
+                frame, text="", wraplength=380, foreground="gray",
+                font=("Segoe UI", 9, "italic")
+            )
+            desc_label.grid(row=2, column=1, sticky="w", padx=(12, 0), pady=(0, 8))
+
+            # Compute type display (read-only, auto-configured)
+            compute_label = ttk.Label(
+                frame, text=f"Compute type: {self.var_compute.get()} (auto)"
+            )
+            compute_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 4))
+
+            # Input device dropdown
             input_device_names = self._get_input_device_names()
-
-            # Create combobox for input device selection
             input_combo = ttk.Combobox(
                 frame,
                 textvariable=self.var_input,
                 values=input_device_names,
                 state="readonly"
             )
-            self._add_labeled_widget(frame, "Input device", 3, input_combo)
+            self._add_labeled_widget(frame, "Input device", 4, input_combo)
+
+            def update_model_display(*args) -> None:
+                """Update model dropdown values when device changes."""
+                current_model = self.var_model.get()
+                device = self.var_device.get()
+                choices = get_model_choices(device)
+                display_names = [c[1] for c in choices]
+                model_combo.config(values=display_names)
+
+                # Update compute type automatically
+                new_compute = DEVICE_COMPUTE_DEFAULTS.get(device, "float16")
+                self.var_compute.set(new_compute)
+                compute_label.config(text=f"Compute type: {new_compute} (auto)")
+
+                # Maintain selection if model still exists
+                for model_id, display in choices:
+                    if model_id == current_model:
+                        self.var_model_display.set(display)
+                        return
+                # Default to first model if current not found
+                if choices:
+                    self.var_model_display.set(choices[0][1])
+                    self.var_model.set(choices[0][0])
+
+            def on_model_change(*args) -> None:
+                """Update description when model selection changes."""
+                display = self.var_model_display.get()
+                # Find model_id from display name
+                device = self.var_device.get()
+                for model_id, disp in get_model_choices(device):
+                    if disp == display:
+                        self.var_model.set(model_id)
+                        info = MODEL_INFO.get(model_id, {})
+                        desc = info.get("description", "")
+                        speed = info.get("speed", "")
+                        if speed:
+                            desc = f"Speed: {speed} | {desc}"
+                        desc_label.config(text=desc)
+                        return
+
+            self.var_model_display.trace_add("write", on_model_change)
+            self.var_device.trace_add("write", update_model_display)
+
+            # Initialize display
+            update_model_display()
+            on_model_change()
 
         self._open_window("_speech_window", "Speech recognition", build)
 

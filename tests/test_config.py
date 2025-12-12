@@ -14,6 +14,10 @@ from whisper_dictate.config import (
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_TEMP,
     DEFAULT_MODEL,
+    DEVICE_COMPUTE_DEFAULTS,
+    MODEL_INFO,
+    get_model_choices,
+    get_model_display_name,
     normalize_compute_type,
     set_cuda_paths,
 )
@@ -193,4 +197,54 @@ class TestSetCudaPaths:
 
             # Restore PATH
             os.environ["PATH"] = original_path
+
+
+class TestModelInfo:
+    """Tests for MODEL_INFO and related functions."""
+
+    def test_model_info_contains_expected_models(self):
+        """MODEL_INFO should contain all supported models."""
+        expected_models = ["tiny.en", "base.en", "small", "medium", "large-v3", "large-v3-turbo"]
+        for model in expected_models:
+            assert model in MODEL_INFO
+
+    def test_model_info_has_required_fields(self):
+        """Each model entry should have required fields."""
+        required_fields = ["display_name", "disk_mb", "vram_gb", "ram_gb", "speed", "description"]
+        for model_id, info in MODEL_INFO.items():
+            for field in required_fields:
+                assert field in info, f"Model {model_id} missing field {field}"
+
+    def test_get_model_display_name_cuda(self):
+        """Display name for CUDA should show VRAM."""
+        name = get_model_display_name("small", "cuda")
+        assert "Small" in name
+        assert "VRAM" in name
+        assert "465 MB" in name or "0.5 GB" in name  # disk size
+
+    def test_get_model_display_name_cpu(self):
+        """Display name for CPU should show RAM."""
+        name = get_model_display_name("small", "cpu")
+        assert "Small" in name
+        assert "RAM" in name
+
+    def test_get_model_display_name_unknown_model(self):
+        """Unknown model should return model_id unchanged."""
+        name = get_model_display_name("unknown-model", "cuda")
+        assert name == "unknown-model"
+
+    def test_get_model_choices_returns_all_models(self):
+        """get_model_choices should return all models."""
+        choices = get_model_choices("cuda")
+        assert len(choices) == len(MODEL_INFO)
+        for model_id, display in choices:
+            assert model_id in MODEL_INFO
+            assert display != model_id  # Should be formatted
+
+    def test_device_compute_defaults(self):
+        """DEVICE_COMPUTE_DEFAULTS should have entries for cpu and cuda."""
+        assert "cpu" in DEVICE_COMPUTE_DEFAULTS
+        assert "cuda" in DEVICE_COMPUTE_DEFAULTS
+        assert DEVICE_COMPUTE_DEFAULTS["cpu"] == "int8"
+        assert DEVICE_COMPUTE_DEFAULTS["cuda"] == "float16"
 

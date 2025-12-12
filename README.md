@@ -47,7 +47,8 @@ uv run dictate-gui
 
 The GUI provides:
 
-* Model/device selection
+* Model/device selection with resource requirements displayed for each model
+* Auto-configured compute type based on your device (CUDA→float16, CPU→int8)
 * Input-device field
 * Optional LLM cleanup section (endpoint, model, API key, temperature, and system prompt)
 * **Auto-paste** checkbox and delay setting
@@ -64,7 +65,7 @@ If "Auto-paste" is enabled, the result pastes automatically into the app you wer
   regex to scope a prompt to a particular document or channel. These rules are persisted to
   `~/.whisper_dictate/whisper_dictate_settings.json`.
 - **Edit → Glossary…** to maintain glossary entries (persisted to `~/.whisper_dictate/whisper_dictate_glossary.json`).
-- **Settings → Speech recognition…** to pick model/device, compute type, and input device (use **List…** to view inputs).
+- **Settings → Speech recognition…** to pick your device (CPU/CUDA) and model. Models display their size and resource requirements (e.g., "Small (465 MB, ~2 GB VRAM)"), and the optimal compute type is auto-configured based on your device selection.
 - **Settings → Automation…** to set the global hotkey, enable auto-paste, and tune the paste delay.
 - **Settings → LLM cleanup…** to toggle cleanup, set endpoint/model/API key, refresh available models, and adjust temperature.
   Use **Use glossary before prompt** to normalize transcripts with your glossary and prepend the rules to the LLM system prompt so it honors your terminology.

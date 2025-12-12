@@ -63,6 +63,65 @@ Correct: What's the weather like?
 Remember: You are a text editor, NOT a conversational assistant. Only reformat, never respond. Output only the cleaned text with no commentary
 '''
 
+# Model metadata for UI display
+# Sizes are approximate and based on faster-whisper/CTranslate2 format
+MODEL_INFO: dict[str, dict[str, str | int | float]] = {
+    "tiny.en": {
+        "display_name": "Tiny (English)",
+        "disk_mb": 75,
+        "vram_gb": 1,
+        "ram_gb": 0.4,
+        "speed": "10x",
+        "description": "Fastest, lowest accuracy. Good for quick drafts.",
+    },
+    "base.en": {
+        "display_name": "Base (English)",
+        "disk_mb": 145,
+        "vram_gb": 1,
+        "ram_gb": 0.5,
+        "speed": "7x",
+        "description": "Fast with decent accuracy. Good default for English.",
+    },
+    "small": {
+        "display_name": "Small",
+        "disk_mb": 465,
+        "vram_gb": 2,
+        "ram_gb": 1,
+        "speed": "4x",
+        "description": "Balanced speed and accuracy. Supports all languages.",
+    },
+    "medium": {
+        "display_name": "Medium",
+        "disk_mb": 1500,
+        "vram_gb": 5,
+        "ram_gb": 2.5,
+        "speed": "2x",
+        "description": "High accuracy, slower. Requires decent GPU.",
+    },
+    "large-v3": {
+        "display_name": "Large v3",
+        "disk_mb": 3000,
+        "vram_gb": 10,
+        "ram_gb": 4,
+        "speed": "1x",
+        "description": "Best accuracy, slowest. Requires powerful GPU.",
+    },
+    "large-v3-turbo": {
+        "display_name": "Large v3 Turbo",
+        "disk_mb": 1600,
+        "vram_gb": 6,
+        "ram_gb": 3,
+        "speed": "3x",
+        "description": "Near large-v3 accuracy at medium speed.",
+    },
+}
+
+# Recommended compute types per device
+DEVICE_COMPUTE_DEFAULTS: dict[str, str] = {
+    "cpu": "int8",
+    "cuda": "float16",
+}
+
 
 def set_cuda_paths() -> None:
     """Ensure CUDA DLL folders from the embedded Nvidia wheels are on PATH."""
@@ -98,4 +157,33 @@ def normalize_compute_type(device: str, compute_type: str) -> str:
     if device == "cuda" and ct in ("int8", "int8_float32", "float32"):
         ct = "float16"
     return ct
+
+
+def get_model_display_name(model_id: str, device: str) -> str:
+    """Get formatted display name with resource requirements for model dropdown."""
+    info = MODEL_INFO.get(model_id, {})
+    if not info:
+        return model_id
+
+    if device == "cuda":
+        req = f"~{info.get('vram_gb', '?')} GB VRAM"
+    else:
+        req = f"~{info.get('ram_gb', '?')} GB RAM"
+
+    disk_mb_value = info.get("disk_mb", 0)
+    # Ensure disk_mb is a number
+    if isinstance(disk_mb_value, (int, float)):
+        if disk_mb_value >= 1000:
+            disk_str = f"{disk_mb_value / 1000:.1f} GB"
+        else:
+            disk_str = f"{disk_mb_value} MB"
+    else:
+        disk_str = "? MB"
+
+    return f"{info.get('display_name', model_id)} ({disk_str}, {req})"
+
+
+def get_model_choices(device: str) -> list[tuple[str, str]]:
+    """Get list of (model_id, display_name) tuples for dropdown."""
+    return [(model_id, get_model_display_name(model_id, device)) for model_id in MODEL_INFO.keys()]
 
