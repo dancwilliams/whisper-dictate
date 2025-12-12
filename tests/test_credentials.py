@@ -1,6 +1,6 @@
 """Tests for secure credential storage."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -48,9 +48,7 @@ class TestStoreCredential:
 
         mock_keyring.set_password.side_effect = KeyringError("Backend error")
 
-        with pytest.raises(
-            credentials.CredentialStorageError, match="Failed to store credential"
-        ):
+        with pytest.raises(credentials.CredentialStorageError, match="Failed to store credential"):
             credentials.store_credential("test_key", "test_value")
 
 
@@ -109,9 +107,7 @@ class TestDeleteCredential:
         """Test deleting a credential successfully."""
         credentials.delete_credential("test_key")
 
-        mock_keyring.delete_password.assert_called_once_with(
-            credentials.SERVICE_NAME, "test_key"
-        )
+        mock_keyring.delete_password.assert_called_once_with(credentials.SERVICE_NAME, "test_key")
 
     @patch("whisper_dictate.credentials.keyring")
     def test_delete_credential_not_found(self, mock_keyring):
@@ -123,9 +119,7 @@ class TestDeleteCredential:
         # Should not raise
         credentials.delete_credential("test_key")
 
-        mock_keyring.delete_password.assert_called_once_with(
-            credentials.SERVICE_NAME, "test_key"
-        )
+        mock_keyring.delete_password.assert_called_once_with(credentials.SERVICE_NAME, "test_key")
 
     @patch("whisper_dictate.credentials.keyring")
     def test_delete_credential_empty_key(self, mock_keyring):
@@ -145,9 +139,7 @@ class TestDeleteCredential:
 
         mock_keyring.delete_password.side_effect = KeyringError("Backend error")
 
-        with pytest.raises(
-            credentials.CredentialStorageError, match="Failed to delete credential"
-        ):
+        with pytest.raises(credentials.CredentialStorageError, match="Failed to delete credential"):
             credentials.delete_credential("test_key")
 
 

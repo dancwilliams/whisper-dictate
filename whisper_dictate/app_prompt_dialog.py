@@ -69,9 +69,9 @@ class AppPromptDialog(Toplevel):
             self.lst_recent.insert("end", label)
         self.lst_recent.grid(row=0, column=0, sticky="nsew", padx=8, pady=(6, 4))
         self.lst_recent.bind("<Double-Button-1>", lambda event: self._on_add_from_recent())
-        ttk.Button(
-            recent_frame, text="Add from recent", command=self._on_add_from_recent
-        ).grid(row=1, column=0, padx=8, pady=(0, 8))
+        ttk.Button(recent_frame, text="Add from recent", command=self._on_add_from_recent).grid(
+            row=1, column=0, padx=8, pady=(0, 8)
+        )
         recent_frame.columnconfigure(0, weight=1)
         recent_frame.rowconfigure(0, weight=1)
 
@@ -85,7 +85,9 @@ class AppPromptDialog(Toplevel):
 
         actions = ttk.Frame(self)
         actions.grid(row=3, column=0, columnspan=2, sticky="e", padx=12, pady=(0, 12))
-        ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
+            row=0, column=0, padx=(0, 8)
+        )
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
         self._refresh_tree()
@@ -134,9 +136,7 @@ class AppPromptDialog(Toplevel):
         except IndexError:
             return None
 
-    def _prepare_recent_entries(
-        self, recent_processes: list[str | dict[str, str | None]]
-    ) -> None:
+    def _prepare_recent_entries(self, recent_processes: list[str | dict[str, str | None]]) -> None:
         for entry in recent_processes:
             if isinstance(entry, str):
                 process_name = entry.strip()
@@ -235,16 +235,12 @@ class AppPromptEntryDialog(Toplevel):
         frame.grid(row=0, column=0, sticky="nsew")
         frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, text="Process name (e.g., chrome.exe)").grid(
-            row=0, column=0, sticky="w"
-        )
+        ttk.Label(frame, text="Process name (e.g., chrome.exe)").grid(row=0, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_process, width=30).grid(
             row=0, column=1, sticky="we", pady=(0, 8), padx=(12, 0)
         )
 
-        ttk.Label(frame, text="Window title regex (optional)").grid(
-            row=1, column=0, sticky="w"
-        )
+        ttk.Label(frame, text="Window title regex (optional)").grid(row=1, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_window_regex, width=30).grid(
             row=1, column=1, sticky="we", pady=(0, 8), padx=(12, 0)
         )

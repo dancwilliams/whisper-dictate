@@ -6,6 +6,7 @@ from collections import deque
 
 try:
     import pyautogui
+
     pyautogui.FAILSAFE = False
 except ImportError:
     pyautogui = None
@@ -161,9 +162,13 @@ class App(Tk):
         ctrl.pack(fill="x")
         self.btn_load = ttk.Button(ctrl, text="Load model", command=self._load_model)
         self.btn_load.grid(row=0, column=0, padx=(0, 8))
-        self.btn_hotkey = ttk.Button(ctrl, text="Register hotkey", command=self._register_hotkey, state="disabled")
+        self.btn_hotkey = ttk.Button(
+            ctrl, text="Register hotkey", command=self._register_hotkey, state="disabled"
+        )
         self.btn_hotkey.grid(row=0, column=1, padx=(0, 8))
-        self.btn_toggle = ttk.Button(ctrl, text="Start recording", command=self._toggle_record, state="disabled")
+        self.btn_toggle = ttk.Button(
+            ctrl, text="Start recording", command=self._toggle_record, state="disabled"
+        )
         self.btn_toggle.grid(row=0, column=2, padx=(0, 8))
         self.lbl_status = ttk.Label(ctrl, text="Idle")
         self.lbl_status.grid(row=0, column=3, sticky="w")
@@ -211,38 +216,34 @@ class App(Tk):
 
             # Device selection (moved to top since it affects model display)
             device_combo = ttk.Combobox(
-                frame, textvariable=self.var_device, values=["cpu", "cuda"],
-                width=10, state="readonly"
+                frame,
+                textvariable=self.var_device,
+                values=["cpu", "cuda"],
+                width=10,
+                state="readonly",
             )
             self._add_labeled_widget(frame, "Device", 0, device_combo)
 
             # Model selection with size info
             model_combo = ttk.Combobox(
-                frame, textvariable=self.var_model_display,
-                state="readonly", width=45
+                frame, textvariable=self.var_model_display, state="readonly", width=45
             )
             self._add_labeled_widget(frame, "Model", 1, model_combo)
 
             # Description label for selected model
             desc_label = ttk.Label(
-                frame, text="", wraplength=380, foreground="gray",
-                font=("Segoe UI", 9, "italic")
+                frame, text="", wraplength=380, foreground="gray", font=("Segoe UI", 9, "italic")
             )
             desc_label.grid(row=2, column=1, sticky="w", padx=(12, 0), pady=(0, 8))
 
             # Compute type display (read-only, auto-configured)
-            compute_label = ttk.Label(
-                frame, text=f"Compute type: {self.var_compute.get()} (auto)"
-            )
+            compute_label = ttk.Label(frame, text=f"Compute type: {self.var_compute.get()} (auto)")
             compute_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 4))
 
             # Input device dropdown
             input_device_names = self._get_input_device_names()
             input_combo = ttk.Combobox(
-                frame,
-                textvariable=self.var_input,
-                values=input_device_names,
-                state="readonly"
+                frame, textvariable=self.var_input, values=input_device_names, state="readonly"
             )
             self._add_labeled_widget(frame, "Input device", 4, input_combo)
 
@@ -303,7 +304,9 @@ class App(Tk):
             frame.columnconfigure(0, weight=1)
 
             ttk.Label(frame, text="Toggle hotkey").grid(row=0, column=0, sticky="w")
-            ttk.Entry(frame, textvariable=self.var_hotkey, width=16).grid(row=1, column=0, sticky="we", pady=(0, 8))
+            ttk.Entry(frame, textvariable=self.var_hotkey, width=16).grid(
+                row=1, column=0, sticky="we", pady=(0, 8)
+            )
             ttk.Checkbutton(
                 frame, text="Auto-paste into active window", variable=self.var_auto_paste
             ).grid(row=2, column=0, sticky="w")
@@ -312,8 +315,12 @@ class App(Tk):
             paste_row.grid(row=3, column=0, sticky="we", pady=(4, 0))
             ttk.Label(paste_row, text="Paste delay (s)").pack(side="left")
             ttk.Spinbox(
-                paste_row, from_=0.0, to=1.0, increment=0.05,
-                textvariable=self.var_paste_delay, width=6
+                paste_row,
+                from_=0.0,
+                to=1.0,
+                increment=0.05,
+                textvariable=self.var_paste_delay,
+                width=6,
             ).pack(side="left", padx=(8, 0))
 
             # Auto-startup options
@@ -345,7 +352,9 @@ class App(Tk):
             ttk.Checkbutton(
                 frame, text="Use LLM cleanup (OpenAI compatible)", variable=self.var_llm_enable
             ).grid(row=0, column=0, sticky="w", columnspan=2)
-            self._add_labeled_widget(frame, "Endpoint", 1, ttk.Entry(frame, textvariable=self.var_llm_endpoint))
+            self._add_labeled_widget(
+                frame, "Endpoint", 1, ttk.Entry(frame, textvariable=self.var_llm_endpoint)
+            )
             ttk.Label(frame, text="Model").grid(row=2, column=0, sticky="w", pady=4)
             model_row = ttk.Frame(frame)
             model_row.grid(row=2, column=1, sticky="we", pady=4, padx=(12, 0))
@@ -354,15 +363,23 @@ class App(Tk):
                 model_row, textvariable=self.var_llm_model, values=self.llm_models
             )
             self.cmb_llm_model.grid(row=0, column=0, sticky="we")
-            self.btn_llm_refresh = ttk.Button(model_row, text="Refresh", command=self._refresh_llm_models)
+            self.btn_llm_refresh = ttk.Button(
+                model_row, text="Refresh", command=self._refresh_llm_models
+            )
             self.btn_llm_refresh.grid(row=0, column=1, padx=(8, 0))
             self._add_labeled_widget(
-                frame, "API key (optional)", 3,
-                ttk.Entry(frame, textvariable=self.var_llm_key, show="•")
+                frame,
+                "API key (optional)",
+                3,
+                ttk.Entry(frame, textvariable=self.var_llm_key, show="•"),
             )
             self._add_labeled_widget(
-                frame, "Temperature", 4,
-                ttk.Spinbox(frame, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6)
+                frame,
+                "Temperature",
+                4,
+                ttk.Spinbox(
+                    frame, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6
+                ),
             )
             ttk.Checkbutton(
                 frame, text="Log full LLM prompts for debugging", variable=self.var_llm_debug
@@ -379,8 +396,10 @@ class App(Tk):
                 frame, text="Use glossary before prompt", variable=self.var_glossary_enable
             ).grid(row=7, column=0, columnspan=2, sticky="w")
             ttk.Label(
-                frame, text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
-                wraplength=440, justify="left"
+                frame,
+                text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
+                wraplength=440,
+                justify="left",
             ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
             ttk.Label(
                 frame,
@@ -424,8 +443,10 @@ class App(Tk):
             # Wrap toggle
             wrap_var = BooleanVar(value=True)
             ttk.Checkbutton(
-                header, text="Wrap text", variable=wrap_var,
-                command=lambda: text.configure(wrap="word" if wrap_var.get() else "none")
+                header,
+                text="Wrap text",
+                variable=wrap_var,
+                command=lambda: text.configure(wrap="word" if wrap_var.get() else "none"),
             ).grid(row=0, column=1, padx=(12, 0))
 
             ttk.Button(header, text="Refresh", command=lambda: load_logs()).grid(
@@ -483,6 +504,7 @@ class App(Tk):
                 models = llm_cleanup.list_llm_models(endpoint, api_key)
             except llm_cleanup.LLMCleanupError as e:
                 error_msg = str(e)
+
                 def on_error() -> None:
                     if self.btn_llm_refresh:
                         self.btn_llm_refresh.config(state="normal")
@@ -510,9 +532,13 @@ class App(Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _add_labeled_widget(self, parent: ttk.Frame, label: str, row: int, widget: ttk.Widget) -> None:
+    def _add_labeled_widget(
+        self, parent: ttk.Frame, label: str, row: int, widget: ttk.Widget
+    ) -> None:
         """Helper to add a labeled widget."""
-        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=4 if row > 0 else (0, 4))
+        ttk.Label(parent, text=label).grid(
+            row=row, column=0, sticky="w", pady=4 if row > 0 else (0, 4)
+        )
         widget.grid(row=row, column=1, sticky="we", pady=4 if row > 0 else (0, 4), padx=(12, 0))
 
     def _setup_status_indicator(self) -> None:
@@ -530,6 +556,7 @@ class App(Tk):
 
     def _auto_load_model_task(self) -> None:
         """Background task for auto-loading model."""
+
         def worker():
             try:
                 model_name = self.var_model.get().strip()
@@ -560,13 +587,15 @@ class App(Tk):
 
             except (OSError, RuntimeError, ValueError) as e:
                 error_msg = str(e)
+
                 def on_error():
                     self._set_status("error", "Auto-load failed")
                     logger.error(f"Auto-load model failed: {error_msg}", exc_info=True)
                     messagebox.showerror(
                         "Auto-load error",
-                        f"Failed to auto-load model:\n{error_msg}\n\nYou can try loading manually."
+                        f"Failed to auto-load model:\n{error_msg}\n\nYou can try loading manually.",
                     )
+
                 self.after(0, on_error)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -578,6 +607,7 @@ class App(Tk):
 
         combo = self.var_hotkey.get().strip()
         try:
+
             def hotkey_callback():
                 self.after(0, self._toggle_record)
 
@@ -746,10 +776,12 @@ class App(Tk):
             process = (entry.get("process_name") or "").strip()
             if not process:
                 continue
-            formatted.append({
-                "process_name": process,
-                "window_title": entry.get("window_title"),
-            })
+            formatted.append(
+                {
+                    "process_name": process,
+                    "window_title": entry.get("window_title"),
+                }
+            )
         return formatted
 
     def _open_prompt_dialog(self) -> None:
@@ -775,7 +807,9 @@ class App(Tk):
             if self.glossary_manager.save():
                 self._set_status("ready", "Glossary updated")
             else:
-                messagebox.showerror("Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}")
+                messagebox.showerror(
+                    "Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}"
+                )
 
     def _open_app_prompt_dialog(self) -> None:
         """Open application-specific prompt dialog."""
@@ -817,7 +851,11 @@ class App(Tk):
         Returns:
             Device ID as integer, or None if not found/invalid
         """
-        if not device_string or device_string.startswith("No input") or device_string.startswith("Error"):
+        if (
+            not device_string
+            or device_string.startswith("No input")
+            or device_string.startswith("Error")
+        ):
             return None
 
         try:
@@ -919,9 +957,7 @@ class App(Tk):
 
         active_context = app_context.get_active_context()
         if active_context and active_context.process_name:
-            self._record_recent_process(
-                active_context.process_name, active_context.window_title
-            )
+            self._record_recent_process(active_context.process_name, active_context.window_title)
         prompt_context = app_context.format_context_for_prompt(active_context)
         app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
@@ -940,13 +976,17 @@ class App(Tk):
         self._refresh_glossary_cache()
         glossary_enabled = bool(self.var_glossary_enable.get() and self.glossary_manager.rules)
 
-        normalized_text = glossary.apply_glossary(text, self.glossary_manager if glossary_enabled else None)
+        normalized_text = glossary.apply_glossary(
+            text, self.glossary_manager if glossary_enabled else None
+        )
         final_text = normalized_text
 
         # Optionally clean with LLM
-        if (self.var_llm_enable.get() and
-            self.var_llm_endpoint.get().strip() and
-            self.var_llm_model.get().strip()):
+        if (
+            self.var_llm_enable.get()
+            and self.var_llm_endpoint.get().strip()
+            and self.var_llm_model.get().strip()
+        ):
             self._set_status("processing", "Cleaning with LLM...")
             try:
                 cleaned = llm_cleanup.clean_with_llm(
@@ -1001,9 +1041,7 @@ class App(Tk):
         if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
             self._set_status("ready", "Ready")
 
-    def _record_recent_process(
-        self, process_name: str | None, window_title: str | None
-    ) -> None:
+    def _record_recent_process(self, process_name: str | None, window_title: str | None) -> None:
         """Track recently seen applications using process and window title."""
 
         normalized_process = (process_name or "").strip()

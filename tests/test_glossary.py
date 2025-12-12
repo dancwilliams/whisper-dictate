@@ -21,7 +21,9 @@ class TestGlossaryPersistence:
     def test_load_saved_glossary_json_round_trip(self, tmp_path: Path) -> None:
         rules = [
             GlossaryRule(trigger="valida tech", replacement="ValidaTek"),
-            GlossaryRule(trigger="uscis", replacement="USCIS", match_type="word", word_boundary=True),
+            GlossaryRule(
+                trigger="uscis", replacement="USCIS", match_type="word", word_boundary=True
+            ),
         ]
         glossary_file = tmp_path / "glossary.json"
         manager = GlossaryManager(rules)
@@ -44,8 +46,8 @@ class TestGlossaryPersistence:
         with patch("whisper_dictate.glossary.GLOSSARY_FILE", glossary_file):
             assert write_saved_glossary("team ai => TeamAI") is True
             content = glossary_file.read_text(encoding="utf-8")
-        assert "\"trigger\": \"team ai\"" in content
-        assert "\"replacement\": \"TeamAI\"" in content
+        assert '"trigger": "team ai"' in content
+        assert '"replacement": "TeamAI"' in content
 
 
 class TestGlossaryApplication:
@@ -84,9 +86,7 @@ class TestGlossaryRuleManipulation:
 
     def test_upsert_rule_adds_new_rule(self) -> None:
         """Test that upsert_rule adds a new rule when trigger doesn't exist."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="alpha", replacement="first")
-        ])
+        manager = GlossaryManager([GlossaryRule(trigger="alpha", replacement="first")])
 
         new_rule = GlossaryRule(trigger="beta", replacement="second")
         manager.upsert_rule(new_rule)
@@ -97,9 +97,7 @@ class TestGlossaryRuleManipulation:
 
     def test_upsert_rule_updates_existing_rule(self) -> None:
         """Test that upsert_rule replaces rule with same trigger (case-insensitive)."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="alpha", replacement="first")
-        ])
+        manager = GlossaryManager([GlossaryRule(trigger="alpha", replacement="first")])
 
         # Update with different case
         updated_rule = GlossaryRule(trigger="ALPHA", replacement="FIRST", case_sensitive=True)
@@ -111,9 +109,7 @@ class TestGlossaryRuleManipulation:
 
     def test_upsert_rule_case_insensitive_matching(self) -> None:
         """Test that upsert matches triggers case-insensitively."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="Test", replacement="old")
-        ])
+        manager = GlossaryManager([GlossaryRule(trigger="Test", replacement="old")])
 
         manager.upsert_rule(GlossaryRule(trigger="test", replacement="new"))
 
@@ -122,11 +118,13 @@ class TestGlossaryRuleManipulation:
 
     def test_remove_rule_by_trigger(self) -> None:
         """Test removing a rule by trigger text."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="alpha", replacement="first"),
-            GlossaryRule(trigger="beta", replacement="second"),
-            GlossaryRule(trigger="gamma", replacement="third"),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="alpha", replacement="first"),
+                GlossaryRule(trigger="beta", replacement="second"),
+                GlossaryRule(trigger="gamma", replacement="third"),
+            ]
+        )
 
         manager.remove_rule("beta")
 
@@ -138,9 +136,7 @@ class TestGlossaryRuleManipulation:
 
     def test_remove_rule_case_insensitive(self) -> None:
         """Test that remove_rule works case-insensitively."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="Test", replacement="value")
-        ])
+        manager = GlossaryManager([GlossaryRule(trigger="Test", replacement="value")])
 
         manager.remove_rule("test")
 
@@ -148,9 +144,7 @@ class TestGlossaryRuleManipulation:
 
     def test_remove_rule_nonexistent_trigger(self) -> None:
         """Test that removing non-existent trigger doesn't error."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="alpha", replacement="first")
-        ])
+        manager = GlossaryManager([GlossaryRule(trigger="alpha", replacement="first")])
 
         manager.remove_rule("nonexistent")
 
@@ -162,14 +156,18 @@ class TestGlossaryCSV:
 
     def test_export_csv_with_rules(self) -> None:
         """Test exporting glossary rules to CSV format."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="alpha", replacement="first", match_type="word"),
-            GlossaryRule(trigger="beta", replacement="second", case_sensitive=True),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="alpha", replacement="first", match_type="word"),
+                GlossaryRule(trigger="beta", replacement="second", case_sensitive=True),
+            ]
+        )
 
         csv_output = manager.export_csv()
 
-        assert "trigger,replacement,match_type,case_sensitive,word_boundary,description" in csv_output
+        assert (
+            "trigger,replacement,match_type,case_sensitive,word_boundary,description" in csv_output
+        )
         assert "alpha,first,word,false,true," in csv_output
         assert "beta,second,phrase,true,true," in csv_output
 
@@ -183,9 +181,9 @@ class TestGlossaryCSV:
 
     def test_export_csv_includes_description(self) -> None:
         """Test that CSV export includes description field."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="test", replacement="TEST", description="Test rule")
-        ])
+        manager = GlossaryManager(
+            [GlossaryRule(trigger="test", replacement="TEST", description="Test rule")]
+        )
 
         csv_output = manager.export_csv()
 
@@ -245,9 +243,7 @@ alpha,first"""
 
     def test_import_csv_upserts_existing_rules(self) -> None:
         """Test that CSV import updates existing rules with same trigger."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="alpha", replacement="old_value")
-        ])
+        manager = GlossaryManager([GlossaryRule(trigger="alpha", replacement="old_value")])
 
         csv_text = """trigger,replacement,match_type
 alpha,new_value,word"""
@@ -261,7 +257,9 @@ alpha,new_value,word"""
     def test_import_csv_round_trip(self) -> None:
         """Test that export/import cycle preserves rules."""
         original_rules = [
-            GlossaryRule(trigger="alpha", replacement="first", match_type="word", case_sensitive=True),
+            GlossaryRule(
+                trigger="alpha", replacement="first", match_type="word", case_sensitive=True
+            ),
             GlossaryRule(trigger="beta", replacement="second", word_boundary=False),
             GlossaryRule(trigger="gamma", replacement="third", description="Test description"),
         ]
@@ -285,10 +283,12 @@ class TestGlossaryPromptFormatting:
 
     def test_format_for_prompt_basic(self) -> None:
         """Test basic prompt formatting."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="alpha", replacement="first"),
-            GlossaryRule(trigger="beta", replacement="second"),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="alpha", replacement="first"),
+                GlossaryRule(trigger="beta", replacement="second"),
+            ]
+        )
 
         prompt = manager.format_for_prompt()
 
@@ -297,10 +297,12 @@ class TestGlossaryPromptFormatting:
 
     def test_format_for_prompt_shows_match_type(self) -> None:
         """Test that non-default match types are shown in prompt."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="test", replacement="TEST", match_type="word"),
-            GlossaryRule(trigger="regex.*", replacement="REGEX", match_type="regex"),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="test", replacement="TEST", match_type="word"),
+                GlossaryRule(trigger="regex.*", replacement="REGEX", match_type="regex"),
+            ]
+        )
 
         prompt = manager.format_for_prompt()
 
@@ -309,9 +311,11 @@ class TestGlossaryPromptFormatting:
 
     def test_format_for_prompt_shows_case_sensitive(self) -> None:
         """Test that case-sensitive flag is shown in prompt."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="test", replacement="TEST", case_sensitive=True),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="test", replacement="TEST", case_sensitive=True),
+            ]
+        )
 
         prompt = manager.format_for_prompt()
 
@@ -319,9 +323,11 @@ class TestGlossaryPromptFormatting:
 
     def test_format_for_prompt_shows_partial_match(self) -> None:
         """Test that partial match (no word boundary) is shown in prompt."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="test", replacement="TEST", word_boundary=False),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="test", replacement="TEST", word_boundary=False),
+            ]
+        )
 
         prompt = manager.format_for_prompt()
 
@@ -329,15 +335,17 @@ class TestGlossaryPromptFormatting:
 
     def test_format_for_prompt_multiple_options(self) -> None:
         """Test formatting with multiple options on same rule."""
-        manager = GlossaryManager([
-            GlossaryRule(
-                trigger="test",
-                replacement="TEST",
-                match_type="word",
-                case_sensitive=True,
-                word_boundary=False
-            ),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(
+                    trigger="test",
+                    replacement="TEST",
+                    match_type="word",
+                    case_sensitive=True,
+                    word_boundary=False,
+                ),
+            ]
+        )
 
         prompt = manager.format_for_prompt()
 
@@ -359,11 +367,13 @@ class TestGlossaryRuleSorting:
 
     def test_rules_sorted_by_phrase_length(self) -> None:
         """Test that longer phrases are prioritized over shorter ones."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="ai", replacement="AI"),
-            GlossaryRule(trigger="team ai", replacement="TeamAI"),
-            GlossaryRule(trigger="the team ai project", replacement="Project"),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="ai", replacement="AI"),
+                GlossaryRule(trigger="team ai", replacement="TeamAI"),
+                GlossaryRule(trigger="the team ai project", replacement="Project"),
+            ]
+        )
 
         # Verify longest phrase comes first
         assert manager.rules[0].trigger == "the team ai project"
@@ -372,10 +382,12 @@ class TestGlossaryRuleSorting:
 
     def test_rules_sorted_by_character_length(self) -> None:
         """Test that longer strings are prioritized within same phrase length."""
-        manager = GlossaryManager([
-            GlossaryRule(trigger="ai", replacement="AI"),
-            GlossaryRule(trigger="test", replacement="TEST"),
-        ])
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="ai", replacement="AI"),
+                GlossaryRule(trigger="test", replacement="TEST"),
+            ]
+        )
 
         # Both are single-word, so sort by character length
         assert len(manager.rules[0].trigger) >= len(manager.rules[1].trigger)
@@ -408,7 +420,7 @@ class TestGlossaryRuleSerialization:
             match_type="word",
             case_sensitive=True,
             word_boundary=False,
-            description="Test rule"
+            description="Test rule",
         )
 
         data = rule.to_dict()
@@ -428,7 +440,7 @@ class TestGlossaryRuleSerialization:
             "match_type": "regex",
             "case_sensitive": True,
             "word_boundary": False,
-            "description": "Test rule"
+            "description": "Test rule",
         }
 
         rule = GlossaryRule.from_dict(data)
@@ -442,10 +454,7 @@ class TestGlossaryRuleSerialization:
 
     def test_rule_from_dict_with_defaults(self) -> None:
         """Test creating rule from minimal dictionary uses defaults."""
-        data = {
-            "trigger": "test",
-            "replacement": "TEST"
-        }
+        data = {"trigger": "test", "replacement": "TEST"}
 
         rule = GlossaryRule.from_dict(data)
 

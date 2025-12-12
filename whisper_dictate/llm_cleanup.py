@@ -150,7 +150,7 @@ def clean_with_llm(
                     collected_text.append(content)
 
             # Capture usage information (typically in the last chunk)
-            if hasattr(chunk, 'usage') and chunk.usage is not None:
+            if hasattr(chunk, "usage") and chunk.usage is not None:
                 usage_info = chunk.usage
 
         # Calculate total time
@@ -163,9 +163,9 @@ def clean_with_llm(
 
         # Log statistics
         if usage_info:
-            input_tokens = getattr(usage_info, 'prompt_tokens', 0)
-            output_tokens = getattr(usage_info, 'completion_tokens', 0)
-            total_tokens = getattr(usage_info, 'total_tokens', input_tokens + output_tokens)
+            input_tokens = getattr(usage_info, "prompt_tokens", 0)
+            output_tokens = getattr(usage_info, "completion_tokens", 0)
+            total_tokens = getattr(usage_info, "total_tokens", input_tokens + output_tokens)
 
             # Calculate token rate (tokens per second)
             token_rate = output_tokens / total_time if total_time > 0 else 0
@@ -196,4 +196,3 @@ def clean_with_llm(
         return text if text else None
     except Exception as e:
         raise LLMCleanupError(f"LLM cleanup failed: {e}") from e
-

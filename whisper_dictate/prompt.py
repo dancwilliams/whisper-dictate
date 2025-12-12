@@ -31,4 +31,3 @@ def write_saved_prompt(prompt: str) -> bool:
         # UnicodeEncodeError: Invalid character encoding
         print(f"(Prompt) Could not save prompt: {e}")
         return False
-

@@ -161,12 +161,12 @@ def process_text(text: str, max_length: int = 100) -> str:
 
 ### Running Tests
 
-```bash
+```powershell
 # Run all tests
-uv run pytest
+make test
 
 # Run with coverage
-uv run pytest --cov=whisper_dictate --cov-report=html
+make test-coverage
 
 # Run specific test file
 uv run pytest tests/test_module.py
@@ -208,10 +208,29 @@ def test_function_handles_empty_input():
 
 ### Before Submitting
 
-1. **Run all tests**: `uv run pytest`
-2. **Run linter**: `uv run ruff check whisper_dictate/ tests/`
-3. **Format code**: `uv run ruff format whisper_dictate/ tests/`
-4. **Check type hints** (optional): `uv run mypy whisper_dictate/`
+Run all quality checks locally:
+
+```powershell
+make check
+```
+
+This runs the same checks as CI:
+- Linting (ruff)
+- Format verification (ruff)
+- Type checking (mypy)
+- Tests (pytest)
+
+You can also auto-fix many issues:
+
+```powershell
+make fix
+```
+
+Or run checks individually:
+1. **Run all tests**: `make test`
+2. **Run linter**: `make lint`
+3. **Format code**: `make format`
+4. **Check type hints**: `make typecheck`
 5. **Update CHANGELOG.md**: Add your changes under `[Unreleased]`
 
 ### PR Guidelines

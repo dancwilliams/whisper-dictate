@@ -35,10 +35,12 @@ class TestTranscriptionToLLMPipeline:
     def test_transcription_with_llm_cleanup_and_glossary(self):
         """Test full pipeline: transcription → LLM cleanup → glossary injection."""
         # Setup: Create a glossary with test rules
-        glossary = GlossaryManager([
-            GlossaryRule(trigger="whisper dictate", replacement="Whisper-Dictate"),
-            GlossaryRule(trigger="ai", replacement="AI", match_type="word"),
-        ])
+        glossary = GlossaryManager(
+            [
+                GlossaryRule(trigger="whisper dictate", replacement="Whisper-Dictate"),
+                GlossaryRule(trigger="ai", replacement="AI", match_type="word"),
+            ]
+        )
 
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -64,9 +66,7 @@ class TestTranscriptionToLLMPipeline:
         # Verify glossary was injected into system prompt
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args[1]["messages"]
-        system_content = " ".join(
-            msg["content"] for msg in messages if msg["role"] == "system"
-        )
+        system_content = " ".join(msg["content"] for msg in messages if msg["role"] == "system")
         assert "whisper dictate → Whisper-Dictate" in system_content
         assert "ai → AI" in system_content
 
@@ -191,9 +191,7 @@ class TestAppPromptResolutionPipeline:
         # Verify app-specific prompt was included
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args[1]["messages"]
-        system_content = " ".join(
-            msg["content"] for msg in messages if msg["role"] == "system"
-        )
+        system_content = " ".join(msg["content"] for msg in messages if msg["role"] == "system")
 
         assert "editing code" in system_content
         assert result == "def main():\n    pass"
@@ -248,10 +246,12 @@ class TestGlossaryWithLLMIntegration:
 
     def test_glossary_injected_into_llm_prompt(self):
         """Test that glossary rules are injected into LLM prompt."""
-        glossary = GlossaryManager([
-            GlossaryRule(trigger="open ai", replacement="OpenAI"),
-            GlossaryRule(trigger="gpt", replacement="GPT", match_type="word"),
-        ])
+        glossary = GlossaryManager(
+            [
+                GlossaryRule(trigger="open ai", replacement="OpenAI"),
+                GlossaryRule(trigger="gpt", replacement="GPT", match_type="word"),
+            ]
+        )
 
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -274,9 +274,7 @@ class TestGlossaryWithLLMIntegration:
         # Verify glossary was injected into system prompt
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args[1]["messages"]
-        system_content = " ".join(
-            msg["content"] for msg in messages if msg["role"] == "system"
-        )
+        system_content = " ".join(msg["content"] for msg in messages if msg["role"] == "system")
         assert "open ai → OpenAI" in system_content
         assert "gpt → GPT" in system_content
 
@@ -285,10 +283,12 @@ class TestGlossaryWithLLMIntegration:
 
     def test_glossary_injected_into_llm_system_prompt(self):
         """Test that glossary rules are included in LLM system prompt."""
-        glossary = GlossaryManager([
-            GlossaryRule(trigger="usa", replacement="USA", match_type="word"),
-            GlossaryRule(trigger="api", replacement="API", match_type="word"),
-        ])
+        glossary = GlossaryManager(
+            [
+                GlossaryRule(trigger="usa", replacement="USA", match_type="word"),
+                GlossaryRule(trigger="api", replacement="API", match_type="word"),
+            ]
+        )
 
         with patch("whisper_dictate.llm_cleanup.OpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -310,9 +310,7 @@ class TestGlossaryWithLLMIntegration:
         # Verify glossary was mentioned in system prompt
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args[1]["messages"]
-        system_content = " ".join(
-            msg["content"] for msg in messages if msg["role"] == "system"
-        )
+        system_content = " ".join(msg["content"] for msg in messages if msg["role"] == "system")
 
         assert "usa → USA" in system_content
         assert "api → API" in system_content
@@ -334,10 +332,12 @@ class TestEndToEndWorkflow:
             "vscode.exe": [{"prompt": "Format as markdown documentation."}],
         }
 
-        glossary = GlossaryManager([
-            GlossaryRule(trigger="whisper dictate", replacement="Whisper-Dictate"),
-            GlossaryRule(trigger="llm", replacement="LLM", match_type="word"),
-        ])
+        glossary = GlossaryManager(
+            [
+                GlossaryRule(trigger="whisper dictate", replacement="Whisper-Dictate"),
+                GlossaryRule(trigger="llm", replacement="LLM", match_type="word"),
+            ]
+        )
 
         # Resolve app prompt
         app_prompt = app_prompts.resolve_app_prompt(
@@ -373,9 +373,7 @@ class TestEndToEndWorkflow:
         # Verify all context was included in LLM prompt
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args[1]["messages"]
-        system_content = " ".join(
-            msg["content"] for msg in messages if msg["role"] == "system"
-        )
+        system_content = " ".join(msg["content"] for msg in messages if msg["role"] == "system")
 
         assert "vscode.exe" in system_content  # Context included
         assert "markdown documentation" in system_content  # App prompt included

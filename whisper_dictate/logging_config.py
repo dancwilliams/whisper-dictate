@@ -53,4 +53,3 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
         logger.warning(f"Could not set up file logging: {e}")
 
     return logger
-

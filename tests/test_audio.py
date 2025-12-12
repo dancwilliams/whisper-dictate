@@ -164,4 +164,3 @@ class TestBackwardCompatibility:
         """Test that recorder_loop exists for backward compatibility."""
         # This function should exist but do nothing
         audio.recorder_loop()  # Should not raise
-

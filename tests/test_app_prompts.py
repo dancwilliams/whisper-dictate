@@ -287,9 +287,7 @@ class TestCloneRules:
 
     def test_clone_rules_creates_independent_copy(self):
         """Test that cloned rules are independent."""
-        original = {
-            "app.exe": [{"prompt": "Original", "window_title_regex": "test"}]
-        }
+        original = {"app.exe": [{"prompt": "Original", "window_title_regex": "test"}]}
         cloned = app_prompts.clone_rules(original)
 
         # Modify cloned
@@ -324,9 +322,7 @@ class TestRegexValidation:
         """Test rejection of overly long patterns."""
         long_pattern = "a" * (app_prompts.MAX_REGEX_LENGTH + 1)
 
-        with pytest.raises(
-            app_prompts.RegexValidationError, match="Regex pattern too long"
-        ):
+        with pytest.raises(app_prompts.RegexValidationError, match="Regex pattern too long"):
             app_prompts.validate_regex_pattern(long_pattern)
 
     def test_validate_regex_pattern_nested_repetitions(self):
@@ -334,9 +330,7 @@ class TestRegexValidation:
         # Pattern with catastrophic backtracking: (a+)+
         dangerous_pattern = "(a+)+"
 
-        with pytest.raises(
-            app_prompts.RegexValidationError, match="too many nested repetitions"
-        ):
+        with pytest.raises(app_prompts.RegexValidationError, match="too many nested repetitions"):
             app_prompts.validate_regex_pattern(dangerous_pattern)
 
     def test_validate_regex_pattern_deeply_nested(self):
@@ -344,9 +338,7 @@ class TestRegexValidation:
         # Pattern with 4 levels of nesting: ((((a)*)*)*)*
         dangerous_pattern = "((((a)*)*)*)*"
 
-        with pytest.raises(
-            app_prompts.RegexValidationError, match="too many nested repetitions"
-        ):
+        with pytest.raises(app_prompts.RegexValidationError, match="too many nested repetitions"):
             app_prompts.validate_regex_pattern(dangerous_pattern)
 
     def test_validate_regex_pattern_invalid_syntax(self):

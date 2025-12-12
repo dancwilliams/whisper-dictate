@@ -34,7 +34,7 @@ class TestLoadSettings:
         test_settings = {
             "model": "base",
             "compute_type": "int8",
-            "app_prompts": {"vscode": "Write code comments"}
+            "app_prompts": {"vscode": "Write code comments"},
         }
 
         # Mock SETTINGS_FILE
@@ -128,7 +128,7 @@ class TestSaveSettings:
         test_settings = {
             "model": "base",
             "compute_type": "int8",
-            "app_prompts": {"vscode": "Write code"}
+            "app_prompts": {"vscode": "Write code"},
         }
 
         mock_path = MagicMock(spec=Path)
@@ -231,7 +231,6 @@ class TestSaveSettings:
         written_json = call_args[0][0]
         assert json.loads(written_json) == {}
 
-
     @patch("whisper_dictate.settings_store._store_secure_settings")
     def test_save_settings_stores_secure_settings(self, mock_store, monkeypatch):
         """Test that save_settings calls secure storage for API keys."""
@@ -251,7 +250,7 @@ class TestSaveSettings:
         test_settings = {
             "model": "base",
             "llm_key": "my_secret_key",
-            "llm_endpoint": "http://localhost:1234"
+            "llm_endpoint": "http://localhost:1234",
         }
 
         mock_path = MagicMock(spec=Path)

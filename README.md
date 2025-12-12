@@ -1,5 +1,7 @@
 # Whisper Dictate
 
+[![CI](https://github.com/dancwilliams/whisper-dictate/actions/workflows/ci.yml/badge.svg)](https://github.com/dancwilliams/whisper-dictate/actions/workflows/ci.yml)
+
 A privacy-first, local **speech-to-text and AI cleanup tool** for Windows.  
 It uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) for offline transcription and can optionally send text to a local or remote **OpenAI-compatible endpoint** (such as [LM Studio](https://lmstudio.ai/)) for light cleanup or rewriting.  
 It supports a **GUI**, global hotkeys, and automatic pasting into the active window.
@@ -163,7 +165,38 @@ whisper-dictate/
 
 ---
 
-## 🧪 Testing
+## 🧪 Development
+
+### Running Tests
+
+```powershell
+# Run all tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+```
+
+### Code Quality Checks
+
+```powershell
+# Run all checks (lint, format, typecheck, test)
+make check
+
+# Run individual checks
+make lint
+make format-check
+make typecheck
+
+# Auto-fix issues
+make fix
+```
+
+### Available Make Targets
+
+Run `make help` to see all available targets.
+
+### Testing
 
 Run the test suite with coverage:
 
