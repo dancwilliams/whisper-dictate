@@ -175,4 +175,3 @@ class HotkeyManager:
                 user32.DispatchMessageW(ctypes.byref(msg))
         finally:
             user32.UnregisterHotKey(None, TOGGLE_ID)
-

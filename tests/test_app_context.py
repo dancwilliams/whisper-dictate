@@ -13,9 +13,7 @@ class TestActiveContext:
     def test_active_context_creation(self):
         """Test creating ActiveContext with all fields."""
         ctx = app_context.ActiveContext(
-            window_title="Test Window",
-            process_name="test.exe",
-            cursor_position=(100, 200)
+            window_title="Test Window", process_name="test.exe", cursor_position=(100, 200)
         )
 
         assert ctx.window_title == "Test Window"
@@ -24,11 +22,7 @@ class TestActiveContext:
 
     def test_active_context_with_none_values(self):
         """Test creating ActiveContext with None values."""
-        ctx = app_context.ActiveContext(
-            window_title=None,
-            process_name=None,
-            cursor_position=None
-        )
+        ctx = app_context.ActiveContext(window_title=None, process_name=None, cursor_position=None)
 
         assert ctx.window_title is None
         assert ctx.process_name is None
@@ -37,9 +31,7 @@ class TestActiveContext:
     def test_active_context_is_frozen(self):
         """Test that ActiveContext is immutable (frozen dataclass)."""
         ctx = app_context.ActiveContext(
-            window_title="Test",
-            process_name="test.exe",
-            cursor_position=(0, 0)
+            window_title="Test", process_name="test.exe", cursor_position=(0, 0)
         )
 
         with pytest.raises(AttributeError):
@@ -148,6 +140,7 @@ class TestGetActiveContextWindows:
             point_ref.contents.x = 100
             point_ref.contents.y = 200
             return True
+
         mock_user32.GetCursorPos.side_effect = mock_get_cursor_pos
 
         monkeypatch.setattr(app_context, "USER32", mock_user32)
@@ -193,6 +186,7 @@ class TestGetActiveContextWindows:
         # Mock helper to raise exception
         def raise_error(hwnd):
             raise RuntimeError("API call failed")
+
         monkeypatch.setattr(app_context, "_get_window_title", raise_error)
 
         result = app_context.get_active_context()
@@ -215,7 +209,7 @@ class TestGetWindowTitle:
         def mock_get_window_text(hwnd, buffer, max_count):
             for i, char in enumerate(test_title):
                 buffer[i] = char
-            buffer[len(test_title)] = '\0'
+            buffer[len(test_title)] = "\0"
             return len(test_title)
 
         mock_user32.GetWindowTextW.side_effect = mock_get_window_text
@@ -248,7 +242,7 @@ class TestGetWindowTitle:
         def mock_get_window_text(hwnd, buffer, max_count):
             for i, char in enumerate("   "):
                 buffer[i] = char
-            buffer[3] = '\0'
+            buffer[3] = "\0"
             return 3
 
         mock_user32.GetWindowTextW.side_effect = mock_get_window_text
@@ -299,7 +293,7 @@ class TestGetProcessName:
             test_path = r"C:\Windows\System32\notepad.exe"
             for i, char in enumerate(test_path):
                 buffer[i] = char
-            buffer[len(test_path)] = '\0'
+            buffer[len(test_path)] = "\0"
             return True
 
         mock_kernel32.QueryFullProcessImageNameW.side_effect = mock_query_name

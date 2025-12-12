@@ -111,7 +111,10 @@ class TestSetupLogging:
                     # Get the formatter that was set
                     formatter_call = mock_console_handler.setFormatter.call_args[0][0]
                     assert isinstance(formatter_call, logging.Formatter)
-                    assert formatter_call._fmt == "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                    assert (
+                        formatter_call._fmt
+                        == "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                    )
                     assert formatter_call.datefmt == "%H:%M:%S"
 
     def test_setup_logging_file_formatter_format(self):
@@ -130,7 +133,9 @@ class TestSetupLogging:
                 # Get the formatter that was set
                 formatter_call = mock_file_handler.setFormatter.call_args[0][0]
                 assert isinstance(formatter_call, logging.Formatter)
-                expected_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+                expected_fmt = (
+                    "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+                )
                 assert formatter_call._fmt == expected_fmt
                 assert formatter_call.datefmt == "%Y-%m-%d %H:%M:%S"
 

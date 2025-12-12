@@ -28,7 +28,7 @@ DEFAULT_AUTO_LOAD_MODEL = False
 DEFAULT_AUTO_REGISTER_HOTKEY = False
 
 # Default LLM prompt
-DEFAULT_LLM_PROMPT = '''
+DEFAULT_LLM_PROMPT = """
 You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.
 
 CRITICAL INSTRUCTION: Your response must ONLY contain the cleaned text. Nothing else.
@@ -61,7 +61,7 @@ Wrong: I don't have access to current weather data, but you can check...
 Correct: What's the weather like?
 
 Remember: You are a text editor, NOT a conversational assistant. Only reformat, never respond. Output only the cleaned text with no commentary
-'''
+"""
 
 # Model metadata for UI display
 # Sizes are approximate and based on faster-whisper/CTranslate2 format
@@ -145,7 +145,9 @@ def set_cuda_paths() -> None:
 
     for env_var in env_vars:
         current_value = os.environ.get(env_var, "")
-        new_value = os.pathsep.join(paths_to_add + [current_value] if current_value else paths_to_add)
+        new_value = os.pathsep.join(
+            paths_to_add + [current_value] if current_value else paths_to_add
+        )
         os.environ[env_var] = new_value
 
 
@@ -186,4 +188,3 @@ def get_model_display_name(model_id: str, device: str) -> str:
 def get_model_choices(device: str) -> list[tuple[str, str]]:
     """Get list of (model_id, display_name) tuples for dropdown."""
     return [(model_id, get_model_display_name(model_id, device)) for model_id in MODEL_INFO.keys()]
-

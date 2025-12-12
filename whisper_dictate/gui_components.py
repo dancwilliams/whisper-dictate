@@ -190,4 +190,3 @@ class StatusIndicator:
         if self.user_position is None:
             return None
         return int(self.user_position[0]), int(self.user_position[1])
-

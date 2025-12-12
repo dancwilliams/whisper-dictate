@@ -114,16 +114,37 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
 - Each module has corresponding `test_*.py` file
 - Naming: `test_<module_name>.py`
 
-### Running Tests
+### Running Tests Locally
 ```powershell
+# Run all tests
+make test
+
 # Run all tests with coverage
-uv run pytest
+make test-coverage
 
 # Run specific test file
 uv run pytest tests/test_app_context.py
 
-# Generate HTML coverage report
-uv run pytest --cov=whisper_dictate --cov-report=html
+# Run all quality checks (CI equivalent)
+make check
+```
+
+### Continuous Integration
+- CI runs on every push to `main` and all pull requests
+- Workflow: `.github/workflows/ci.yml`
+- Jobs: lint (ruff), typecheck (mypy), test (pytest on Python 3.11/3.12/3.13)
+- All jobs must pass for PR to be considered ready
+
+### Running CI Checks Locally
+```powershell
+# Run exactly what CI runs
+make check
+
+# Or individually
+make lint          # Ruff linting
+make format-check  # Ruff formatting verification
+make typecheck     # Mypy type checking
+make test          # Pytest test suite
 ```
 
 ### Test Configuration

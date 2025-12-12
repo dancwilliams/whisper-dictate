@@ -70,4 +70,3 @@ class TestTranscription:
         assert result == mock_model_instance
         mock_normalize.assert_called_once_with("cuda", "float16")
         mock_whisper_model.assert_called_once_with("small", device="cuda", compute_type="float16")
-

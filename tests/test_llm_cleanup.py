@@ -49,12 +49,12 @@ class TestLLMCleanup:
         mock_chunk3.usage.completion_tokens = 5
         mock_chunk3.usage.total_tokens = 15
 
-        mock_client.chat.completions.create.return_value = iter([mock_chunk1, mock_chunk2, mock_chunk3])
+        mock_client.chat.completions.create.return_value = iter(
+            [mock_chunk1, mock_chunk2, mock_chunk3]
+        )
 
         with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
-            result = clean_with_llm(
-                "raw text", "http://test", "model", "key", "prompt", 0.1
-            )
+            result = clean_with_llm("raw text", "http://test", "model", "key", "prompt", 0.1)
             assert result == "Cleaned text"
             mock_client.chat.completions.create.assert_called_once()
 
@@ -85,7 +85,9 @@ class TestLLMCleanup:
 
     def test_clean_with_llm_includes_glossary(self):
         """Ensure glossary rules are summarized in the system prompt when provided."""
-        glossary_manager = GlossaryManager([GlossaryRule(trigger="AppName", replacement="Whisper Dictate")])
+        glossary_manager = GlossaryManager(
+            [GlossaryRule(trigger="AppName", replacement="Whisper Dictate")]
+        )
         mock_client = MagicMock()
 
         # Mock streaming response
@@ -142,4 +144,3 @@ class TestLLMCleanup:
         assert "Application-specific instructions" in system_prompt
         assert "App specific" in system_prompt
         assert system_prompt.endswith("Some context")
-

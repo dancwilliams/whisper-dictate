@@ -129,7 +129,9 @@ class GlossaryManager:
 
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            payload = json.dumps([rule.to_dict() for rule in self.rules], indent=2, ensure_ascii=False)
+            payload = json.dumps(
+                [rule.to_dict() for rule in self.rules], indent=2, ensure_ascii=False
+            )
             path.write_text(payload, encoding="utf-8")
             return True
         except (OSError, UnicodeEncodeError, TypeError, ValueError) as e:  # pragma: no cover

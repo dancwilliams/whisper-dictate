@@ -1,6 +1,5 @@
 """Whisper transcription functionality."""
 
-
 from faster_whisper import WhisperModel
 
 from whisper_dictate.config import normalize_compute_type
@@ -64,4 +63,3 @@ def load_model(
     """
     normalized_compute = normalize_compute_type(device, compute_type)
     return WhisperModel(model_name, device=device, compute_type=normalized_compute)
-

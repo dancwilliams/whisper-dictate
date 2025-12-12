@@ -59,12 +59,16 @@ class GlossaryDialog(Toplevel):
         ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, 6))
         ttk.Button(btns, text="Edit", command=self._on_edit).grid(row=0, column=1, padx=(0, 6))
         ttk.Button(btns, text="Delete", command=self._on_delete).grid(row=0, column=2, padx=(0, 6))
-        ttk.Button(btns, text="Import CSV", command=self._on_import).grid(row=0, column=3, padx=(0, 6))
+        ttk.Button(btns, text="Import CSV", command=self._on_import).grid(
+            row=0, column=3, padx=(0, 6)
+        )
         ttk.Button(btns, text="Export CSV", command=self._on_export).grid(row=0, column=4)
 
         actions = ttk.Frame(self)
         actions.grid(row=3, column=0, sticky="e", padx=12, pady=(0, 12))
-        ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
+            row=0, column=0, padx=(0, 8)
+        )
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
         self._refresh_tree()
@@ -194,31 +198,51 @@ class GlossaryRuleDialog(Toplevel):
         self.var_case_sensitive = BooleanVar(value=rule.case_sensitive if rule else False)
         self.var_word_boundary = BooleanVar(value=rule.word_boundary if rule else True)
         # Description can be missing when creating a new rule
-        self.var_description = StringVar(value=rule.description if rule and rule.description else "")
+        self.var_description = StringVar(
+            value=rule.description if rule and rule.description else ""
+        )
 
         frame = ttk.Frame(self, padding=12)
         frame.grid(row=0, column=0, sticky="nsew")
 
         ttk.Label(frame, text="Trigger (what you say or see)").grid(row=0, column=0, sticky="w")
-        ttk.Entry(frame, textvariable=self.var_trigger, width=46).grid(row=1, column=0, sticky="we", pady=(0, 8))
+        ttk.Entry(frame, textvariable=self.var_trigger, width=46).grid(
+            row=1, column=0, sticky="we", pady=(0, 8)
+        )
 
         ttk.Label(frame, text="Replacement (what should appear)").grid(row=2, column=0, sticky="w")
-        ttk.Entry(frame, textvariable=self.var_replacement, width=46).grid(row=3, column=0, sticky="we", pady=(0, 8))
+        ttk.Entry(frame, textvariable=self.var_replacement, width=46).grid(
+            row=3, column=0, sticky="we", pady=(0, 8)
+        )
 
         opts = ttk.Frame(frame)
         opts.grid(row=4, column=0, sticky="we", pady=(4, 4))
         ttk.Label(opts, text="Match type:").grid(row=0, column=0, sticky="w")
-        cmb = ttk.Combobox(opts, textvariable=self.var_match_type, values=["word", "phrase", "regex"], state="readonly", width=10)
+        cmb = ttk.Combobox(
+            opts,
+            textvariable=self.var_match_type,
+            values=["word", "phrase", "regex"],
+            state="readonly",
+            width=10,
+        )
         cmb.grid(row=0, column=1, padx=(6, 18))
-        ttk.Checkbutton(opts, text="Case sensitive", variable=self.var_case_sensitive).grid(row=0, column=2, padx=(0, 12))
-        ttk.Checkbutton(opts, text="Whole words only", variable=self.var_word_boundary).grid(row=0, column=3)
+        ttk.Checkbutton(opts, text="Case sensitive", variable=self.var_case_sensitive).grid(
+            row=0, column=2, padx=(0, 12)
+        )
+        ttk.Checkbutton(opts, text="Whole words only", variable=self.var_word_boundary).grid(
+            row=0, column=3
+        )
 
         ttk.Label(frame, text="Description (optional)").grid(row=5, column=0, sticky="w")
-        ttk.Entry(frame, textvariable=self.var_description, width=46).grid(row=6, column=0, sticky="we", pady=(0, 10))
+        ttk.Entry(frame, textvariable=self.var_description, width=46).grid(
+            row=6, column=0, sticky="we", pady=(0, 10)
+        )
 
         actions = ttk.Frame(frame)
         actions.grid(row=7, column=0, sticky="e")
-        ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
+            row=0, column=0, padx=(0, 8)
+        )
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
         self.bind("<Escape>", lambda event: self._on_cancel())

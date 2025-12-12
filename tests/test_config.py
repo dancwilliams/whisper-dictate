@@ -247,4 +247,3 @@ class TestModelInfo:
         assert "cuda" in DEVICE_COMPUTE_DEFAULTS
         assert DEVICE_COMPUTE_DEFAULTS["cpu"] == "int8"
         assert DEVICE_COMPUTE_DEFAULTS["cuda"] == "float16"
-

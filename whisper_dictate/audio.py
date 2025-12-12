@@ -38,9 +38,7 @@ class AudioRecorder:
         self._recorder_thread: threading.Thread | None = None
         self._stop_recorder = threading.Event()
 
-    def _audio_callback(
-        self, indata: np.ndarray, frames: int, time_info: dict, status
-    ) -> None:
+    def _audio_callback(self, indata: np.ndarray, frames: int, time_info: dict, status) -> None:
         """Callback for audio input stream."""
         if status:
             print("Audio status:", status)
@@ -73,9 +71,7 @@ class AudioRecorder:
         # Start recorder thread if not already running
         if self._recorder_thread is None or not self._recorder_thread.is_alive():
             self._stop_recorder.clear()
-            self._recorder_thread = threading.Thread(
-                target=self._recorder_loop, daemon=True
-            )
+            self._recorder_thread = threading.Thread(target=self._recorder_loop, daemon=True)
             self._recorder_thread.start()
 
         # Create and start audio stream
@@ -170,4 +166,3 @@ def recorder_loop() -> None:
     # This function is kept for backward compatibility but does nothing
     # The recorder thread is automatically started when recording begins
     pass
-

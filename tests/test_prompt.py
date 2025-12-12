@@ -49,4 +49,3 @@ class TestPrompt:
             with patch("pathlib.Path.write_text", side_effect=PermissionError("Access denied")):
                 result = write_saved_prompt("test")
                 assert result is False
-

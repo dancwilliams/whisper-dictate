@@ -92,4 +92,3 @@ class TestHotkeyManager:
 
         with pytest.raises(HotkeyError, match="Failed to register hotkey"):
             manager.register("CTRL+G")
-

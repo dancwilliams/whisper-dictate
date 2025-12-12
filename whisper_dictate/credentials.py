@@ -6,7 +6,6 @@ Credentials are encrypted by the operating system and tied to the user account.
 """
 
 import logging
-from typing import Optional
 
 import keyring
 from keyring.errors import KeyringError, PasswordDeleteError
@@ -55,7 +54,7 @@ def store_credential(key: str, value: str) -> None:
         raise CredentialStorageError(f"Unexpected error storing credential: {e}") from e
 
 
-def retrieve_credential(key: str) -> Optional[str]:
+def retrieve_credential(key: str) -> str | None:
     """Retrieve a credential from the system keyring.
 
     Args:

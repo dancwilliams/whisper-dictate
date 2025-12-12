@@ -9,7 +9,9 @@ class DummyChunk:
     def __init__(self, content: str = None, has_usage: bool = False):
         self.choices = [type("Choice", (), {"delta": type("Delta", (), {"content": content})()})]
         if has_usage:
-            self.usage = type("Usage", (), {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})()
+            self.usage = type(
+                "Usage", (), {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+            )()
         else:
             self.usage = None
 
@@ -60,4 +62,3 @@ def test_logs_full_prompt_when_debug_enabled(monkeypatch, caplog):
     assert any("LLM statistics" in rec.message for rec in caplog.records)
     # Check for response logging (when debug enabled)
     assert any("LLM response" in rec.message for rec in caplog.records)
-

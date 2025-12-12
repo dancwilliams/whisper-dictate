@@ -56,7 +56,9 @@ def main() -> int:
         compute_type = "float16"
         print("Adjusting compute type to float16 for CUDA prefetches.")
 
-    print(f"Prefetching model '{args.model}' (device={args.device}, compute_type={compute_type})...")
+    print(
+        f"Prefetching model '{args.model}' (device={args.device}, compute_type={compute_type})..."
+    )
     model = WhisperModel(
         args.model,
         device=args.device,
