@@ -96,6 +96,7 @@ class App(Tk):
 
         # Secondary windows
         self._speech_window: Toplevel | None = None
+        self._advanced_transcription_window: Toplevel | None = None
         self._automation_window: Toplevel | None = None
         self._llm_window: Toplevel | None = None
         self._log_window: Toplevel | None = None
@@ -117,6 +118,9 @@ class App(Tk):
 
         settings_menu = Menu(menubar, tearoff=False)
         settings_menu.add_command(label="Speech recognition...", command=self._open_speech_settings)
+        settings_menu.add_command(
+            label="Advanced transcription...", command=self._open_advanced_transcription_settings
+        )
         settings_menu.add_command(label="LLM cleanup...", command=self._open_llm_settings)
         settings_menu.add_command(label="Automation...", command=self._open_automation_settings)
         settings_menu.add_separator()
@@ -152,6 +156,20 @@ class App(Tk):
         self.var_glossary_enable = BooleanVar(value=True)
         self.var_auto_load_model = BooleanVar(value=DEFAULT_AUTO_LOAD_MODEL)
         self.var_auto_register_hotkey = BooleanVar(value=DEFAULT_AUTO_REGISTER_HOTKEY)
+
+        # Advanced transcription settings
+        self.var_vad_enabled = BooleanVar(value=False)  # Disabled by default
+        self.var_vad_threshold = DoubleVar(value=0.5)
+        self.var_vad_min_speech_ms = DoubleVar(value=250)
+        self.var_vad_min_silence_ms = DoubleVar(value=500)
+        self.var_vad_speech_pad_ms = DoubleVar(value=400)
+        self.var_compression_ratio_threshold = DoubleVar(value=2.4)
+        self.var_log_prob_threshold = DoubleVar(value=-1.0)
+        self.var_no_speech_threshold = DoubleVar(value=0.6)
+        self.var_word_timestamps = BooleanVar(value=False)
+        self.var_temperature = DoubleVar(value=0.0)
+        self.var_beam_size = DoubleVar(value=5)
+        self.var_initial_prompt = StringVar(value="")
 
         self._indicator_position: tuple[int, int] | None = None
 
@@ -354,6 +372,213 @@ class App(Tk):
             ).grid(row=7, column=0, sticky="w")
 
         self._open_window("_automation_window", "Automation", build)
+
+    def _open_advanced_transcription_settings(self) -> None:
+        """Open advanced transcription settings window."""
+
+        def build(window: Toplevel) -> None:
+            frame = ttk.Frame(window, padding=12)
+            frame.pack(fill="both", expand=True)
+            frame.columnconfigure(1, weight=1)
+
+            row = 0
+
+            # VAD Settings Section
+            ttk.Label(frame, text="Voice Activity Detection", font=("Segoe UI", 9, "bold")).grid(
+                row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
+            )
+            row += 1
+
+            ttk.Checkbutton(frame, text="Enable VAD filtering", variable=self.var_vad_enabled).grid(
+                row=row, column=0, columnspan=2, sticky="w"
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "VAD threshold (0.3-0.8)",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=0.1,
+                    to=1.0,
+                    increment=0.1,
+                    textvariable=self.var_vad_threshold,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "Min speech duration (ms)",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=100,
+                    to=1000,
+                    increment=50,
+                    textvariable=self.var_vad_min_speech_ms,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "Min silence duration (ms)",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=100,
+                    to=2000,
+                    increment=100,
+                    textvariable=self.var_vad_min_silence_ms,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "Speech padding (ms)",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=100,
+                    to=1000,
+                    increment=50,
+                    textvariable=self.var_vad_speech_pad_ms,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            # Separator
+            ttk.Separator(frame, orient="horizontal").grid(
+                row=row, column=0, columnspan=2, sticky="we", pady=(12, 8)
+            )
+            row += 1
+
+            # Hallucination Prevention Section
+            ttk.Label(
+                frame, text="Hallucination Prevention", font=("Segoe UI", 9, "bold")
+            ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 8))
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "Compression ratio threshold",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=1.0,
+                    to=5.0,
+                    increment=0.1,
+                    textvariable=self.var_compression_ratio_threshold,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "Log probability threshold",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=-2.0,
+                    to=0.0,
+                    increment=0.1,
+                    textvariable=self.var_log_prob_threshold,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "No speech threshold",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=0.0,
+                    to=1.0,
+                    increment=0.1,
+                    textvariable=self.var_no_speech_threshold,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            # Separator
+            ttk.Separator(frame, orient="horizontal").grid(
+                row=row, column=0, columnspan=2, sticky="we", pady=(12, 8)
+            )
+            row += 1
+
+            # Other Advanced Settings
+            ttk.Label(frame, text="Other Settings", font=("Segoe UI", 9, "bold")).grid(
+                row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "Beam size (1-10)",
+                row,
+                ttk.Spinbox(
+                    frame, from_=1, to=10, increment=1, textvariable=self.var_beam_size, width=10
+                ),
+            )
+            row += 1
+
+            self._add_labeled_widget(
+                frame,
+                "Temperature (0.0-1.5)",
+                row,
+                ttk.Spinbox(
+                    frame,
+                    from_=0.0,
+                    to=1.5,
+                    increment=0.1,
+                    textvariable=self.var_temperature,
+                    width=10,
+                ),
+            )
+            row += 1
+
+            ttk.Checkbutton(
+                frame, text="Enable word timestamps", variable=self.var_word_timestamps
+            ).grid(row=row, column=0, columnspan=2, sticky="w")
+            row += 1
+
+            # Initial prompt
+            ttk.Label(frame, text="Initial prompt (optional)").grid(
+                row=row, column=0, sticky="nw", pady=4
+            )
+            initial_prompt_text = Text(frame, height=3, width=40, wrap="word")
+            initial_prompt_text.grid(row=row, column=1, sticky="we", pady=4, padx=(12, 0))
+            initial_prompt_text.insert("1.0", self.var_initial_prompt.get())
+
+            # Save initial prompt on text change
+            def save_initial_prompt(*args):
+                self.var_initial_prompt.set(initial_prompt_text.get("1.0", "end-1c"))
+
+            initial_prompt_text.bind("<KeyRelease>", save_initial_prompt)
+            row += 1
+
+            # Help text
+            ttk.Label(
+                frame,
+                text="⚠ These are advanced settings. Defaults work well for most users.",
+                foreground="#cc6600",
+                wraplength=440,
+                justify="left",
+                font=("Segoe UI", 9, "italic"),
+            ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        self._open_window("_advanced_transcription_window", "Advanced Transcription", build)
 
     def _open_llm_settings(self) -> None:
         """Open LLM cleanup settings window."""
@@ -725,6 +950,20 @@ class App(Tk):
         set_if_present("auto_load_model", self.var_auto_load_model, bool)
         set_if_present("auto_register_hotkey", self.var_auto_register_hotkey, bool)
 
+        # Load advanced transcription settings
+        set_if_present("vad_enabled", self.var_vad_enabled, bool)
+        set_if_present("vad_threshold", self.var_vad_threshold, float)
+        set_if_present("vad_min_speech_ms", self.var_vad_min_speech_ms, float)
+        set_if_present("vad_min_silence_ms", self.var_vad_min_silence_ms, float)
+        set_if_present("vad_speech_pad_ms", self.var_vad_speech_pad_ms, float)
+        set_if_present("compression_ratio_threshold", self.var_compression_ratio_threshold, float)
+        set_if_present("log_prob_threshold", self.var_log_prob_threshold, float)
+        set_if_present("no_speech_threshold", self.var_no_speech_threshold, float)
+        set_if_present("word_timestamps", self.var_word_timestamps, bool)
+        set_if_present("temperature", self.var_temperature, float)
+        set_if_present("beam_size", self.var_beam_size, float)
+        set_if_present("initial_prompt", self.var_initial_prompt, str)
+
         pos = saved.get("indicator_position")
         if isinstance(pos, dict):
             x, y = pos.get("x"), pos.get("y")
@@ -761,6 +1000,19 @@ class App(Tk):
                 for entry in self.recent_processes
                 if entry.get("process_name")
             ],
+            # Advanced transcription settings
+            "vad_enabled": bool(self.var_vad_enabled.get()),
+            "vad_threshold": float(self.var_vad_threshold.get()),
+            "vad_min_speech_ms": float(self.var_vad_min_speech_ms.get()),
+            "vad_min_silence_ms": float(self.var_vad_min_silence_ms.get()),
+            "vad_speech_pad_ms": float(self.var_vad_speech_pad_ms.get()),
+            "compression_ratio_threshold": float(self.var_compression_ratio_threshold.get()),
+            "log_prob_threshold": float(self.var_log_prob_threshold.get()),
+            "no_speech_threshold": float(self.var_no_speech_threshold.get()),
+            "word_timestamps": bool(self.var_word_timestamps.get()),
+            "temperature": float(self.var_temperature.get()),
+            "beam_size": int(self.var_beam_size.get()),
+            "initial_prompt": self.var_initial_prompt.get().strip(),
         }
 
         if hasattr(self, "indicator"):
@@ -976,7 +1228,29 @@ class App(Tk):
         app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
         try:
-            text = transcription.transcribe_audio(self.model, audio_data)
+            # Build VAD parameters if VAD is enabled
+            vad_params = None
+            if self.var_vad_enabled.get():
+                vad_params = {
+                    "threshold": self.var_vad_threshold.get(),
+                    "min_speech_duration_ms": int(self.var_vad_min_speech_ms.get()),
+                    "min_silence_duration_ms": int(self.var_vad_min_silence_ms.get()),
+                    "speech_pad_ms": int(self.var_vad_speech_pad_ms.get()),
+                }
+
+            text = transcription.transcribe_audio(
+                self.model,
+                audio_data,
+                beam_size=int(self.var_beam_size.get()),
+                vad_filter=self.var_vad_enabled.get(),
+                vad_parameters=vad_params,
+                compression_ratio_threshold=self.var_compression_ratio_threshold.get(),
+                log_prob_threshold=self.var_log_prob_threshold.get(),
+                no_speech_threshold=self.var_no_speech_threshold.get(),
+                word_timestamps=self.var_word_timestamps.get(),
+                temperature=self.var_temperature.get(),
+                initial_prompt=self.var_initial_prompt.get().strip() or None,
+            )
         except transcription.TranscriptionError as e:
             self._set_status("error", "Transcription failed")
             logger.error(f"Transcription failed: {e}", exc_info=True)

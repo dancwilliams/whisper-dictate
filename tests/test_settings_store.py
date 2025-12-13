@@ -14,6 +14,25 @@ from whisper_dictate.settings_store import (
 )
 
 
+def get_expected_defaults():
+    """Get the expected default settings returned by load_settings."""
+    return {
+        "app_prompts": {},
+        "vad_enabled": False,  # Disabled by default for backward compatibility
+        "vad_threshold": 0.5,
+        "vad_min_speech_ms": 250,
+        "vad_min_silence_ms": 500,
+        "vad_speech_pad_ms": 400,
+        "compression_ratio_threshold": 2.4,
+        "log_prob_threshold": -1.0,
+        "no_speech_threshold": 0.6,
+        "word_timestamps": False,
+        "temperature": 0.0,
+        "beam_size": 5,
+        "initial_prompt": "",
+    }
+
+
 class TestLoadSettings:
     """Tests for load_settings function."""
 
@@ -26,7 +45,7 @@ class TestLoadSettings:
 
         result = load_settings()
 
-        assert result == {"app_prompts": {}}
+        assert result == get_expected_defaults()
         mock_path.is_file.assert_called_once()
 
     def test_load_settings_success_with_valid_json(self, monkeypatch):
@@ -45,7 +64,9 @@ class TestLoadSettings:
 
         result = load_settings()
 
-        assert result == test_settings
+        # Should have test settings plus defaults for missing keys
+        expected = {**get_expected_defaults(), **test_settings}
+        assert result == expected
         mock_path.read_text.assert_called_once_with(encoding="utf-8")
 
     def test_load_settings_adds_app_prompts_key_if_missing(self, monkeypatch):
@@ -73,7 +94,7 @@ class TestLoadSettings:
 
         result = load_settings()
 
-        assert result == {"app_prompts": {}}
+        assert result == get_expected_defaults()
         # Verify error was logged
         assert "Could not read saved settings:" in caplog.text
 
@@ -86,7 +107,7 @@ class TestLoadSettings:
 
         result = load_settings()
 
-        assert result == {"app_prompts": {}}
+        assert result == get_expected_defaults()
         # Verify error was logged
         assert "Could not read saved settings:" in caplog.text
         assert "Permission denied" in caplog.text
@@ -100,7 +121,7 @@ class TestLoadSettings:
 
         result = load_settings()
 
-        assert result == {"app_prompts": {}}
+        assert result == get_expected_defaults()
 
     @patch("whisper_dictate.settings_store._migrate_secure_settings")
     def test_load_settings_migrates_secure_settings(self, mock_migrate, monkeypatch):

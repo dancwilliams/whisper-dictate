@@ -103,7 +103,19 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "floating_indicator": {
     "x": 100,
     "y": 100
-  }
+  },
+  "vad_enabled": false,
+  "vad_threshold": 0.5,
+  "vad_min_speech_ms": 250,
+  "vad_min_silence_ms": 500,
+  "vad_speech_pad_ms": 400,
+  "compression_ratio_threshold": 2.4,
+  "log_prob_threshold": -1.0,
+  "no_speech_threshold": 0.6,
+  "word_timestamps": false,
+  "temperature": 0.0,
+  "beam_size": 5,
+  "initial_prompt": ""
 }
 ```
 
