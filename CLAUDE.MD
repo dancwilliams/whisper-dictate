@@ -49,21 +49,21 @@ Ruff enforces import sorting with the "I" rule:
 
 | Module | Purpose | Key Functions/Classes |
 |--------|---------|----------------------|
-| `config.py` | Configuration defaults, CUDA setup | `setup_cuda_path()`, model/device defaults |
-| `app_context.py` | Active window detection (Windows API) | `get_active_window_info()`, `WindowInfo` |
-| `prompt.py` | LLM prompt loading/saving | `load_prompt()`, `save_prompt()` |
-| `app_prompts.py` | Per-application prompt resolution | `resolve_prompt()`, `AppPromptEntry` |
+| `config.py` | Configuration defaults, CUDA setup | `set_cuda_paths()`, `get_model_choices()`, model/device defaults |
+| `app_context.py` | Active window detection (Windows API) | `get_active_context()`, `ActiveContext` |
+| `prompt.py` | LLM prompt loading/saving | `load_saved_prompt()`, `write_saved_prompt()` |
+| `app_prompts.py` | Per-application prompt resolution | `resolve_app_prompt()`, `normalize_app_prompts()` |
 | `app_prompt_dialog.py` | GUI for per-app prompt management | `AppPromptDialog` |
-| `audio.py` | Audio recording with sounddevice | `record_audio()` |
-| `transcription.py` | Whisper model loading and transcription | `load_model()`, `transcribe()` |
-| `llm_cleanup.py` | LLM text cleanup with OpenAI client | `cleanup_text()`, `fetch_available_models()` |
-| `glossary.py` | Glossary persistence and application | `load_glossary()`, `apply_glossary()`, `GlossaryEntry` |
+| `audio.py` | Audio recording with sounddevice | `AudioRecorder`, `start_recording()`, `stop_recording()` |
+| `transcription.py` | Whisper model loading and transcription | `load_model()`, `transcribe_audio()` |
+| `llm_cleanup.py` | LLM text cleanup with OpenAI client | `clean_with_llm()`, `list_llm_models()` |
+| `glossary.py` | Glossary persistence and application | `GlossaryManager`, `GlossaryRule`, `apply_glossary()` |
 | `glossary_dialog.py` | GUI for glossary management | `GlossaryDialog` |
-| `hotkeys.py` | Windows global hotkey registration | `register_global_hotkey()` |
-| `gui_components.py` | Reusable GUI widgets | `LabeledEntry`, `LabeledText` |
+| `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_hotkey_string()` |
+| `gui_components.py` | Reusable GUI widgets | `PromptDialog`, `StatusIndicator` |
 | `logging_config.py` | Centralized logging setup | `setup_logging()` |
 | `settings_store.py` | Settings persistence | `load_settings()`, `save_settings()` |
-| `gui.py` | Main GUI application | `WhisperDictateGUI` |
+| `gui.py` | Main GUI application | `App`, `main()` |
 
 ### Data Flow
 
@@ -183,6 +183,8 @@ make test          # Pytest test suite
 - `pillow` — GUI icons/images
 
 ### Dev Dependencies
+Declared in the `dev` [dependency group](https://peps.python.org/pep-0735/), not an extra;
+`uv sync` installs it by default (there is no `--all-extras` to pass).
 - `pytest`, `pytest-cov`, `pytest-mock` — Testing
 - `ruff` — Linting and formatting
 - `mypy` — Type checking

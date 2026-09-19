@@ -17,14 +17,13 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
-          version: "0.4.4"
           enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: uv sync --frozen --all-extras
+        run: uv sync --frozen
 
       - name: Run ruff linting
         run: uv run ruff check .
@@ -42,14 +41,13 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
-          version: "0.4.4"
           enable-cache: true
 
       - name: Set up Python
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: uv sync --frozen --all-extras
+        run: uv sync --frozen
 
       - name: Run mypy
         run: uv run mypy whisper_dictate
@@ -69,14 +67,13 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
-          version: "0.4.4"
           enable-cache: true
 
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --frozen --all-extras
+        run: uv sync --frozen
 
       - name: Run pytest with coverage
         run: uv run pytest

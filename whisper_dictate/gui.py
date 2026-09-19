@@ -461,9 +461,9 @@ class App(Tk):
             row += 1
 
             # Hallucination Prevention Section
-            ttk.Label(
-                frame, text="Hallucination Prevention", font=("Segoe UI", 9, "bold")
-            ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 8))
+            ttk.Label(frame, text="Hallucination Prevention", font=("Segoe UI", 9, "bold")).grid(
+                row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
+            )
             row += 1
 
             self._add_labeled_widget(

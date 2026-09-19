@@ -51,11 +51,11 @@ This project aims to foster an open and welcoming environment. We expect all con
 
 Using `uv` (recommended):
 ```bash
-# Install all dependencies including dev tools
-uv sync --extra dev
+# Install all dependencies including dev tools (the `dev` group installs by default)
+uv sync
 
 # Or if you don't have uv, use pip
-pip install -e ".[dev]"
+pip install -e . --group dev
 ```
 
 ### Running the Application

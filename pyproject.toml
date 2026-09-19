@@ -5,29 +5,29 @@ description = "A privacy-first, local speech-to-text and AI cleanup tool for Win
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "ctranslate2>=4.6.0",
-    "faster-whisper>=1.2.0",
-    "keyring>=25.0.0",
+    "ctranslate2>=4.8.2",
+    "faster-whisper>=1.2.1",
+    "keyring>=25.7.0",
     "numpy>=2.3.4",
-    "nvidia-cublas-cu12==12.4.5.8",
+    "nvidia-cublas-cu12==12.4.5.8",        # unchanged: CUDA pins are decided in Phase 3 with torch
     "nvidia-cuda-nvrtc-cu12==12.4.127",
     "nvidia-cuda-runtime-cu12==12.4.127",
     "nvidia-cudnn-cu12==9.5.0.50",
-    "openai>=1.40",
+    "openai>=3.16",
     "pillow>=12.0.0",
     "pyautogui>=0.9.54",
-    "pyinstaller>=6.16.0",
     "pyperclip>=1.11.0",
-    "sounddevice>=0.5.3",
+    "sounddevice>=0.5.6",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
     "ruff>=0.1.0",
     "mypy>=1.8.0",
+    "pyinstaller>=6.22",
 ]
 
 [project.scripts]
@@ -55,6 +55,8 @@ addopts = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Ruff >= 0.16 also formats Python blocks inside Markdown; docs and plans are prose.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
