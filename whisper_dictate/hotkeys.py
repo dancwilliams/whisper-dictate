@@ -14,6 +14,7 @@ import ctypes
 import ctypes.wintypes
 import threading
 from collections.abc import Callable
+from typing import Any
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
@@ -169,7 +170,7 @@ class HotkeyManager:
         self.chord_string: str | None = None  # what is live, so callers can spot a change
         self.msg_thread: threading.Thread | None = None
         self._hook = None
-        self._proc: HOOKPROC | None = None  # must outlive the hook
+        self._proc: Any = None  # the CFUNCTYPE object; must outlive the hook
         self._msg_tid: int | None = None
         self._running = False
         self._ready: threading.Event | None = None
@@ -253,7 +254,7 @@ class HotkeyManager:
                     swallow = self.chord is not None and self.chord.swallows(kb.vkCode)
         if swallow:
             return 1
-        return user32.CallNextHookEx(None, n_code, w_param, l_param)
+        return int(user32.CallNextHookEx(None, n_code, w_param, l_param))
 
     def _message_pump(self) -> None:
         """Install the hook and pump messages for it (runs in a background thread)."""

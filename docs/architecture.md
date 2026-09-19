@@ -196,7 +196,7 @@ sequenceDiagram
 | `gui_components.py` | Reusable GUI widgets | tkinter |
 | `logging_config.py` | Centralized logging setup | logging |
 | `settings_store.py` | Settings persistence | json |
-| `gui.py` | Main GUI application | tkinter, pyautogui, pyperclip |
+| `gui.py` | Main GUI application | tkinter, pyautogui, ctypes clipboard |
 
 ## Key Design Patterns
 

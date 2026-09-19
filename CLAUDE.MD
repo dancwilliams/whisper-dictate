@@ -60,6 +60,7 @@ Ruff enforces import sorting with the "I" rule:
 | `glossary.py` | Glossary persistence and application | `GlossaryManager`, `GlossaryRule`, `apply_glossary()` |
 | `glossary_dialog.py` | GUI for glossary management | `GlossaryDialog` |
 | `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_hotkey_string()` |
+| `clipboard.py` | Clipboard snapshot/restore (ctypes) | `snapshot()`, `restore()`, `set_text()` |
 | `gui_components.py` | Reusable GUI widgets | `PromptDialog`, `StatusIndicator` |
 | `logging_config.py` | Centralized logging setup | `setup_logging()` |
 | `settings_store.py` | Settings persistence | `load_settings()`, `save_settings()` |
@@ -72,7 +73,7 @@ Ruff enforces import sorting with the "I" rule:
 3. **Audio transcribed** → `transcription.py` uses faster-whisper model
 4. **Glossary applied** (optional) → `glossary.py` normalizes transcript
 5. **LLM cleanup** (optional) → `llm_cleanup.py` sends to OpenAI-compatible endpoint
-6. **Result displayed** and optionally auto-pasted via `pyautogui`/`pyperclip`
+6. **Result displayed**, clipboard snapshotted, text set, pasted with Shift+Insert via `pyautogui`, clipboard restored
 
 ### Settings Structure
 
@@ -179,7 +180,7 @@ make test          # Pytest test suite
 - `nvidia-*` packages — CUDA runtime and cuDNN
 - `openai` — LLM cleanup client
 - `sounddevice` — Audio recording
-- `pyautogui`, `pyperclip` — Auto-paste functionality
+- `pyautogui` — Auto-paste (Shift+Insert); the clipboard itself is ctypes, in `clipboard.py`
 - `pillow` — GUI icons/images
 
 ### Dev Dependencies
