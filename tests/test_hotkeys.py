@@ -178,6 +178,30 @@ class TestHotkeyManager:
         manager._handle(LWIN, True)
         manager._handle(LWIN, False)
 
+    def test_register_records_the_live_chord_and_replaces_it(self, monkeypatch):
+        """The GUI compares chord_string to spot an edited setting."""
+        unhooked = []
+        fake_user32 = SimpleNamespace(
+            SetWindowsHookExW=lambda *_a, **_k: 4242,
+            UnhookWindowsHookEx=lambda hook: unhooked.append(hook),
+            CallNextHookEx=lambda *_a, **_k: 0,
+            PostThreadMessageW=lambda *_a, **_k: None,
+            GetMessageW=lambda *_a, **_k: 0,  # returns WM_QUIT immediately
+            TranslateMessage=lambda *_a, **_k: None,
+            DispatchMessageW=lambda *_a, **_k: None,
+        )
+        monkeypatch.setattr(hotkeys, "user32", fake_user32)
+
+        manager = HotkeyManager(lambda: None)
+        manager.register("CTRL+SPACE")
+        assert manager.chord_string == "CTRL+SPACE"
+
+        # Re-registering must take down the first hook, or both would fire.
+        manager.register("CTRL+WIN")
+        assert manager.chord_string == "CTRL+WIN"
+        manager.unregister()  # joins the pump, so the second unhook has landed
+        assert unhooked == [4242, 4242]
+
     def test_modifiers_up(self):
         """The paste path waits on this before injecting Shift+Insert."""
         manager = HotkeyManager(lambda: None)

@@ -270,9 +270,9 @@ The spec file bundles CUDA DLLs and all dependencies. See `docs/build.md` for de
 - Use CPU mode (`device="cpu"`, `compute_type="int8"`) as fallback
 
 ### Hotkey Not Working
-- Must register from main GUI thread
-- VK codes and MOD flags are Windows-specific
-- Re-register after changing hotkey string
+- The keyboard hook and its message pump live on one background thread; Tk work is marshalled back with `after(0, ...)`
+- VK codes are Windows-specific; left/right modifier variants collapse to one name
+- Changing the chord in Settings -> Automation re-registers when that window closes
 
 ### Auto-Paste Not Working
 - Ensure GUI doesn't have focus (trigger via hotkey, not button)

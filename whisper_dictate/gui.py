@@ -236,6 +236,8 @@ class App(Tk):
         if window_attr == "_llm_window":
             self.cmb_llm_model = None
             self.btn_llm_refresh = None
+        elif window_attr == "_automation_window":
+            self._apply_hotkey_change()
         elif window_attr == "_speech_window":
             # Clean up trace callbacks to prevent accessing destroyed widgets
             for var, trace_id in self._speech_window_traces:
@@ -1172,12 +1174,15 @@ class App(Tk):
 
         combo = self.var_hotkey.get().strip()
         try:
-            # The hook thread must not touch Tk; marshal every callback.
-            self.hotkey_manager = hotkeys.HotkeyManager(
-                lambda: self.after(0, self._on_hotkey_press),
-                lambda: self.after(0, self._on_hotkey_release),
-                lambda: self.after(0, self._on_hotkey_cancel),
-            )
+            # One manager for the life of the app: a second one would leave the
+            # first one's hook installed, and two hooks means two recordings.
+            if self.hotkey_manager is None:
+                # The hook thread must not touch Tk; marshal every callback.
+                self.hotkey_manager = hotkeys.HotkeyManager(
+                    lambda: self.after(0, self._on_hotkey_press),
+                    lambda: self.after(0, self._on_hotkey_release),
+                    lambda: self.after(0, self._on_hotkey_cancel),
+                )
             self.hotkey_manager.register(combo)
             self._set_status("ready", f"Ready (hotkey: {combo})")
             self.btn_hotkey.config(state="disabled")
@@ -1187,6 +1192,20 @@ class App(Tk):
             logger.warning(f"Hotkey registration failed: {e}")
             if not quiet:
                 messagebox.showerror("Hotkey", str(e))
+
+    def _apply_hotkey_change(self) -> None:
+        """Re-register after the Automation window edits the chord.
+
+        The entry writes the variable and nothing else, so without this the new
+        chord would only take effect on the next launch.
+        """
+        if not self.hotkey_manager:
+            return
+        combo = self.var_hotkey.get().strip()
+        if combo == self.hotkey_manager.chord_string:
+            return
+        # register() parses before it unhooks, so a typo leaves the old chord live.
+        self._register_hotkey()
 
     def _on_hotkey_press(self) -> None:
         """Chord went down: start recording, or end a recording locked by a tap."""

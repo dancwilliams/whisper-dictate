@@ -166,6 +166,7 @@ class HotkeyManager:
         self.on_release = on_release
         self.on_cancel = on_cancel
         self.chord: Chord | None = None
+        self.chord_string: str | None = None  # what is live, so callers can spot a change
         self.msg_thread: threading.Thread | None = None
         self._hook = None
         self._proc: HOOKPROC | None = None  # must outlive the hook
@@ -187,6 +188,7 @@ class HotkeyManager:
 
         self.unregister()
         self.chord = Chord(groups)
+        self.chord_string = chord_string
         self._running = True
         self._ready = threading.Event()
         self._error = None
