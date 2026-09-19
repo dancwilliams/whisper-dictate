@@ -244,10 +244,10 @@ Beep bleed is a known risk (speakerphone mic). Do not trim audio. If the accepta
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest tests/test_hotkeys.py tests/test_audio.py` pass
-- [ ] `uv run pytest`, `uv run ruff check .` clean
-- [ ] `git grep -n RegisterHotKey whisper_dictate/` returns nothing
-- [ ] `git grep -n "vk" whisper_dictate/hotkeys.py | grep -i "log\|print"` returns nothing
+- [x] `uv run pytest tests/test_hotkeys.py tests/test_audio.py` pass
+- [x] `uv run pytest`, `uv run ruff check .` clean
+- [x] `git grep -n RegisterHotKey whisper_dictate/` returns nothing
+- [x] `git grep -n "vk" whisper_dictate/hotkeys.py | grep -i "log\|print"` returns nothing
 
 #### Manual Verification:
 - [ ] With Wispr Flow running: hold Ctrl+Space in Notepad → beep → speak → release → text pastes; Flow does not activate

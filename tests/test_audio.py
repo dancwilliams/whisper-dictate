@@ -87,6 +87,48 @@ class TestAudioRecorder:
         queued_data = recorder._audio_queue.get_nowait()
         assert len(queued_data) == 3  # Should be mono
 
+    @patch("whisper_dictate.audio.sd.InputStream")
+    def test_on_first_audio_fires_once_per_recording(self, mock_stream_class):
+        """The cue must fire on the first block and not again mid-recording."""
+        mock_stream_class.return_value = MagicMock()
+        fired = []
+        recorder = AudioRecorder()
+
+        recorder.start(on_first_audio=lambda: fired.append(1))
+        block = np.array([0.1, 0.2, 0.3])
+        recorder._audio_callback(block, 3, {}, None)
+        recorder._audio_callback(block, 3, {}, None)
+        assert fired == [1]
+
+        # A second recording gets its own cue.
+        recorder.start(on_first_audio=lambda: fired.append(2))
+        recorder._audio_callback(block, 3, {}, None)
+        assert fired == [1, 2]
+
+    @patch("whisper_dictate.audio.sd.InputStream")
+    def test_start_without_callback_is_silent(self, mock_stream_class):
+        """A recording started from the button passes no cue; the callback must cope."""
+        mock_stream_class.return_value = MagicMock()
+        recorder = AudioRecorder()
+        recorder.start()
+        recorder._audio_callback(np.array([0.1]), 1, {}, None)
+
+    @patch("whisper_dictate.audio.sd.InputStream")
+    def test_prewarm_opens_and_closes_a_stream(self, mock_stream_class):
+        """Startup pays the cold-open cost so the first real press does not."""
+        mock_stream = MagicMock()
+        mock_stream_class.return_value = mock_stream
+
+        AudioRecorder().prewarm()
+
+        mock_stream_class.assert_called_once()
+        mock_stream.close.assert_called_once()
+
+    @patch("whisper_dictate.audio.sd.InputStream", side_effect=RuntimeError("no device"))
+    def test_prewarm_swallows_failures(self, _mock_stream_class):
+        """A missing microphone at startup is the next start()'s problem to report."""
+        AudioRecorder().prewarm()
+
     def test_custom_parameters(self):
         """Test creating recorder with custom parameters."""
         recorder = AudioRecorder(sample_rate=44100, channels=2, chunk_ms=100)
