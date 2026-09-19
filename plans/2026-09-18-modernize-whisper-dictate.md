@@ -128,13 +128,13 @@ Drop the `version: "0.4.4"` pin (three places) and replace `uv sync --frozen --a
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `git merge --ff-only origin/feature/optimize-transcription` succeeds
-- [ ] `uv lock --upgrade` and `uv sync` succeed
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` clean
-- [ ] `uv run python scripts/mine_wispr_history.py --selftest` prints `selftest ok`
+- [x] `git merge --ff-only origin/feature/optimize-transcription` succeeds
+- [x] `uv lock --upgrade` and `uv sync` succeed
+- [x] `uv run pytest` passes
+- [x] `uv run ruff check .` and `uv run ruff format --check .` clean
+- [x] `uv run python scripts/mine_wispr_history.py --selftest` prints `selftest ok`
 - [ ] CI green on the PR (all four jobs)
-- [ ] `uv run python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cuda', compute_type='float16'); print('cuda OK')"` prints `cuda OK`
+- [x] `uv run python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cuda', compute_type='float16'); print('cuda OK')"` prints `cuda OK`
 
 #### Manual Verification:
 - [ ] `uv run dictate-gui` auto-loads `large-v3-turbo` and auto-registers the hotkey as before
