@@ -164,6 +164,47 @@ def snapshot_formats(_fake) -> list[int]:
     return [fmt for fmt, _ in clipboard.snapshot()]
 
 
+class TestSendPaste:
+    """The keystroke that asks the focused app to read the clipboard."""
+
+    def _capture(self, monkeypatch, accepted: int | None = None):
+        sent = []
+
+        def fake_send_input(count, array, size):
+            sent.append((size, [array[i] for i in range(count)]))
+            return count if accepted is None else accepted
+
+        monkeypatch.setattr(
+            clipboard.user32,
+            "SendInput",
+            fake_send_input,
+            raising=False,
+        )
+        return sent
+
+    def test_insert_is_flagged_extended(self, monkeypatch):
+        """The bug: without KEYEVENTF_EXTENDEDKEY, Windows reads this as the
+        numpad Insert and strips Shift around it, so nothing ever pastes."""
+        sent = self._capture(monkeypatch)
+        assert clipboard.send_paste() is True
+
+        size, events = sent[0]
+        assert size == 40  # short INPUT structs make SendInput a silent no-op
+        keys = [(e.ki.wVk, e.ki.dwFlags) for e in events]
+        up = clipboard.KEYEVENTF_KEYUP
+        ext = clipboard.KEYEVENTF_EXTENDEDKEY
+        assert keys == [
+            (clipboard.VK_SHIFT, 0),
+            (clipboard.VK_INSERT, ext),
+            (clipboard.VK_INSERT, ext | up),
+            (clipboard.VK_SHIFT, up),
+        ]
+
+    def test_reports_a_refused_injection(self, monkeypatch):
+        self._capture(monkeypatch, accepted=0)
+        assert clipboard.send_paste() is False
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="real Win32 clipboard")
 class TestRealWindowsRoundTrip:
     @pytest.fixture(autouse=True)

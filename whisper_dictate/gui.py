@@ -6,14 +6,6 @@ import time
 import winsound
 from collections import deque
 from collections.abc import Callable
-
-try:
-    import pyautogui
-
-    pyautogui.FAILSAFE = False
-except ImportError:
-    pyautogui = None
-
 from tkinter import END, BooleanVar, DoubleVar, Menu, StringVar, Text, Tk, Toplevel, messagebox, ttk
 
 import sounddevice as sd
@@ -1410,21 +1402,15 @@ class App(Tk):
             return
 
         if self.var_auto_paste.get():
-            if pyautogui is None:
-                self._set_status("warning", "pyautogui not installed; cannot auto-paste")
+            self._wait_for_modifiers_up()
+            time.sleep(float(self.var_paste_delay.get()))
+            # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
+            # dictation apps use.
+            if clipboard.send_paste():
+                self._set_status("ready", "Pasted into active window")
             else:
-                self._wait_for_modifiers_up()
-                time.sleep(float(self.var_paste_delay.get()))
-                try:
-                    # Shift+Insert, not Ctrl+V: it is what the terminal and the
-                    # commercial dictation apps use.
-                    pyautogui.hotkey("shift", "insert")
-                    self._set_status("ready", "Pasted into active window")
-                except (pyautogui.FailSafeException, pyautogui.PyAutoGUIException) as e:
-                    # FailSafeException: Mouse moved to corner (failsafe triggered)
-                    # PyAutoGUIException: Other pyautogui errors
-                    self._set_status("error", f"Auto-paste failed: {e}")
-                    logger.error(f"Auto-paste failed: {e}", exc_info=True)
+                self._set_status("error", "Auto-paste failed")
+                logger.error("SendInput refused the paste keystroke")
 
         if saved is None:
             return

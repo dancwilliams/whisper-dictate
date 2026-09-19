@@ -73,7 +73,7 @@ Ruff enforces import sorting with the "I" rule:
 3. **Audio transcribed** → `transcription.py` uses faster-whisper model
 4. **Glossary applied** (optional) → `glossary.py` normalizes transcript
 5. **LLM cleanup** (optional) → `llm_cleanup.py` sends to OpenAI-compatible endpoint
-6. **Result displayed**, clipboard snapshotted, text set, pasted with Shift+Insert via `pyautogui`, clipboard restored
+6. **Result displayed**, clipboard snapshotted, text set, pasted with Shift+Insert (`SendInput`), clipboard restored
 
 ### Settings Structure
 
@@ -180,7 +180,7 @@ make test          # Pytest test suite
 - `nvidia-*` packages — CUDA runtime and cuDNN
 - `openai` — LLM cleanup client
 - `sounddevice` — Audio recording
-- `pyautogui` — Auto-paste (Shift+Insert); the clipboard itself is ctypes, in `clipboard.py`
+- `clipboard.py` — Clipboard and auto-paste (Shift+Insert), ctypes only; no pyautogui/pyperclip
 - `pillow` — GUI icons/images
 
 ### Dev Dependencies

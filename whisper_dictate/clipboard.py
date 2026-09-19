@@ -1,4 +1,4 @@
-"""Clipboard snapshot, write and restore.
+"""Clipboard snapshot, write and restore, and asking the focused app to paste.
 
 Every dictation has to put text on the clipboard to paste it, which destroys
 whatever was there - text, HTML, an image, a copied file. So the clipboard is
@@ -134,6 +134,80 @@ def restore(items: list[tuple[int, bytes]]) -> None:
             _put(fmt, data)
     finally:
         user32.CloseClipboard()
+
+
+VK_SHIFT, VK_INSERT = 0x10, 0x2D
+INPUT_KEYBOARD = 1
+KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP = 0x0001, 0x0002
+
+
+class _KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", ctypes.wintypes.WORD),
+        ("wScan", ctypes.wintypes.WORD),
+        ("dwFlags", ctypes.wintypes.DWORD),
+        ("time", ctypes.wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.wintypes.ULONG)),
+    ]
+
+
+class _MOUSEINPUT(ctypes.Structure):
+    """Never filled in; it is what gives INPUT its real size (40 bytes on x64).
+
+    A union sized to KEYBDINPUT alone makes SendInput return 0 and do nothing.
+    """
+
+    _fields_ = [
+        ("dx", ctypes.wintypes.LONG),
+        ("dy", ctypes.wintypes.LONG),
+        ("mouseData", ctypes.wintypes.DWORD),
+        ("dwFlags", ctypes.wintypes.DWORD),
+        ("time", ctypes.wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.wintypes.ULONG)),
+    ]
+
+
+class _INPUT(ctypes.Structure):
+    class _U(ctypes.Union):
+        _fields_ = [("ki", _KEYBDINPUT), ("mi", _MOUSEINPUT)]
+
+    _anonymous_ = ("u",)
+    _fields_ = [("type", ctypes.wintypes.DWORD), ("u", _U)]
+
+
+user32.SendInput.argtypes = [ctypes.wintypes.UINT, ctypes.POINTER(_INPUT), ctypes.c_int]
+user32.SendInput.restype = ctypes.wintypes.UINT
+
+
+def _key(vk: int, up: bool, extended: bool) -> _INPUT:
+    flags = (KEYEVENTF_KEYUP if up else 0) | (KEYEVENTF_EXTENDEDKEY if extended else 0)
+    return _INPUT(
+        type=INPUT_KEYBOARD,
+        ki=_KEYBDINPUT(wVk=vk, wScan=0, dwFlags=flags, time=0, dwExtraInfo=None),
+    )
+
+
+def send_paste() -> bool:
+    """Press Shift+Insert in the focused window.
+
+    Insert must carry KEYEVENTF_EXTENDEDKEY. Without it Windows reads the
+    keystroke as the *numpad* Insert, and with NumLock on it then strips the
+    Shift around the keypress - the app receives a bare Insert, which toggles
+    overwrite mode instead of pasting. This is what pyautogui's hotkey() did,
+    and why nothing ever arrived.
+
+    Returns:
+        True if Windows accepted all four events.
+    """
+    events = [
+        _key(VK_SHIFT, up=False, extended=False),
+        _key(VK_INSERT, up=False, extended=True),
+        _key(VK_INSERT, up=True, extended=True),
+        _key(VK_SHIFT, up=True, extended=False),
+    ]
+    array = (_INPUT * len(events))(*events)
+    sent = user32.SendInput(len(events), array, ctypes.sizeof(_INPUT))
+    return int(sent) == len(events)
 
 
 def set_text(text: str) -> None:
