@@ -133,7 +133,7 @@ Drop the `version: "0.4.4"` pin (three places) and replace `uv sync --frozen --a
 - [x] `uv run pytest` passes
 - [x] `uv run ruff check .` and `uv run ruff format --check .` clean
 - [x] `uv run python scripts/mine_wispr_history.py --selftest` prints `selftest ok`
-- [ ] CI green on the PR (all four jobs)
+- [x] CI green on the PR (all four jobs)
 - [x] `uv run python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cuda', compute_type='float16'); print('cuda OK')"` prints `cuda OK`
 
 #### Manual Verification:
