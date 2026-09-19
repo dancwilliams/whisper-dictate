@@ -16,8 +16,7 @@ from pathlib import Path
 def test_nemo_installation():
     """Test if NeMo can be installed on Windows."""
     try:
-        import nemo
-        import nemo.collections.asr as nemo_asr
+        import nemo.collections.asr  # noqa: F401  # the probe: does the ASR subpackage import?
 
         print(f"[OK] NeMo installed: {nemo.__version__}")
         return True
@@ -32,9 +31,7 @@ def test_parakeet_loading():
         import nemo.collections.asr as nemo_asr
 
         print("Attempting to load parakeet-tdt-0.6b-v2...")
-        model = nemo_asr.models.ASRModel.from_pretrained(
-            model_name="nvidia/parakeet-tdt-0.6b-v2"
-        )
+        model = nemo_asr.models.ASRModel.from_pretrained(model_name="nvidia/parakeet-tdt-0.6b-v2")
         print("[OK] Parakeet model loaded successfully")
         return model
     except Exception as e:
