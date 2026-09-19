@@ -1,7 +1,9 @@
 """Streamlined GUI for whisper-dictate with optional LLM cleanup."""
 
+import ctypes
 import threading
 import time
+import winsound
 from collections import deque
 
 try:
@@ -58,6 +60,15 @@ set_cuda_paths()
 # Set up logging
 logger = setup_logging()
 
+ERROR_ALREADY_EXISTS = 183
+
+# A chord held for less than this is a tap: recording locks on and the next press
+# ends it. Anything longer is hold-to-talk, ended by the release.
+TAP_SECONDS = 0.3
+
+# The cue that says capture is live. Short enough not to bleed into the first word.
+BEEP_HZ, BEEP_MS = 880, 60
+
 # Note: Audio recorder thread is now managed internally by AudioRecorder class
 
 
@@ -90,6 +101,7 @@ class App(Tk):
         # Model and hotkey manager
         self.model: WhisperModel | None = None
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
+        self._press_at = 0.0
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
         self.btn_llm_refresh: ttk.Button | None = None
@@ -143,7 +155,7 @@ class App(Tk):
         self.var_device = StringVar(value=DEFAULT_DEVICE)
         self.var_compute = StringVar(value=DEFAULT_COMPUTE)
         self.var_input = StringVar(value="")
-        self.var_hotkey = StringVar(value="CTRL+WIN+G")
+        self.var_hotkey = StringVar(value="CTRL+SPACE")
         self.var_auto_paste = BooleanVar(value=True)
         self.var_paste_delay = DoubleVar(value=0.15)
 
@@ -224,6 +236,8 @@ class App(Tk):
         if window_attr == "_llm_window":
             self.cmb_llm_model = None
             self.btn_llm_refresh = None
+        elif window_attr == "_automation_window":
+            self._apply_hotkey_change()
         elif window_attr == "_speech_window":
             # Clean up trace callbacks to prevent accessing destroyed widgets
             for var, trace_id in self._speech_window_traces:
@@ -335,7 +349,9 @@ class App(Tk):
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(0, weight=1)
 
-            ttk.Label(frame, text="Toggle hotkey").grid(row=0, column=0, sticky="w")
+            ttk.Label(frame, text="Hotkey (hold to talk, tap to lock)").grid(
+                row=0, column=0, sticky="w"
+            )
             ttk.Entry(frame, textvariable=self.var_hotkey, width=16).grid(
                 row=1, column=0, sticky="we", pady=(0, 8)
             )
@@ -787,6 +803,10 @@ class App(Tk):
 
     def _auto_startup(self) -> None:
         """Perform auto-startup tasks based on settings."""
+        # Open and close one input stream now so the first press is not a cold open.
+        device_id = self._parse_input_device_id(self.var_input.get().strip())
+        threading.Thread(target=audio.prewarm, args=(device_id,), daemon=True).start()
+
         if not self.var_auto_load_model.get():
             return
 
@@ -820,7 +840,7 @@ class App(Tk):
 
                     # Auto-register hotkey if enabled
                     if self.var_auto_register_hotkey.get():
-                        self.after(100, self._auto_register_hotkey_task)
+                        self.after(100, lambda: self._register_hotkey(quiet=True))
 
                 self.after(0, on_success)
 
@@ -838,27 +858,6 @@ class App(Tk):
                 self.after(0, on_error)
 
         threading.Thread(target=worker, daemon=True).start()
-
-    def _auto_register_hotkey_task(self) -> None:
-        """Auto-register hotkey after model loads."""
-        if not self.model:
-            return
-
-        combo = self.var_hotkey.get().strip()
-        try:
-
-            def hotkey_callback():
-                self.after(0, self._toggle_record)
-
-            self.hotkey_manager = hotkeys.HotkeyManager(hotkey_callback)
-            self.hotkey_manager.register(combo)
-            self._set_status("ready", f"Ready (hotkey: {combo})")
-            self.btn_hotkey.config(state="disabled")
-            logger.info(f"Auto-registered hotkey: {combo}")
-        except hotkeys.HotkeyError as e:
-            self._set_status("warning", "Hotkey auto-register failed")
-            logger.warning(f"Auto-register hotkey failed: {e}")
-            # Don't show error dialog for auto-register - just log it
 
     def _set_status(self, state: str, message: str) -> None:
         """Update status in both label and indicator."""
@@ -1161,58 +1160,120 @@ class App(Tk):
             logger.error(f"Model load failed: {e}", exc_info=True)
             messagebox.showerror("Model error", str(e))
 
-    def _register_hotkey(self) -> None:
-        """Register the global hotkey."""
+    def _register_hotkey(self, quiet: bool = False) -> None:
+        """Register the global hotkey.
+
+        Args:
+            quiet: Log a failure instead of raising a dialog (the startup caller).
+        """
         if not self.model:
-            self._set_status("warning", "Load the model first")
-            messagebox.showwarning("Hotkey", "Load the model first.")
+            if not quiet:
+                self._set_status("warning", "Load the model first")
+                messagebox.showwarning("Hotkey", "Load the model first.")
             return
 
         combo = self.var_hotkey.get().strip()
         try:
-            # Wrap callback to ensure it runs on main thread
-            def hotkey_callback():
-                self.after(0, self._toggle_record)
-
-            self.hotkey_manager = hotkeys.HotkeyManager(hotkey_callback)
+            # One manager for the life of the app: a second one would leave the
+            # first one's hook installed, and two hooks means two recordings.
+            if self.hotkey_manager is None:
+                # The hook thread must not touch Tk; marshal every callback.
+                self.hotkey_manager = hotkeys.HotkeyManager(
+                    lambda: self.after(0, self._on_hotkey_press),
+                    lambda: self.after(0, self._on_hotkey_release),
+                    lambda: self.after(0, self._on_hotkey_cancel),
+                )
             self.hotkey_manager.register(combo)
-            self._set_status("ready", f"Hotkey set: {combo}")
+            self._set_status("ready", f"Ready (hotkey: {combo})")
             self.btn_hotkey.config(state="disabled")
             logger.info(f"Hotkey registered: {combo}")
         except hotkeys.HotkeyError as e:
-            self._set_status("error", "Invalid hotkey")
-            logger.error(f"Hotkey registration failed: {e}")
-            messagebox.showerror("Hotkey", str(e))
+            self._set_status("warning" if quiet else "error", "Hotkey registration failed")
+            logger.warning(f"Hotkey registration failed: {e}")
+            if not quiet:
+                messagebox.showerror("Hotkey", str(e))
+
+    def _apply_hotkey_change(self) -> None:
+        """Re-register after the Automation window edits the chord.
+
+        The entry writes the variable and nothing else, so without this the new
+        chord would only take effect on the next launch.
+        """
+        if not self.hotkey_manager:
+            return
+        combo = self.var_hotkey.get().strip()
+        if combo == self.hotkey_manager.chord_string:
+            return
+        # register() parses before it unhooks, so a typo leaves the old chord live.
+        self._register_hotkey()
+
+    def _on_hotkey_press(self) -> None:
+        """Chord went down: start recording, or end a recording locked by a tap."""
+        if audio.is_recording():
+            self._stop_and_transcribe()
+            return
+        self._press_at = time.monotonic()
+        self._start_recording()
+
+    def _on_hotkey_release(self) -> None:
+        """Chord came up: transcribe, unless it was a tap, which locks recording on."""
+        if not audio.is_recording():
+            return
+        if time.monotonic() - self._press_at < TAP_SECONDS:
+            self._set_status("listening", "Recording (locked) - press again to stop")
+            return
+        self._stop_and_transcribe()
+
+    def _on_hotkey_cancel(self) -> None:
+        """Another key joined the chord: throw the audio away."""
+        if not audio.is_recording():
+            return
+        audio.stop_recording()
+        audio.get_audio_buffer()  # discard
+        self.btn_toggle.config(text="Start recording")
+        self._set_status("ready", "Cancelled")
 
     def _toggle_record(self) -> None:
-        """Toggle recording on/off."""
+        """Toggle recording on/off (the button; the hotkey uses press/release)."""
+        if audio.is_recording():
+            self._stop_and_transcribe()
+        else:
+            self._start_recording()
+
+    def _start_recording(self) -> None:
+        """Open the microphone. The status cue waits for the first block of audio."""
         if not self.model:
             return
 
-        if not audio.is_recording():
-            # Start recording
-            inp = self.var_input.get().strip()
-            device_id = self._parse_input_device_id(inp)
+        inp = self.var_input.get().strip()
+        device_id = self._parse_input_device_id(inp)
 
-            try:
-                audio.start_recording(device_id)
-            except (sd.PortAudioError, RuntimeError, ValueError) as e:
-                # PortAudioError: PortAudio device errors
-                # RuntimeError: sounddevice initialization errors
-                # ValueError: Invalid device ID
-                self._set_status("error", "Audio input failed")
-                logger.error(f"Audio start failed: {e}", exc_info=True)
-                messagebox.showerror("Audio", f"Could not start input:\n{e}")
-                return
+        try:
+            audio.start_recording(device_id, on_first_audio=self._on_first_audio)
+        except (sd.PortAudioError, RuntimeError, ValueError) as e:
+            # PortAudioError: PortAudio device errors
+            # RuntimeError: sounddevice initialization errors
+            # ValueError: Invalid device ID
+            self._set_status("error", "Audio input failed")
+            logger.error(f"Audio start failed: {e}", exc_info=True)
+            messagebox.showerror("Audio", f"Could not start input:\n{e}")
+            return
 
-            self._set_status("listening", "Recording... press hotkey to stop")
-            self.btn_toggle.config(text="Stop and transcribe")
-        else:
-            # Stop recording and transcribe
-            audio.stop_recording()
-            self._set_status("transcribing", "Transcribing...")
-            self.btn_toggle.config(text="Start recording")
-            threading.Thread(target=self._transcribe_and_clean, daemon=True).start()
+        self._set_status("processing", "Opening microphone...")
+        self.btn_toggle.config(text="Stop and transcribe")
+
+    def _on_first_audio(self) -> None:
+        """Runs on the audio thread the instant capture is live."""
+        # winsound.Beep blocks for its full duration; never on the audio thread.
+        threading.Thread(target=winsound.Beep, args=(BEEP_HZ, BEEP_MS), daemon=True).start()
+        self._set_status("listening", "Recording - release to transcribe")
+
+    def _stop_and_transcribe(self) -> None:
+        """Close the microphone and hand the buffer to the pipeline."""
+        audio.stop_recording()
+        self._set_status("transcribing", "Transcribing...")
+        self.btn_toggle.config(text="Start recording")
+        threading.Thread(target=self._transcribe_and_clean, daemon=True).start()
 
     def _transcribe_and_clean(self) -> None:
         """Transcribe audio and optionally clean with LLM."""
@@ -1358,6 +1419,12 @@ class App(Tk):
 
 def main() -> None:
     """Main entry point for the GUI application."""
+    # Two instances means two keyboard hooks, which means two pastes per dictation.
+    ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\WhisperDictate")
+    if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        logger.info("Another instance is already running; exiting")
+        return
+
     app = App()
     try:
         app.mainloop()
