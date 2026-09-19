@@ -250,14 +250,14 @@ Beep bleed is a known risk (speakerphone mic). Do not trim audio. If the accepta
 - [x] `git grep -n "vk" whisper_dictate/hotkeys.py | grep -i "log\|print"` returns nothing
 
 #### Manual Verification:
-- [ ] With Wispr Flow running: hold Ctrl+Space in Notepad → beep → speak → release → text pastes; Flow does not activate
-- [ ] No spaces are inserted and VS Code does not open IntelliSense while the chord is held
-- [ ] Tap Ctrl+Space (< 0.3 s) → locked; tap again → pastes
-- [ ] Hold Ctrl+Space, press another key → "Cancelled", nothing pastes
-- [ ] Ten dictations started by speaking "one two three" the instant the beep sounds: "one" present every time; **raw ASR (before glossary/cleanup) has no junk leading token** in any of the ten
-- [ ] Hold the chord 60 s → hook survives; next dictation works
-- [ ] Launch a second instance → it exits; still exactly one paste per dictation
-- [ ] **No Microsoft Defender detection** (Windows Security → Protection history). If there is one: stop, report, change nothing.
+- [x] With Wispr Flow running: hold Ctrl+Space in Notepad → beep → speak → release → text pastes; Flow does not activate
+- [x] No spaces are inserted and VS Code does not open IntelliSense while the chord is held
+- [x] Tap Ctrl+Space (< 0.3 s) → locked; tap again → pastes
+- [x] Hold Ctrl+Space, press another key → "Cancelled", nothing pastes
+- [x] Ten dictations started by speaking "one two three" the instant the beep sounds: "one" present every time; **raw ASR (before glossary/cleanup) has no junk leading token** in any of the ten
+- [x] Hold the chord 60 s → hook survives; next dictation works
+- [x] Launch a second instance → it exits; still exactly one paste per dictation
+- [x] **No Microsoft Defender detection** (Windows Security → Protection history). If there is one: stop, report, change nothing.
 
 **Implementation Note**: pause for manual confirmation before Phase 2.
 
