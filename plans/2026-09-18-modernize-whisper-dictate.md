@@ -137,9 +137,9 @@ Drop the `version: "0.4.4"` pin (three places) and replace `uv sync --frozen --a
 - [x] `uv run python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cuda', compute_type='float16'); print('cuda OK')"` prints `cuda OK`
 
 #### Manual Verification:
-- [ ] `uv run dictate-gui` auto-loads `large-v3-turbo` and auto-registers the hotkey as before
-- [ ] Glossary dialog shows the imported rules; no rule has `traffic` or `cloud` as a trigger
-- [ ] `llm_debug` is `false` in `~\.whisper_dictate\whisper_dictate_settings.json` after closing the app
+- [x] `uv run dictate-gui` auto-loads `large-v3-turbo` and auto-registers the hotkey as before
+- [x] Glossary dialog shows the imported rules; no rule has `traffic` or `cloud` as a trigger
+- [x] `llm_debug` is `false` in `~\.whisper_dictate\whisper_dictate_settings.json` after closing the app
 
 **Implementation Note**: pause for manual confirmation before Phase 1.
 
