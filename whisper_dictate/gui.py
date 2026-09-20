@@ -62,6 +62,10 @@ TAP_SECONDS = 0.3
 # The cue that says capture is live. Short enough not to bleed into the first word.
 BEEP_HZ, BEEP_MS = 880, 60
 
+# How long to wait for a held chord to come up before pasting anyway. Generous:
+# holding the keys is the user's business, and a paste under them does nothing.
+MODIFIER_WAIT_SECONDS = 5.0
+
 # Note: Audio recorder thread is now managed internally by AudioRecorder class
 
 
@@ -1421,17 +1425,23 @@ class App(Tk):
         except clipboard.ClipboardError as e:
             logger.warning(f"Could not restore the clipboard: {e}")
 
-    def _wait_for_modifiers_up(self, timeout: float = 1.0) -> None:
-        """Block until the chord is released.
+    def _wait_for_modifiers_up(self, timeout: float = MODIFIER_WAIT_SECONDS) -> None:
+        """Block until every modifier key is released.
 
-        Injecting Shift+Insert while Ctrl or Win is still held would send the
-        target app a different shortcut entirely.
+        Injecting Shift+Insert while Ctrl or Win is still held sends the target
+        app a different shortcut entirely, and nothing pastes. Tap-to-lock is the
+        one flow that reaches here with the chord still down - every other path
+        ends on the release - so the wait has to outlast a deliberate hold.
         """
         if not self.hotkey_manager:
             return
         deadline = time.monotonic() + timeout
         while not self.hotkey_manager.modifiers_up() and time.monotonic() < deadline:
             time.sleep(0.01)
+        if not self.hotkey_manager.modifiers_up():
+            logger.warning(
+                f"Modifiers still held after {timeout}s; pasting anyway, it may not land"
+            )
 
     def _record_recent_process(self, process_name: str | None, window_title: str | None) -> None:
         """Track recently seen applications using process and window title."""

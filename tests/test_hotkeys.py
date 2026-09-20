@@ -202,16 +202,45 @@ class TestHotkeyManager:
         manager.unregister()  # joins the pump, so the second unhook has landed
         assert unhooked == [4242, 4242]
 
-    def test_modifiers_up(self):
-        """The paste path waits on this before injecting Shift+Insert."""
+    def test_modifiers_up_asks_windows_not_the_tracker(self, monkeypatch):
+        """The paste path waits on this before injecting Shift+Insert.
+
+        It reports the physical key state, because that is what Windows folds
+        into an injected keystroke - the tracker only knows the chord's own keys.
+        """
         manager = HotkeyManager(lambda: None)
+
+        monkeypatch.setattr(hotkeys, "modifiers_held", lambda: False)
         assert manager.modifiers_up() is True
 
-        manager.chord = chord("CTRL+WIN")
-        manager._handle(LCTRL, True)
+        # A modifier the chord knows nothing about still blocks the paste.
+        monkeypatch.setattr(hotkeys, "modifiers_held", lambda: True)
         assert manager.modifiers_up() is False
-        manager._handle(LCTRL, False)
-        assert manager.modifiers_up() is True
+
+
+class TestModifiersHeld:
+    """Physical modifier state, read from Windows."""
+
+    def _states(self, monkeypatch, down: set[int]):
+        monkeypatch.setattr(
+            hotkeys,
+            "user32",
+            SimpleNamespace(GetAsyncKeyState=lambda vk: -32768 if vk in down else 0),
+        )
+
+    def test_false_when_nothing_is_held(self, monkeypatch):
+        self._states(monkeypatch, set())
+        assert hotkeys.modifiers_held() is False
+
+    def test_true_for_each_modifier(self, monkeypatch):
+        for vk in hotkeys.MODIFIER_STATE_VKS:
+            self._states(monkeypatch, {vk})
+            assert hotkeys.modifiers_held() is True, hex(vk)
+
+    def test_ignores_the_low_bit(self, monkeypatch):
+        """GetAsyncKeyState's low bit means 'pressed since last call', not 'down'."""
+        monkeypatch.setattr(hotkeys, "user32", SimpleNamespace(GetAsyncKeyState=lambda _vk: 1))
+        assert hotkeys.modifiers_held() is False
 
 
 def test_no_key_codes_are_logged():
