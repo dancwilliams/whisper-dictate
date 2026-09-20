@@ -418,7 +418,7 @@ class Resident:
 - [x] Step 3's coexistence script exits 0 in both import orders (or the documented fallback is recorded)
 - [x] `uv run python scripts/bench_asr.py` completes over 200 clips and writes `research/asr-benchmark-2026.md`
 - [x] `uv run pytest tests/test_asr.py`; full suite and ruff clean
-- [ ] CI green with `--no-group ml`
+- [x] CI green with `--no-group ml`
 
 #### Manual Verification:
 - [ ] Dan reads the benchmark table and names primary + fallback; the choice and the numbers go in the PR description
