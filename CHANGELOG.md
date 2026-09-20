@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Opt-in phonetic glossary rules (`match_type: "phonetic"`)
+  - One rule catches the spellings a recognizer invents: `threat fax`,
+    `Threat Fox` and `thread fax` all reach `threatfax`
+  - Refused when the Metaphone code is under 5 symbols, with the reason shown:
+    `Claude` codes as `KLT`, and so do cloud and clod
+  - Exact rules run first; phonetic rules sweep what is left
+- Per-application hotwords for the Whisper backend, from
+  `~/.whisper_dictate/hotwords_by_app.json`, budgeted to 400 characters
+  - Per-app only, deliberately. Benchmarked globally, hotwords cost about 16
+    extra word errors for every domain term they rescue, and 113 of 198
+    dictations contain no domain term at all. An app with no entry gets nothing.
+  - Glossary replacements join the vocabulary: teaching the recognizer the right
+    word beats patching it afterwards
+- Local dictation history (`history.py`), on by default
+  - One JSON line per dictation in `~/.whisper_dictate/history.jsonl`, with the
+    audio beside it for 14 days (`history_audio_days`, 0 keeps none)
+  - **Process name only - never a window title, never a URL.** A window title is
+    the document you had open, and it is not needed to improve a recognizer.
+  - Old recordings are pruned at startup; the text lines stay, and their
+    `audio_file` simply dangles
+
 - The floating pill is now the app
   - Right-click it for Show window, Cleanup settings and Quit
   - Closing the main window hides it; the hotkey keeps working. Quitting is

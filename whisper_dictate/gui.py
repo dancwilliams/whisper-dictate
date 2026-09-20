@@ -18,6 +18,7 @@ from whisper_dictate import (
     clipboard,
     config,
     glossary,
+    history,
     hotkeys,
     llm_cleanup,
     prompt,
@@ -34,6 +35,8 @@ from whisper_dictate.config import (
     DEFAULT_CLEANUP_BACKEND,
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
+    DEFAULT_HISTORY_AUDIO_DAYS,
+    DEFAULT_HISTORY_ENABLE,
     DEFAULT_IDLE_TTL_MINUTES,
     DEFAULT_LLM_DEBUG,
     DEFAULT_LLM_ENDPOINT,
@@ -166,6 +169,8 @@ class App(Tk):
         self.var_model = StringVar(value=DEFAULT_MODEL)
         self.var_asr_backend = StringVar(value=DEFAULT_ASR_BACKEND)
         self.var_idle_ttl_minutes = DoubleVar(value=DEFAULT_IDLE_TTL_MINUTES)
+        self.var_history_enable = BooleanVar(value=DEFAULT_HISTORY_ENABLE)
+        self.var_history_audio_days = DoubleVar(value=DEFAULT_HISTORY_AUDIO_DAYS)
         self.var_model_display = StringVar(value="")  # For formatted model name in dropdown
         self.var_device = StringVar(value=DEFAULT_DEVICE)
         self.var_compute = StringVar(value=DEFAULT_COMPUTE)
@@ -425,21 +430,58 @@ class App(Tk):
             ).pack(side="left", padx=(8, 0))
             ttk.Label(ttl_row, text="0 = never", foreground="gray").pack(side="left", padx=(8, 0))
 
-            # Auto-startup options
             ttk.Separator(frame, orient="horizontal").grid(
                 row=5, column=0, sticky="we", pady=(12, 8)
+            )
+            ttk.Label(frame, text="History", font=("Segoe UI", 9, "bold")).grid(
+                row=11, column=0, sticky="w"
+            )
+            ttk.Checkbutton(
+                frame,
+                text="Keep a local record of every dictation",
+                variable=self.var_history_enable,
+            ).grid(row=7, column=0, sticky="w", pady=(4, 0))
+            hist_row = ttk.Frame(frame)
+            hist_row.grid(row=8, column=0, sticky="we")
+            ttk.Label(hist_row, text="Keep the audio for (days)").pack(side="left")
+            ttk.Spinbox(
+                hist_row,
+                from_=0,
+                to=365,
+                increment=1,
+                textvariable=self.var_history_audio_days,
+                width=6,
+            ).pack(side="left", padx=(8, 0))
+            ttk.Label(hist_row, text="0 = text only", foreground="gray").pack(
+                side="left", padx=(8, 0)
+            )
+            # The same warning the debug-logging option carries, for the same
+            # reason: this writes what you said to disk.
+            ttk.Label(
+                frame,
+                text=(
+                    r"Transcripts and recordings are written to ~\.whisper_dictate. "
+                    "They never leave this machine, and window titles are never stored."
+                ),
+                wraplength=420,
+                foreground="#b8860b",
+            ).grid(row=9, column=0, sticky="w", pady=(4, 0))
+
+            # Auto-startup options
+            ttk.Separator(frame, orient="horizontal").grid(
+                row=10, column=0, sticky="we", pady=(12, 8)
             )
             ttk.Label(frame, text="Startup", font=("Segoe UI", 9, "bold")).grid(
                 row=6, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame, text="Auto-load model on startup", variable=self.var_auto_load_model
-            ).grid(row=7, column=0, sticky="w", pady=(4, 0))
+            ).grid(row=12, column=0, sticky="w", pady=(4, 0))
             ttk.Checkbutton(
                 frame,
                 text="Auto-register hotkey after model loads",
                 variable=self.var_auto_register_hotkey,
-            ).grid(row=8, column=0, sticky="w")
+            ).grid(row=13, column=0, sticky="w")
 
         self._open_window("_automation_window", "Automation", build)
 
@@ -913,6 +955,11 @@ class App(Tk):
 
     def _auto_startup(self) -> None:
         """Perform auto-startup tasks based on settings."""
+        self.hotwords_by_app = glossary.load_hotwords_by_app()
+        if self.var_history_enable.get():
+            days = int(self.var_history_audio_days.get())
+            threading.Thread(target=history.prune_audio, args=(days,), daemon=True).start()
+
         # Open and close one input stream now so the first press is not a cold open.
         device_id = self._parse_input_device_id(self.var_input.get().strip())
         threading.Thread(target=audio.prewarm, args=(device_id,), daemon=True).start()
@@ -977,6 +1024,8 @@ class App(Tk):
         set_if_present("model", self.var_model, str)
         set_if_present("asr_backend", self.var_asr_backend, str)
         set_if_present("idle_ttl_minutes", self.var_idle_ttl_minutes, float)
+        set_if_present("history_enable", self.var_history_enable, bool)
+        set_if_present("history_audio_days", self.var_history_audio_days, float)
         set_if_present("device", self.var_device, str)
         set_if_present("compute", self.var_compute, str)
 
@@ -1046,6 +1095,8 @@ class App(Tk):
             "model": self.var_model.get().strip(),
             "asr_backend": self.var_asr_backend.get().strip(),
             "idle_ttl_minutes": float(self.var_idle_ttl_minutes.get()),
+            "history_enable": bool(self.var_history_enable.get()),
+            "history_audio_days": float(self.var_history_audio_days.get()),
             "device": self.var_device.get().strip(),
             "compute": config.normalize_compute_type(
                 self.var_device.get().strip(), self.var_compute.get().strip()
@@ -1417,6 +1468,16 @@ class App(Tk):
         prompt_context = app_context.format_context_for_prompt(active_context)
         app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
+        was_cold = not self.asr.is_loaded()
+        hotwords = glossary.hotwords_for_app(
+            active_context.process_name if active_context else None,
+            self.hotwords_by_app,
+            self.glossary_manager,
+        )
+        if hotwords:
+            logger.debug(f"Hotwords for this dictation: {len(hotwords)} chars")
+
+        started = time.monotonic()
         try:
             # Build VAD parameters if VAD is enabled
             vad_params = None
@@ -1433,7 +1494,7 @@ class App(Tk):
             backend = self.asr.get()
             text = backend.transcribe(
                 audio_data,
-                hotwords=None,
+                hotwords=hotwords,
                 beam_size=int(self.var_beam_size.get()),
                 vad_filter=self.var_vad_enabled.get(),
                 vad_parameters=vad_params,
@@ -1450,6 +1511,8 @@ class App(Tk):
             messagebox.showerror("Transcribe", str(e))
             return
 
+        asr_ms = int((time.monotonic() - started) * 1000)
+
         if not text:
             self._set_status("warning", "No speech detected")
             return
@@ -1462,9 +1525,12 @@ class App(Tk):
         )
         final_text = normalized_text
 
+        cleanup_started = time.monotonic()
+        cleaned_text: str | None = None
         backend = self.var_cleanup_backend.get().strip()
         if backend == "s1":
-            final_text = self._clean_with_s1(normalized_text, active_context) or final_text
+            cleaned_text = self._clean_with_s1(normalized_text, active_context)
+            final_text = cleaned_text or final_text
         elif backend == "endpoint" and (
             self.var_llm_endpoint.get().strip() and self.var_llm_model.get().strip()
         ):
@@ -1483,6 +1549,7 @@ class App(Tk):
                     debug_logging=bool(self.var_llm_debug.get()),
                 )
                 if cleaned:
+                    cleaned_text = cleaned
                     final_text = cleaned
                     self._set_status("ready", "Cleaned by LLM")
                 else:
@@ -1491,8 +1558,25 @@ class App(Tk):
                 self._set_status("warning", "LLM failed, used raw text")
                 logger.warning(f"LLM cleanup failed: {e}")
 
+        cleanup_ms = int((time.monotonic() - cleanup_started) * 1000)
+
         if glossary_enabled:
             final_text = glossary.apply_glossary(final_text, self.glossary_manager)
+
+        if self.var_history_enable.get():
+            history.record(
+                raw=text,
+                cleaned=cleaned_text,
+                final=final_text,
+                process_name=active_context.process_name if active_context else None,
+                asr_backend=self.var_asr_backend.get().strip(),
+                cleanup_backend=backend,
+                asr_ms=asr_ms,
+                cleanup_ms=cleanup_ms,
+                cold=was_cold,
+                audio=audio_data,
+                audio_days=int(self.var_history_audio_days.get()),
+            )
 
         # Display and copy result
         ts = time.strftime("%H:%M:%S")

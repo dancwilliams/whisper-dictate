@@ -43,6 +43,12 @@ DEFAULT_IDLE_TTL_MINUTES = 5.0
 DEFAULT_CLEANUP_BACKEND = "s1"
 CLEANUP_BACKENDS = ("s1", "endpoint", "off")
 
+# Every dictation is recorded locally as text: it is what the next round of
+# glossary mining and the next recognizer benchmark run on. The audio expires,
+# because it is the part worth expiring. 0 days keeps no audio at all.
+DEFAULT_HISTORY_ENABLE = True
+DEFAULT_HISTORY_AUDIO_DAYS = 14.0
+
 # Default LLM prompt
 DEFAULT_LLM_PROMPT = """
 You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.

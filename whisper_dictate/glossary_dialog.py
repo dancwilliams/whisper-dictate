@@ -6,7 +6,12 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import BooleanVar, StringVar, Toplevel, filedialog, messagebox, ttk
 
-from whisper_dictate.glossary import GlossaryManager, GlossaryRule
+from whisper_dictate.glossary import (
+    GlossaryManager,
+    GlossaryRule,
+    phonetic_code,
+    phonetic_rejection,
+)
 
 
 class GlossaryDialog(Toplevel):
@@ -221,7 +226,7 @@ class GlossaryRuleDialog(Toplevel):
         cmb = ttk.Combobox(
             opts,
             textvariable=self.var_match_type,
-            values=["word", "phrase", "regex"],
+            values=["word", "phrase", "regex", "phonetic"],
             state="readonly",
             width=10,
         )
@@ -233,13 +238,20 @@ class GlossaryRuleDialog(Toplevel):
             row=0, column=3
         )
 
+        # A phonetic rule matches on sound, so the spelling options do not apply.
+        self.lbl_phonetic = ttk.Label(frame, text="", wraplength=430, foreground="gray")
+        self.lbl_phonetic.grid(row=7, column=0, sticky="w", pady=(0, 6))
+        self.var_match_type.trace_add("write", lambda *_a: self._describe_phonetic())
+        self.var_trigger.trace_add("write", lambda *_a: self._describe_phonetic())
+        self._describe_phonetic()
+
         ttk.Label(frame, text="Description (optional)").grid(row=5, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_description, width=46).grid(
             row=6, column=0, sticky="we", pady=(0, 10)
         )
 
         actions = ttk.Frame(frame)
-        actions.grid(row=7, column=0, sticky="e")
+        actions.grid(row=8, column=0, sticky="e")
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
             row=0, column=0, padx=(0, 8)
         )
@@ -248,12 +260,34 @@ class GlossaryRuleDialog(Toplevel):
         self.bind("<Escape>", lambda event: self._on_cancel())
         self.bind("<Return>", lambda event: self._on_save())
 
+    def _describe_phonetic(self) -> None:
+        """Show what a phonetic rule would match on, or why it is refused."""
+        if self.var_match_type.get() != "phonetic":
+            self.lbl_phonetic.config(text="")
+            return
+        trigger = self.var_trigger.get().strip()
+        if not trigger:
+            self.lbl_phonetic.config(text="Matches on sound rather than spelling.")
+            return
+        reason = phonetic_rejection(trigger)
+        if reason:
+            self.lbl_phonetic.config(text=reason)
+        else:
+            self.lbl_phonetic.config(
+                text=f"Matches anything that sounds like this (code {phonetic_code(trigger)})."
+            )
+
     def _on_save(self) -> None:
         trigger = self.var_trigger.get().strip()
         replacement = self.var_replacement.get().strip()
         if not trigger or not replacement:
             messagebox.showerror("Glossary", "Trigger and replacement are required.")
             return
+        if self.var_match_type.get() == "phonetic":
+            reason = phonetic_rejection(trigger)
+            if reason:
+                messagebox.showerror("Glossary", reason)
+                return
         self.result = GlossaryRule(
             trigger=trigger,
             replacement=replacement,
