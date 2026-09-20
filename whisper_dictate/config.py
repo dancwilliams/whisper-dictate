@@ -16,6 +16,7 @@ DEFAULT_DEVICE: Literal["cpu", "cuda"] = "cuda"  # cpu or cuda
 DEFAULT_COMPUTE = "float16"  # good default; GUI will coerce based on device
 
 # LLM defaults
+# Superseded by DEFAULT_CLEANUP_BACKEND; kept so an old settings file still loads.
 DEFAULT_LLM_ENABLED = True
 DEFAULT_LLM_ENDPOINT = "http://localhost:1234/v1"  # LM Studio default
 DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"
@@ -36,6 +37,11 @@ DEFAULT_ASR_BACKEND = "whisper"
 # 0 means never. At 5 minutes about 35% of dictations start cold, which the
 # warm-on-press in the GUI is there to hide.
 DEFAULT_IDLE_TTL_MINUTES = 5.0
+
+# Cleanup runs in-process on S1-mini by default; "endpoint" is the
+# OpenAI-compatible path, "off" leaves the transcript as the recognizer wrote it.
+DEFAULT_CLEANUP_BACKEND = "s1"
+CLEANUP_BACKENDS = ("s1", "endpoint", "off")
 
 # Default LLM prompt
 DEFAULT_LLM_PROMPT = """
@@ -133,6 +139,11 @@ DEVICE_COMPUTE_DEFAULTS: dict[str, str] = {
 }
 
 
+# add_dll_directory handles are kept alive here; letting one be collected
+# unregisters its directory.
+_dll_directories: list[object] = []
+
+
 def set_cuda_paths() -> None:
     """Ensure CUDA DLL folders from the embedded Nvidia wheels are on PATH."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
@@ -151,14 +162,30 @@ def set_cuda_paths() -> None:
     if not paths_to_add:
         return
 
-    env_vars = ["CUDA_PATH", "CUDA_PATH_V12_4", "PATH"]
+    current_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = os.pathsep.join(
+        paths_to_add + [current_path] if current_path else paths_to_add
+    )
 
-    for env_var in env_vars:
-        current_value = os.environ.get(env_var, "")
-        new_value = os.pathsep.join(
-            paths_to_add + [current_value] if current_value else paths_to_add
-        )
-        os.environ[env_var] = new_value
+    # CUDA_PATH names one toolkit root, and consumers append to it:
+    # llama-cpp-python does add_dll_directory on both CUDA_PATH/bin and
+    # CUDA_PATH/lib at import, and raises if either is missing. The pip wheels
+    # have no such root - cuda_runtime ships bin and include only - so point
+    # CUDA_PATH at a directory only when it really is a toolkit, and otherwise
+    # leave it alone. The DLLs are found through the search directories below.
+    runtime_root = nvidia_base_path / "cuda_runtime"
+    if (runtime_root / "bin").is_dir() and (runtime_root / "lib").is_dir():
+        os.environ["CUDA_PATH"] = str(runtime_root)
+        os.environ["CUDA_PATH_V12_4"] = str(runtime_root)
+
+    # Under safe DLL search mode Windows resolves a ctypes-loaded library's
+    # dependencies from directories registered here, not from PATH. The handles
+    # must outlive the call: dropping one removes the directory again.
+    for path in paths_to_add:
+        try:
+            _dll_directories.append(os.add_dll_directory(path))
+        except OSError:  # pragma: no cover - a directory that vanished
+            pass
 
 
 def normalize_compute_type(device: str, compute_type: str) -> str:

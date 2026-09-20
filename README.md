@@ -3,7 +3,7 @@
 [![CI](https://github.com/dancwilliams/whisper-dictate/actions/workflows/ci.yml/badge.svg)](https://github.com/dancwilliams/whisper-dictate/actions/workflows/ci.yml)
 
 A privacy-first, local **speech-to-text and AI cleanup tool** for Windows.  
-It uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) for offline transcription and can optionally send text to a local or remote **OpenAI-compatible endpoint** (such as [LM Studio](https://lmstudio.ai/)) for light cleanup or rewriting.  
+It uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) for offline transcription and can optionally send text to a local or remote **OpenAI-compatible endpoint** (such as [Ollama](https://ollama.com/)) for light cleanup or rewriting.  
 It supports a **GUI**, global hotkeys, and automatic pasting into the active window.
 
 ---
@@ -12,7 +12,7 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 
 - **100% local transcription** — no cloud calls
 - **Secure credential storage** — API keys encrypted in Windows Credential Manager
-- **Optional LLM cleanup** via an OpenAI-style endpoint (LM Studio, Ollama, etc.)
+- **Optional LLM cleanup** via an OpenAI-style endpoint (Ollama, or any OpenAI-compatible server)
 - **Glossary injection** to enforce product names, jargon, or key phrases during normalization and LLM cleanup
 - **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate_prompt.txt`
 - **Per-application prompts** so you can override the cleanup prompt per app or window title (Edit → Per-app prompts…)

@@ -53,10 +53,21 @@ class CohereBackend:
 
         self._torch = torch
         self.device = device
-        self.processor = AutoProcessor.from_pretrained(self.MODEL_ID)
-        model = CohereAsrForConditionalGeneration.from_pretrained(
-            self.MODEL_ID, dtype=torch.bfloat16
-        )
+        # Load from the local cache first. transformers otherwise asks Hugging
+        # Face for metadata on every load, cached or not, so a flaky connection
+        # downgrades the recognizer - measured, as an httpx.RemoteProtocolError.
+        # Only reach for the network when the weights are genuinely not here.
+        try:
+            self.processor = AutoProcessor.from_pretrained(self.MODEL_ID, local_files_only=True)
+            model = CohereAsrForConditionalGeneration.from_pretrained(
+                self.MODEL_ID, dtype=torch.bfloat16, local_files_only=True
+            )
+        except OSError:
+            logger.info("Cohere weights are not cached; downloading")
+            self.processor = AutoProcessor.from_pretrained(self.MODEL_ID)
+            model = CohereAsrForConditionalGeneration.from_pretrained(
+                self.MODEL_ID, dtype=torch.bfloat16
+            )
         self.model = model.to(device).eval()  # type: ignore[arg-type]
 
     def _place(self, value: Any) -> Any:
@@ -97,7 +108,10 @@ def load_backend(
         try:
             return CohereBackend(device if device != "cpu" else "cpu")
         except (ImportError, OSError, RuntimeError, ValueError) as e:
-            warn(f"Cohere backend unavailable ({type(e).__name__}); using Whisper")
+            # The type alone says nothing: OSError covers a missing token, a
+            # locked cache and a full disk alike.
+            logger.warning("Cohere backend failed to load", exc_info=True)
+            warn(f"Cohere unavailable ({type(e).__name__}: {e}); using Whisper"[:200])
     elif name != "whisper":
         warn(f"Unknown ASR backend {name!r}; using Whisper")
     return WhisperBackend(model_name, device, compute_type)

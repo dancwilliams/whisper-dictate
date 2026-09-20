@@ -3,11 +3,13 @@
 These tests verify that components work together correctly end-to-end.
 """
 
+import sys
 from unittest.mock import MagicMock, patch
 
 from whisper_dictate import app_context, app_prompts
-from whisper_dictate.glossary import GlossaryManager, GlossaryRule
+from whisper_dictate.glossary import GlossaryManager, GlossaryRule, apply_glossary
 from whisper_dictate.llm_cleanup import clean_with_llm
+from whisper_dictate.s1 import S1Cleaner
 
 # Test constants
 TEST_BASE_PROMPT = "Clean up this transcribed text."
@@ -409,3 +411,62 @@ class TestEndToEndWorkflow:
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args[1]["messages"]
         assert len(messages) >= 1  # At least the base system message
+
+
+class TestS1CleanupPipeline:
+    """The in-process cleanup path: glossary, per-app control line, S1-mini."""
+
+    def _cleaner(self, monkeypatch, generated="Format the report by Thursday."):
+        llama_cpp = MagicMock()
+        instance = MagicMock()
+        instance.return_value = {"choices": [{"text": generated}]}
+        llama_cpp.Llama = MagicMock(return_value=instance)
+        hub = MagicMock()
+        hub.hf_hub_download.return_value = "C:/models/s1.gguf"
+        monkeypatch.setitem(sys.modules, "llama_cpp", llama_cpp)
+        monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
+        return S1Cleaner(), instance
+
+    def test_glossary_then_s1_with_the_per_app_control_line(self, monkeypatch):
+        """Outlook gets email shape; the glossary runs before cleanup either way."""
+        context = app_context.ActiveContext(
+            window_title="Inbox - Outlook", process_name="olk.exe", cursor_position=None
+        )
+        rules = app_prompts.normalize_app_prompts(
+            {"olk.exe": [{"styling": "semi-formal", "context": "email"}]}
+        )
+
+        glossary_manager = GlossaryManager(
+            [GlossaryRule(trigger="threat fax", replacement="threatfax")]
+        )
+        raw = "so um send the threat fax report by friday"
+        normalized = apply_glossary(raw, glossary_manager)
+        assert "threatfax" in normalized
+
+        style = {"styling": "semi-casual", "structure": "prose", "context": "general"}
+        style.update(app_prompts.resolve_app_style(rules, context))
+        assert style == {"styling": "semi-formal", "structure": "prose", "context": "email"}
+
+        cleaner, llm = self._cleaner(monkeypatch)
+        cleaned = cleaner.clean(normalized, **style)
+
+        prompt = llm.call_args.args[0]
+        assert "[Styling: semi-formal] [Structure: prose] [Context: email]" in prompt
+        assert "threatfax" in prompt  # the glossary pass reached the model
+        assert cleaned == "Format the report by Thursday."
+
+    def test_an_app_without_a_rule_keeps_the_global_style(self, monkeypatch):
+        context = app_context.ActiveContext(
+            window_title="Untitled - Notepad", process_name="notepad.exe", cursor_position=None
+        )
+        rules = app_prompts.normalize_app_prompts(
+            {"olk.exe": [{"styling": "semi-formal", "context": "email"}]}
+        )
+
+        style = {"styling": "casual", "structure": "prose", "context": "general"}
+        style.update(app_prompts.resolve_app_style(rules, context))
+        assert style == {"styling": "casual", "structure": "prose", "context": "general"}
+
+        cleaner, llm = self._cleaner(monkeypatch)
+        cleaner.clean("some words", **style)
+        assert "[Styling: casual] [Structure: prose] [Context: general]" in llm.call_args.args[0]

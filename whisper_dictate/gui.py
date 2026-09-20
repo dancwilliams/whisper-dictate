@@ -21,19 +21,21 @@ from whisper_dictate import (
     hotkeys,
     llm_cleanup,
     prompt,
+    s1,
     settings_store,
     transcription,
 )
 from whisper_dictate.app_prompt_dialog import AppPromptDialog
 from whisper_dictate.config import (
+    CLEANUP_BACKENDS,
     DEFAULT_ASR_BACKEND,
     DEFAULT_AUTO_LOAD_MODEL,
     DEFAULT_AUTO_REGISTER_HOTKEY,
+    DEFAULT_CLEANUP_BACKEND,
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
     DEFAULT_IDLE_TTL_MINUTES,
     DEFAULT_LLM_DEBUG,
-    DEFAULT_LLM_ENABLED,
     DEFAULT_LLM_ENDPOINT,
     DEFAULT_LLM_KEY,
     DEFAULT_LLM_MODEL,
@@ -102,6 +104,7 @@ class App(Tk):
         # there deadlocks whenever the main thread is inside a Tcl callback.
         self._asr_config: tuple[str, str, str, str] = ("", "", "", "")
         self.asr = asr.Resident(self._build_backend, ttl=0.0)
+        self.s1 = asr.Resident(s1.S1Cleaner, ttl=0.0)
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self._press_at = 0.0
         self.llm_models: list[str] = []
@@ -164,7 +167,10 @@ class App(Tk):
         self.var_paste_delay = DoubleVar(value=0.15)
         self.var_restore_delay = DoubleVar(value=0.6)
 
-        self.var_llm_enable = BooleanVar(value=DEFAULT_LLM_ENABLED)
+        self.var_cleanup_backend = StringVar(value=DEFAULT_CLEANUP_BACKEND)
+        self.var_s1_styling = StringVar(value=s1.DEFAULT_STYLING)
+        self.var_s1_structure = StringVar(value=s1.DEFAULT_STRUCTURE)
+        self.var_s1_context = StringVar(value=s1.DEFAULT_CONTEXT)
         self.var_llm_endpoint = StringVar(value=DEFAULT_LLM_ENDPOINT)
         self.var_llm_model = StringVar(value=DEFAULT_LLM_MODEL)
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
@@ -241,6 +247,7 @@ class App(Tk):
         if window_attr == "_llm_window":
             self.cmb_llm_model = None
             self.btn_llm_refresh = None
+            self._capture_s1_style()
         elif window_attr == "_automation_window":
             self._apply_hotkey_change()
             self._apply_idle_ttl()
@@ -638,22 +645,56 @@ class App(Tk):
         )
 
     def _open_llm_settings(self) -> None:
-        """Open LLM cleanup settings window."""
+        """Open cleanup settings window."""
 
         def build(window: Toplevel) -> None:
             frame = ttk.Frame(window, padding=12)
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(1, weight=1)
 
-            ttk.Checkbutton(
-                frame, text="Use LLM cleanup (OpenAI compatible)", variable=self.var_llm_enable
-            ).grid(row=0, column=0, sticky="w", columnspan=2)
-            self._add_labeled_widget(
-                frame, "Endpoint", 1, ttk.Entry(frame, textvariable=self.var_llm_endpoint)
+            backend_row = ttk.Frame(frame)
+            backend_row.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            ttk.Label(backend_row, text="Cleanup").pack(side="left")
+            ttk.Combobox(
+                backend_row,
+                textvariable=self.var_cleanup_backend,
+                values=list(CLEANUP_BACKENDS),
+                width=10,
+                state="readonly",
+            ).pack(side="left", padx=(8, 0))
+            ttk.Label(
+                backend_row,
+                text="s1 = built in, endpoint = OpenAI compatible",
+                foreground="gray",
+            ).pack(side="left", padx=(8, 0))
+
+            style_row = ttk.Frame(frame)
+            style_row.grid(row=1, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            # The three settings S1-mini's control line accepts; per-app rules
+            # override these for a given window.
+            for label, var, values in (
+                ("Styling", self.var_s1_styling, s1.STYLING),
+                ("Structure", self.var_s1_structure, s1.STRUCTURE),
+                ("Context", self.var_s1_context, s1.CONTEXT),
+            ):
+                ttk.Label(style_row, text=label).pack(side="left", padx=(0, 4))
+                ttk.Combobox(
+                    style_row,
+                    textvariable=var,
+                    values=list(values),
+                    width=12,
+                    state="readonly",
+                ).pack(side="left", padx=(0, 12))
+
+            ttk.Separator(frame, orient="horizontal").grid(
+                row=2, column=0, columnspan=2, sticky="we", pady=(0, 8)
             )
-            ttk.Label(frame, text="Model").grid(row=2, column=0, sticky="w", pady=4)
+            self._add_labeled_widget(
+                frame, "Endpoint", 3, ttk.Entry(frame, textvariable=self.var_llm_endpoint)
+            )
+            ttk.Label(frame, text="Model").grid(row=4, column=0, sticky="w", pady=4)
             model_row = ttk.Frame(frame)
-            model_row.grid(row=2, column=1, sticky="we", pady=4, padx=(12, 0))
+            model_row.grid(row=4, column=1, sticky="we", pady=4, padx=(12, 0))
             model_row.columnconfigure(0, weight=1)
             self.cmb_llm_model = ttk.Combobox(
                 model_row, textvariable=self.var_llm_model, values=self.llm_models
@@ -666,20 +707,20 @@ class App(Tk):
             self._add_labeled_widget(
                 frame,
                 "API key (optional)",
-                3,
+                5,
                 ttk.Entry(frame, textvariable=self.var_llm_key, show="•"),
             )
             self._add_labeled_widget(
                 frame,
                 "Temperature",
-                4,
+                6,
                 ttk.Spinbox(
                     frame, from_=0.0, to=1.5, increment=0.1, textvariable=self.var_llm_temp, width=6
                 ),
             )
             ttk.Checkbutton(
                 frame, text="Log full LLM prompts for debugging", variable=self.var_llm_debug
-            ).grid(row=5, column=0, columnspan=2, sticky="w")
+            ).grid(row=7, column=0, columnspan=2, sticky="w")
             ttk.Label(
                 frame,
                 text="⚠ Warning: Debug mode logs transcribed speech and prompts to disk",
@@ -687,24 +728,24 @@ class App(Tk):
                 wraplength=440,
                 justify="left",
                 font=("Segoe UI", 9, "italic"),
-            ).grid(row=6, column=0, columnspan=2, sticky="w", padx=(20, 0))
+            ).grid(row=8, column=0, columnspan=2, sticky="w", padx=(20, 0))
             ttk.Checkbutton(
                 frame, text="Use glossary before prompt", variable=self.var_glossary_enable
-            ).grid(row=7, column=0, columnspan=2, sticky="w")
+            ).grid(row=9, column=0, columnspan=2, sticky="w")
             ttk.Label(
                 frame,
                 text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
                 wraplength=440,
                 justify="left",
-            ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=10, column=0, columnspan=2, sticky="w", pady=(8, 0))
             ttk.Label(
                 frame,
                 text=f"Glossary saved to {glossary.GLOSSARY_FILE} (Edit → Glossary…)",
                 wraplength=440,
                 justify="left",
-            ).grid(row=9, column=0, columnspan=2, sticky="w")
+            ).grid(row=11, column=0, columnspan=2, sticky="w")
 
-        self._open_window("_llm_window", "LLM cleanup", build)
+        self._open_window("_llm_window", "Cleanup", build)
 
     def _reset_status_indicator(self) -> None:
         """Reset the floating status indicator to its default location."""
@@ -935,7 +976,10 @@ class App(Tk):
         set_if_present("auto_paste", self.var_auto_paste, bool)
         set_if_present("paste_delay", self.var_paste_delay, float)
         set_if_present("restore_delay", self.var_restore_delay, float)
-        set_if_present("llm_enable", self.var_llm_enable, bool)
+        set_if_present("cleanup_backend", self.var_cleanup_backend, str)
+        set_if_present("s1_styling", self.var_s1_styling, str)
+        set_if_present("s1_structure", self.var_s1_structure, str)
+        set_if_present("s1_context", self.var_s1_context, str)
         set_if_present("llm_endpoint", self.var_llm_endpoint, str)
         set_if_present("llm_model", self.var_llm_model, str)
         # Load API key from secure storage (not from JSON settings)
@@ -983,7 +1027,10 @@ class App(Tk):
             "auto_paste": bool(self.var_auto_paste.get()),
             "paste_delay": float(self.var_paste_delay.get()),
             "restore_delay": float(self.var_restore_delay.get()),
-            "llm_enable": bool(self.var_llm_enable.get()),
+            "cleanup_backend": self.var_cleanup_backend.get().strip(),
+            "s1_styling": self.var_s1_styling.get().strip(),
+            "s1_structure": self.var_s1_structure.get().strip(),
+            "s1_context": self.var_s1_context.get().strip(),
             "llm_endpoint": self.var_llm_endpoint.get().strip(),
             "llm_model": self.var_llm_model.get().strip(),
             "llm_key": self.var_llm_key.get(),
@@ -1156,8 +1203,11 @@ class App(Tk):
 
     def _apply_idle_ttl(self) -> None:
         """Push the TTL setting onto the Resident. 0 minutes means never unload."""
-        self.asr.ttl = max(0.0, float(self.var_idle_ttl_minutes.get())) * 60.0
+        ttl = max(0.0, float(self.var_idle_ttl_minutes.get())) * 60.0
+        self.asr.ttl = ttl
+        self.s1.ttl = ttl
         self._capture_asr_config()
+        self._capture_s1_style()
 
     def _load_model(self, quiet: bool = False) -> None:
         """Warm the recognizer, and report when it is up.
@@ -1260,6 +1310,9 @@ class App(Tk):
         # here, on the Tk thread, because the loader thread must not touch Tk.
         self._capture_asr_config()
         self.asr.warm()
+        if self.var_cleanup_backend.get().strip() == "s1":
+            self._capture_s1_style()
+            self.s1.warm()
         if audio.is_recording():
             self._stop_and_transcribe()
             return
@@ -1381,11 +1434,11 @@ class App(Tk):
         )
         final_text = normalized_text
 
-        # Optionally clean with LLM
-        if (
-            self.var_llm_enable.get()
-            and self.var_llm_endpoint.get().strip()
-            and self.var_llm_model.get().strip()
+        backend = self.var_cleanup_backend.get().strip()
+        if backend == "s1":
+            final_text = self._clean_with_s1(normalized_text, active_context) or final_text
+        elif backend == "endpoint" and (
+            self.var_llm_endpoint.get().strip() and self.var_llm_model.get().strip()
         ):
             self._set_status("processing", "Cleaning with LLM...")
             try:
@@ -1422,6 +1475,51 @@ class App(Tk):
 
         if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
             self._set_status("ready", "Ready")
+
+    def _capture_s1_style(self) -> None:
+        """Copy the global control-line settings out of Tk. Main thread only."""
+        self._s1_style = {
+            "styling": self.var_s1_styling.get().strip() or s1.DEFAULT_STYLING,
+            "structure": self.var_s1_structure.get().strip() or s1.DEFAULT_STRUCTURE,
+            "context": self.var_s1_context.get().strip() or s1.DEFAULT_CONTEXT,
+        }
+
+    def _s1_style_for(self, context) -> dict[str, str]:
+        """The control line for this dictation: the global setting, overridden by
+        whatever the matching per-app rule sets."""
+        style = dict(getattr(self, "_s1_style", {}))
+        if not style:
+            style = {
+                "styling": s1.DEFAULT_STYLING,
+                "structure": s1.DEFAULT_STRUCTURE,
+                "context": s1.DEFAULT_CONTEXT,
+            }
+        style.update(app_prompts.resolve_app_style(self.app_prompts, context))
+        return style
+
+    def _clean_with_s1(self, text: str, context) -> str | None:
+        """Clean in-process. Returns None when cleanup could not run."""
+        if not self.s1.is_loaded():
+            self._set_status("processing", "Loading cleanup model...")
+        started = time.monotonic()
+        try:
+            cleaner = self.s1.get()
+            cleaned = cleaner.clean(text, **self._s1_style_for(context))
+        except (OSError, RuntimeError, ValueError, ImportError) as e:
+            # No cleanup model is a degraded dictation, not a lost one.
+            self.var_cleanup_backend.set("off")
+            self._set_status("warning", "Cleanup unavailable; using raw text")
+            logger.warning(f"S1 cleanup failed, backend off for this session: {e}")
+            return None
+        if not cleaned:
+            self._set_status("warning", "Cleanup returned nothing, used raw text")
+            return None
+        logger.info(
+            f"S1 cleanup on {'GPU' if cleaner.on_gpu else 'CPU'} "
+            f"in {time.monotonic() - started:.2f}s"
+        )
+        self._set_status("ready", "Cleaned")
+        return cleaned
 
     def _deliver(self, text: str) -> None:
         """Paste the dictation and give the clipboard back.

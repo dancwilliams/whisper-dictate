@@ -58,145 +58,104 @@ class TestConfig:
 
 
 class TestSetCudaPaths:
-    """Test CUDA path configuration."""
+    """Test CUDA path configuration.
 
-    def test_set_cuda_paths_frozen_app(self, tmp_path, monkeypatch):
-        """Test CUDA path setup for frozen (PyInstaller) application."""
-        # Mock frozen application environment
+    The contract: every CUDA directory from the nvidia wheels goes on PATH and
+    is registered with os.add_dll_directory. CUDA_PATH is set only when it would
+    name a real toolkit root - one with both bin and lib - because consumers
+    append to it. llama-cpp-python does add_dll_directory on CUDA_PATH/bin and
+    CUDA_PATH/lib at import and raises if either is missing, so a list of
+    directories there, or a root without lib, stops it loading at all.
+    """
 
+    def _wheel_layout(self, base):
+        for part in ("cuda_runtime", "cublas", "cudnn"):
+            (base / part / "bin").mkdir(parents=True)
+        return base
+
+    def _frozen_sys(self, tmp_path):
         mock_sys = MagicMock()
         mock_sys.frozen = True
         mock_sys._MEIPASS = str(tmp_path)
         mock_sys.executable = "/fake/path/python.exe"
+        return mock_sys
 
-        # Create mock CUDA directories
-        nvidia_base = tmp_path / "nvidia"
-        cuda_runtime_bin = nvidia_base / "cuda_runtime" / "bin"
-        cublas_bin = nvidia_base / "cublas" / "bin"
-        cudnn_bin = nvidia_base / "cudnn" / "bin"
+    def _dev_sys(self, tmp_path):
+        mock_sys = MagicMock()
+        mock_sys.frozen = False
+        venv_python = tmp_path / "venv" / "Scripts" / "python.exe"
+        venv_python.parent.mkdir(parents=True)
+        venv_python.touch()
+        mock_sys.executable = str(venv_python)
+        return mock_sys
 
-        cuda_runtime_bin.mkdir(parents=True)
-        cublas_bin.mkdir(parents=True)
-        cudnn_bin.mkdir(parents=True)
-
-        with patch("whisper_dictate.config.sys", mock_sys):
-            # Clear environment variables
+    def test_frozen_app_puts_every_cuda_dir_on_path(self, tmp_path, monkeypatch):
+        base = self._wheel_layout(tmp_path / "nvidia")
+        original_path = os.environ.get("PATH", "")
+        with patch("whisper_dictate.config.sys", self._frozen_sys(tmp_path)):
             monkeypatch.delenv("CUDA_PATH", raising=False)
-            monkeypatch.delenv("CUDA_PATH_V12_4", raising=False)
-            original_path = os.environ.get("PATH", "")
+            with patch("whisper_dictate.config.os.add_dll_directory") as add:
+                set_cuda_paths()
+            for part in ("cuda_runtime", "cublas", "cudnn"):
+                assert str(base / part / "bin") in os.environ["PATH"]
+            registered = {call.args[0] for call in add.call_args_list}
+            assert registered == {
+                str(base / p / "bin") for p in ("cuda_runtime", "cublas", "cudnn")
+            }
+        os.environ["PATH"] = original_path
 
-            set_cuda_paths()
-
-            # Verify paths were added to environment
-            assert "CUDA_PATH" in os.environ
-            assert str(cuda_runtime_bin) in os.environ["CUDA_PATH"]
-            assert str(cublas_bin) in os.environ["CUDA_PATH"]
-            assert str(cudnn_bin) in os.environ["CUDA_PATH"]
-
-            assert "CUDA_PATH_V12_4" in os.environ
-            assert str(cuda_runtime_bin) in os.environ["CUDA_PATH_V12_4"]
-
-            assert "PATH" in os.environ
-            assert str(cuda_runtime_bin) in os.environ["PATH"]
-
-            # Restore PATH
-            os.environ["PATH"] = original_path
-
-    def test_set_cuda_paths_development(self, tmp_path, monkeypatch):
-        """Test CUDA path setup for development environment."""
-
-        mock_sys = MagicMock()
-        mock_sys.frozen = False
-        # Mock sys.executable to point to our temp venv
-        venv_python = tmp_path / "venv" / "Scripts" / "python.exe"
-        venv_python.parent.mkdir(parents=True)
-        venv_python.touch()
-        mock_sys.executable = str(venv_python)
-
-        # Create mock CUDA directories in venv site-packages
-        nvidia_base = tmp_path / "venv" / "Lib" / "site-packages" / "nvidia"
-        cuda_runtime_bin = nvidia_base / "cuda_runtime" / "bin"
-        cublas_bin = nvidia_base / "cublas" / "bin"
-        cudnn_bin = nvidia_base / "cudnn" / "bin"
-
-        cuda_runtime_bin.mkdir(parents=True)
-        cublas_bin.mkdir(parents=True)
-        cudnn_bin.mkdir(parents=True)
-
-        with patch("whisper_dictate.config.sys", mock_sys):
-            # Clear environment variables
+    def test_development_layout(self, tmp_path, monkeypatch):
+        base = self._wheel_layout(tmp_path / "venv" / "Lib" / "site-packages" / "nvidia")
+        original_path = os.environ.get("PATH", "")
+        with patch("whisper_dictate.config.sys", self._dev_sys(tmp_path)):
             monkeypatch.delenv("CUDA_PATH", raising=False)
-            monkeypatch.delenv("CUDA_PATH_V12_4", raising=False)
-            original_path = os.environ.get("PATH", "")
+            with patch("whisper_dictate.config.os.add_dll_directory"):
+                set_cuda_paths()
+            assert str(base / "cublas" / "bin") in os.environ["PATH"]
+        os.environ["PATH"] = original_path
 
-            set_cuda_paths()
+    def test_cuda_path_is_left_alone_for_the_wheel_layout(self, tmp_path, monkeypatch):
+        """The pip wheels have no toolkit root: cuda_runtime ships bin, not lib."""
+        self._wheel_layout(tmp_path / "venv" / "Lib" / "site-packages" / "nvidia")
+        original_path = os.environ.get("PATH", "")
+        with patch("whisper_dictate.config.sys", self._dev_sys(tmp_path)):
+            monkeypatch.delenv("CUDA_PATH", raising=False)
+            with patch("whisper_dictate.config.os.add_dll_directory"):
+                set_cuda_paths()
+            assert "CUDA_PATH" not in os.environ
+        os.environ["PATH"] = original_path
 
-            # Verify paths were added
-            assert "CUDA_PATH" in os.environ
-            assert str(cuda_runtime_bin) in os.environ["CUDA_PATH"]
+    def test_cuda_path_names_a_real_toolkit_root(self, tmp_path, monkeypatch):
+        base = self._wheel_layout(tmp_path / "venv" / "Lib" / "site-packages" / "nvidia")
+        (base / "cuda_runtime" / "lib").mkdir()  # now it looks like a toolkit
+        original_path = os.environ.get("PATH", "")
+        with patch("whisper_dictate.config.sys", self._dev_sys(tmp_path)):
+            monkeypatch.delenv("CUDA_PATH", raising=False)
+            with patch("whisper_dictate.config.os.add_dll_directory"):
+                set_cuda_paths()
+            # One directory, not a list: os.add_dll_directory would reject a list.
+            assert os.environ["CUDA_PATH"] == str(base / "cuda_runtime")
+            assert os.pathsep not in os.environ["CUDA_PATH"]
+            assert os.environ["CUDA_PATH_V12_4"] == str(base / "cuda_runtime")
+        monkeypatch.delenv("CUDA_PATH", raising=False)
+        monkeypatch.delenv("CUDA_PATH_V12_4", raising=False)
+        os.environ["PATH"] = original_path
 
-            # Restore PATH
-            os.environ["PATH"] = original_path
+    def test_existing_path_is_preserved(self, tmp_path, monkeypatch):
+        self._wheel_layout(tmp_path / "venv" / "Lib" / "site-packages" / "nvidia")
+        with patch("whisper_dictate.config.sys", self._dev_sys(tmp_path)):
+            monkeypatch.setenv("PATH", r"C:\somewhere\else")
+            with patch("whisper_dictate.config.os.add_dll_directory"):
+                set_cuda_paths()
+            assert r"C:\somewhere\else" in os.environ["PATH"]
 
-    def test_set_cuda_paths_no_directories(self, tmp_path, monkeypatch):
-        """Test CUDA path setup when directories don't exist."""
-
-        mock_sys = MagicMock()
-        mock_sys.frozen = False
-        venv_python = tmp_path / "venv" / "Scripts" / "python.exe"
-        venv_python.parent.mkdir(parents=True)
-        venv_python.touch()
-        mock_sys.executable = str(venv_python)
-
-        # Don't create CUDA directories
-
-        with patch("whisper_dictate.config.sys", mock_sys):
-            original_cuda_path = os.environ.get("CUDA_PATH", "")
-            original_path = os.environ.get("PATH", "")
-
-            set_cuda_paths()
-
-            # Environment should be unchanged (or minimally changed)
-            # The function should return early if no CUDA paths exist
-            # We just verify it doesn't crash
-
-            # Restore environment
-            if original_cuda_path:
-                os.environ["CUDA_PATH"] = original_cuda_path
-            elif "CUDA_PATH" in os.environ:
-                del os.environ["CUDA_PATH"]
-            os.environ["PATH"] = original_path
-
-    def test_set_cuda_paths_preserves_existing_env(self, tmp_path, monkeypatch):
-        """Test that set_cuda_paths preserves existing environment variables."""
-
-        mock_sys = MagicMock()
-        mock_sys.frozen = False
-        venv_python = tmp_path / "venv" / "Scripts" / "python.exe"
-        venv_python.parent.mkdir(parents=True)
-        venv_python.touch()
-        mock_sys.executable = str(venv_python)
-
-        # Create mock CUDA directories
-        nvidia_base = tmp_path / "venv" / "Lib" / "site-packages" / "nvidia"
-        cuda_runtime_bin = nvidia_base / "cuda_runtime" / "bin"
-        cuda_runtime_bin.mkdir(parents=True)
-
-        with patch("whisper_dictate.config.sys", mock_sys):
-            # Set existing environment values
-            original_cuda = "C:\\existing\\cuda\\path"
-            monkeypatch.setenv("CUDA_PATH", original_cuda)
-            original_path = os.environ.get("PATH", "")
-
-            set_cuda_paths()
-
-            # Verify original value is preserved
-            assert original_cuda in os.environ["CUDA_PATH"]
-            # New path should also be present
-            assert str(cuda_runtime_bin) in os.environ["CUDA_PATH"]
-
-            # Restore PATH
-            os.environ["PATH"] = original_path
+    def test_no_nvidia_directories_is_a_no_op(self, tmp_path, monkeypatch):
+        with patch("whisper_dictate.config.sys", self._dev_sys(tmp_path)):
+            monkeypatch.delenv("CUDA_PATH", raising=False)
+            with patch("whisper_dictate.config.os.add_dll_directory") as add:
+                set_cuda_paths()
+            add.assert_not_called()
+            assert "CUDA_PATH" not in os.environ
 
 
 class TestModelInfo:

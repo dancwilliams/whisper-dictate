@@ -36,6 +36,7 @@ ml = [
     # CohereAsrFeatureExtractor imports librosa at class load, whatever the audio
     # source. Not optional, despite audio.py already yielding 16 kHz float32.
     "librosa",
+    "llama-cpp-python>=0.3.35",
 ]
 
 [project.scripts]
@@ -54,8 +55,14 @@ name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
+[[tool.uv.index]]
+name = "llama-cu124"
+url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
+explicit = true
+
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'win32'" }]
+llama-cpp-python = [{ index = "llama-cu124", marker = "sys_platform == 'win32'" }]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Built-in transcript cleanup with S1-mini (`s1.py`), no server required
+  - Prompt built by hand, byte for byte: one system sentence, a control line and
+    an assistant turn opening with an empty think block. Any other system text
+    makes the model emit a single token and stop.
+  - `cleanup_backend` setting: `s1` (default), `endpoint` (the existing
+    OpenAI-compatible path) or `off`
+  - Per-application control line: a rule in Settings -> Per-app prompts may set
+    styling, structure and context as well as, or instead of, a prompt
+  - Shares the `Resident` lifecycle with the recognizer, so both unload together
+  - Measured on an RTX 5090: 0.47 s to load from cache, 0.14 s for the first
+    cleanup and 0.02 s after. The very first cleanup on a new machine takes
+    about 26 s while CUDA JIT-compiles for the GPU; that result is cached.
+
+### Fixed
+- `set_cuda_paths` set `CUDA_PATH` to a *list* of directories. The variable names
+  one toolkit root and consumers append to it: llama-cpp-python does
+  `add_dll_directory(CUDA_PATH + "/bin")` at import and raised WinError 123, so
+  it could not load at all. PATH now carries every wheel directory, each is
+  registered with `os.add_dll_directory`, and `CUDA_PATH` is set only when it
+  would name a real toolkit root - one with both `bin` and `lib`.
+- Cohere and S1-mini now load from the local Hugging Face cache first. Both
+  libraries revalidate over the network on every load otherwise, so a flaky
+  connection silently downgraded the recognizer (seen as an
+  `httpx.RemoteProtocolError`). The network is used only when the weights are
+  genuinely absent.
+
 - Selectable ASR backend with idle unloading (`asr.py`)
   - `WhisperBackend` (faster-whisper, supports hotwords) and `CohereBackend`
     (CohereLabs/cohere-transcribe-03-2026, gated, no vocabulary biasing)
