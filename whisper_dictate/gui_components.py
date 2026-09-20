@@ -1,7 +1,8 @@
 """Reusable GUI components for whisper-dictate."""
 
 from collections.abc import Callable, Sequence
-from tkinter import END, Canvas, Menu, Text, Tk, Toplevel, ttk
+from functools import partial
+from tkinter import END, Canvas, Menu, TclError, Text, Tk, Toplevel, ttk
 
 
 class PromptDialog(Toplevel):
@@ -112,12 +113,19 @@ class StatusIndicator:
                 if label == "-":
                     self.menu.add_separator()
                 else:
-                    self.menu.add_command(label=label, command=command)
+                    # Run the command after tk_popup returns. Quit destroys the
+                    # interpreter, and doing that while the menu is still posted
+                    # unwinds into a dead Tk.
+                    self.menu.add_command(label=label, command=partial(self._defer, command))
             for w in (self.window, frame, self.label, self.dot):
                 w.bind("<Button-3>", self._show_menu, add="+")
 
         # Keep the floating window pinned above everything else
         self.window.after(1500, self._ensure_topmost)
+
+    def _defer(self, command: Callable[[], None]) -> None:
+        """Run a menu command once the menu has closed."""
+        self.window.after(0, command)
 
     def _show_menu(self, event) -> None:
         """Open the right-click menu at the pointer."""
@@ -125,8 +133,15 @@ class StatusIndicator:
             return
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
+        except TclError:
+            # A right-click that lands as the app is going away, or a Quit that
+            # destroyed the interpreter while the menu was still posted.
+            return
         finally:
-            self.menu.grab_release()
+            try:
+                self.menu.grab_release()
+            except TclError:
+                pass
 
     def _start_drag(self, event) -> None:
         """Start dragging the indicator."""
@@ -152,8 +167,6 @@ class StatusIndicator:
         y = max(0, min(y, sh - wh))
 
         self.window.geometry(f"+{x}+{y}")
-        self.window.lift()
-        self.window.attributes("-topmost", True)
 
         # Remember that the user moved it
         self.user_position = (x, y)
@@ -172,8 +185,14 @@ class StatusIndicator:
         self._reset_position()
 
     def _reposition(self, event=None) -> None:
-        """Reposition the indicator window."""
-        if not self.window.winfo_viewable():
+        """Reposition the indicator window.
+
+        Position is honoured even while the window is hidden - Tk remembers the
+        geometry and applies it on map. Gating this on winfo_viewable() left the
+        pill at 0,0 when it was deiconified moments earlier, because the map had
+        not been processed yet.
+        """
+        if not self.window.winfo_exists():
             return
 
         self.window.update_idletasks()
@@ -195,15 +214,31 @@ class StatusIndicator:
             y = screen_h - window_h - margin_y
 
         self.window.geometry(f"+{int(x)}+{int(y)}")
+        # Flush the move before touching z-order: geometry() only *requests* a
+        # position, and lift() acts on where the window actually is, discarding
+        # the pending request.
+        self.window.update_idletasks()
+        self._raise()
+
+    def _raise(self) -> None:
+        """Keep the pill above everything without moving it.
+
+        Setting -topmost on a window that already has it snaps it back to
+        wherever Windows last placed it, which undid every drag and every
+        reposition. Only assert it when it has actually been lost.
+        """
         self.window.lift()
-        self.window.attributes("-topmost", True)
+        try:
+            if not self.window.attributes("-topmost"):
+                self.window.attributes("-topmost", True)
+        except TclError:  # pragma: no cover - window going away
+            pass
 
     def _ensure_topmost(self) -> None:
         """Re-assert topmost state on an interval."""
         if not self.window.winfo_exists():
             return
-        self.window.lift()
-        self.window.attributes("-topmost", True)
+        self._raise()
         self.window.after(3000, self._ensure_topmost)
 
     def show(self) -> None:
@@ -213,10 +248,12 @@ class StatusIndicator:
         the main window hidden the pill is the whole app, and an app you cannot
         see has not started as far as the user is concerned.
         """
-        if not self.window.winfo_viewable():
-            self.window.deiconify()
+        # Place it before mapping it. Geometry set between deiconify() and the
+        # map being processed is discarded, which left the pill at 0,0.
         self.window.update_idletasks()
         self._reposition()
+        if not self.window.winfo_viewable():
+            self.window.deiconify()
 
     def update(self, state: str, message: str) -> None:
         """Update the indicator with new state and message."""
