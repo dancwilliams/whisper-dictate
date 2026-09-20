@@ -1217,10 +1217,25 @@ class App(Tk):
             self.var_compute.get().strip(),
         )
 
+    def _asr_description(self) -> str:
+        """Name the recognizer actually in use.
+
+        The Whisper model setting does not apply to Cohere, which has one fixed
+        model, and naming it there reads as though it did.
+        """
+        backend = self.var_asr_backend.get().strip() or DEFAULT_ASR_BACKEND
+        if backend == "whisper":
+            return f"Whisper {self.var_model.get().strip()}"
+        return f"{backend} {asr.CohereBackend.MODEL_ID}"
+
     def _build_backend(self):
         """Factory for the Resident. Runs on a loader thread: no Tk in here."""
         backend, model_name, device, compute = self._asr_config
-        logger.info(f"Loading ASR backend {backend} ({model_name} on {device}, {compute})")
+        # Read from the captured config, not Tk: this runs on a loader thread.
+        if backend == "whisper":
+            logger.info(f"Loading Whisper {model_name} on {device} ({compute})")
+        else:
+            logger.info(f"Loading {backend} {asr.CohereBackend.MODEL_ID} on {device}")
         return asr.load_backend(
             backend,
             model_name,
@@ -1249,7 +1264,7 @@ class App(Tk):
             sd.default.device = (device_id, None)
 
         self._apply_idle_ttl()
-        self._set_status("processing", f"Loading {self.var_model.get().strip()}...")
+        self._set_status("processing", f"Loading {self._asr_description()}...")
         self.asr.warm()
 
         def watcher():

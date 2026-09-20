@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The floating pill could not be dragged; it stuck at the top-left corner.
+  `geometry()` only *requests* a move, and the `lift()` and `-topmost` calls
+  that followed it acted on where the window actually was, discarding the
+  request. Re-asserting `-topmost` on a window that already has it also snaps it
+  back. The move is now flushed before any z-order change, and topmost is only
+  set when it has been lost - so the three-second topmost timer no longer
+  flings the pill back either.
+- The pill ignored its saved position at startup when the main window was
+  hidden: geometry set between `deiconify()` and the map being processed is
+  discarded. It is now placed before being mapped.
+- Quitting from the pill's right-click menu ended in a TclError traceback. The
+  command destroyed the interpreter while the menu was still posted, so
+  `tk_popup` unwound into a dead Tk. Menu commands now run once the menu has
+  closed, and the popup tolerates the app going away underneath it.
+
 ### Added
 - The floating pill is now the app
   - Right-click it for Show window, Cleanup settings and Quit
