@@ -6,7 +6,7 @@ import re
 import tkinter as tk
 from tkinter import StringVar, Toplevel, messagebox, ttk
 
-from whisper_dictate import app_prompts
+from whisper_dictate import app_prompts, s1
 
 
 class AppPromptDialog(Toplevel):
@@ -230,6 +230,11 @@ class AppPromptEntryDialog(Toplevel):
         self.var_window_regex = StringVar(
             value=entry.get("window_title_regex", "") if entry else ""
         )
+        # The S1-mini control line, per app. Blank means "use the global setting".
+        self.style_vars = {
+            key: StringVar(value=entry.get(key, "") if entry else "")
+            for key in ("styling", "structure", "context")
+        }
 
         frame = ttk.Frame(self, padding=12)
         frame.grid(row=0, column=0, sticky="nsew")
@@ -245,14 +250,30 @@ class AppPromptEntryDialog(Toplevel):
             row=1, column=1, sticky="we", pady=(0, 8), padx=(12, 0)
         )
 
-        ttk.Label(frame, text="Prompt").grid(row=2, column=0, sticky="nw", pady=(4, 0))
+        ttk.Label(frame, text="Cleanup style (blank = global)").grid(row=2, column=0, sticky="w")
+        style_row = ttk.Frame(frame)
+        style_row.grid(row=2, column=1, sticky="we", pady=(0, 8), padx=(12, 0))
+        for key, values in (
+            ("styling", s1.STYLING),
+            ("structure", s1.STRUCTURE),
+            ("context", s1.CONTEXT),
+        ):
+            ttk.Combobox(
+                style_row,
+                textvariable=self.style_vars[key],
+                values=["", *values],
+                width=12,
+                state="readonly",
+            ).pack(side="left", padx=(0, 8))
+
+        ttk.Label(frame, text="Prompt").grid(row=3, column=0, sticky="nw", pady=(4, 0))
         self.txt_prompt = tk.Text(frame, width=50, height=8, wrap="word")
         if entry and entry.get("prompt"):
             self.txt_prompt.insert("1.0", entry["prompt"])
-        self.txt_prompt.grid(row=2, column=1, sticky="we", padx=(12, 0))
+        self.txt_prompt.grid(row=3, column=1, sticky="we", padx=(12, 0))
 
         actions = ttk.Frame(frame)
-        actions.grid(row=3, column=1, sticky="e", pady=(10, 0))
+        actions.grid(row=4, column=1, sticky="e", pady=(10, 0))
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
             row=0, column=0, padx=(0, 8)
         )
@@ -263,17 +284,21 @@ class AppPromptEntryDialog(Toplevel):
     def _on_save(self) -> None:
         process = self.var_process.get().strip()
         prompt = self.txt_prompt.get("1.0", "end").strip()
+        styles = {key: var.get().strip() for key, var in self.style_vars.items()}
         if not process:
             messagebox.showerror("App prompt", "Process name is required.")
             return
-        if not prompt:
-            messagebox.showerror("App prompt", "Prompt cannot be empty.")
+        if not prompt and not any(styles.values()):
+            # A rule that only sets the control line is legitimate: "email shape
+            # in Outlook" needs no prompt.
+            messagebox.showerror("App prompt", "Set a prompt, a cleanup style, or both.")
             return
 
         self.result = {
             "process_name": process,
             "window_title_regex": self.var_window_regex.get().strip(),
             "prompt": prompt,
+            **styles,
         }
         self.destroy()
 

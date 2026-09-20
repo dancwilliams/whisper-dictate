@@ -186,16 +186,21 @@ class TestRulesToEntries:
         result = app_prompts.rules_to_entries(rules)
 
         assert len(result) == 2
+        # Entries also carry the S1 control-line keys, empty when unset.
+        trimmed = [
+            {k: e[k] for k in ("process_name", "window_title_regex", "prompt")} for e in result
+        ]
         assert {
             "process_name": "notepad.exe",
             "window_title_regex": "",
             "prompt": "Notepad prompt",
-        } in result
+        } in trimmed
         assert {
             "process_name": "code.exe",
             "window_title_regex": ".*\\.py",
             "prompt": "Code prompt",
-        } in result
+        } in trimmed
+        assert all(e["styling"] == "" and e["context"] == "" for e in result)
 
     def test_rules_to_entries_multiple_rules_per_process(self):
         """Test conversion with multiple rules for same process."""
@@ -431,3 +436,79 @@ class TestResolveAppPromptWithSafeRegex:
         # Should return None (pattern validation fails)
         result = app_prompts.resolve_app_prompt(rules, context)
         assert result is None
+
+
+class TestPerAppStyle:
+    """The S1-mini control line, resolved per application."""
+
+    def _context(self, process, title=None):
+        return ActiveContext(process_name=process, window_title=title, cursor_position=None)
+
+    def test_style_keys_survive_normalize(self):
+        rules = app_prompts.normalize_app_prompts(
+            {"olk.exe": {"prompt": "", "styling": "semi-formal", "context": "email"}}
+        )
+        # An empty prompt is not a rule; the control line alone is.
+        assert rules["olk.exe"] == [{"styling": "semi-formal", "context": "email"}]
+
+    def test_invalid_style_values_are_dropped(self):
+        """A setting the model was never trained on must not reach the prompt."""
+        rules = app_prompts.normalize_app_prompts(
+            {"olk.exe": [{"prompt": "p", "styling": "shouty", "structure": "lists"}]}
+        )
+        assert rules["olk.exe"] == [{"prompt": "p", "structure": "lists"}]
+
+    def test_a_rule_with_only_styles_is_kept(self):
+        """ "Email shape in Outlook" needs no prompt at all."""
+        entries = [
+            {
+                "process_name": "olk.exe",
+                "window_title_regex": "",
+                "prompt": "",
+                "styling": "semi-formal",
+                "structure": "prose",
+                "context": "email",
+            }
+        ]
+        assert app_prompts.entries_to_rules(entries) == {
+            "olk.exe": [{"styling": "semi-formal", "structure": "prose", "context": "email"}]
+        }
+
+    def test_an_entry_with_neither_prompt_nor_style_is_dropped(self):
+        entries = [{"process_name": "olk.exe", "window_title_regex": "", "prompt": ""}]
+        assert app_prompts.entries_to_rules(entries) == {}
+
+    def test_round_trip_through_entries(self):
+        rules = {"olk.exe": [{"prompt": "p", "styling": "formal", "context": "email"}]}
+        assert app_prompts.entries_to_rules(app_prompts.rules_to_entries(rules)) == rules
+
+    def test_resolve_returns_only_the_keys_the_rule_sets(self):
+        rules = {"olk.exe": [{"context": "email"}]}
+        assert app_prompts.resolve_app_style(rules, self._context("olk.exe")) == {
+            "context": "email"
+        }
+
+    def test_window_title_match_beats_the_process_wide_rule(self):
+        rules = {
+            "code.exe": [
+                {"styling": "casual"},
+                {"window_title_regex": r".*\.md", "styling": "formal"},
+            ]
+        }
+        assert app_prompts.resolve_app_style(rules, self._context("code.exe", "notes.md")) == {
+            "styling": "formal"
+        }
+        assert app_prompts.resolve_app_style(rules, self._context("code.exe", "main.py")) == {
+            "styling": "casual"
+        }
+
+    def test_unknown_process_gets_nothing(self):
+        rules = {"olk.exe": [{"context": "email"}]}
+        assert app_prompts.resolve_app_style(rules, self._context("notepad.exe")) == {}
+
+    def test_no_context_gets_nothing(self):
+        assert app_prompts.resolve_app_style({"olk.exe": [{"context": "email"}]}, None) == {}
+
+    def test_prompt_only_rules_contribute_no_style(self):
+        rules = {"notepad.exe": [{"prompt": "just a prompt"}]}
+        assert app_prompts.resolve_app_style(rules, self._context("notepad.exe")) == {}

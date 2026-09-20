@@ -502,9 +502,9 @@ A rule (`app_prompts.py:15-16`) may carry `styling`/`structure`/`context` beside
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv sync` installs a llama wheel without compiling
-- [ ] `uv run pytest tests/test_s1.py`; full suite and ruff clean
-- [ ] `uv run python -c "from whisper_dictate.s1 import S1Cleaner; print(S1Cleaner().clean('so um i need to like send the the report by uh friday no wait make that thursday','semi-formal','prose','general'))"` prints `So I need to send the report by Thursday.`
+- [x] `uv sync` installs a llama wheel without compiling
+- [x] `uv run pytest tests/test_s1.py`; full suite and ruff clean
+- [x] `uv run python -c "from whisper_dictate.s1 import S1Cleaner; print(S1Cleaner().clean('so um i need to like send the the report by uh friday no wait make that thursday','semi-formal','prose','general'))"` prints `So I need to send the report by Thursday.`
 
 #### Manual Verification:
 - [ ] With LM Studio and Ollama stopped, a dictation is cleaned; the log line says GPU or CPU and the latency (GPU ≈ 0.3 s; CPU ≤ 1.5 s for an email-length dictation)
