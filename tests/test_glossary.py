@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from whisper_dictate import glossary
 from whisper_dictate.glossary import (
     GlossaryManager,
     GlossaryRule,
@@ -464,3 +465,115 @@ class TestGlossaryRuleSerialization:
         assert rule.case_sensitive is False  # default
         assert rule.word_boundary is True  # default
         assert rule.description is None  # default
+
+
+class TestPhoneticRules:
+    """Opt-in phonetic matching, for the variants a recognizer invents."""
+
+    def _manager(self, trigger="threatfax", replacement="threatfax"):
+        return GlossaryManager(
+            [GlossaryRule(trigger=trigger, replacement=replacement, match_type="phonetic")]
+        )
+
+    def test_one_rule_catches_every_spelling_the_recognizer_invents(self):
+        m = self._manager()
+        assert m.apply("send it to threat fax today") == "send it to threatfax today"
+        assert m.apply("the Threat Fox dashboard") == "the threatfax dashboard"
+        assert m.apply("a thread fax please") == "a threatfax please"
+
+    def test_a_short_code_is_refused_with_the_words_it_would_hit(self):
+        """Claude codes as KLT, and so do cloud and clod."""
+        reason = glossary.phonetic_rejection("Claude")
+        assert reason is not None
+        assert "KLT" in reason
+
+    def test_a_distinctive_code_is_accepted(self):
+        assert glossary.phonetic_rejection("threatfax") is None
+        assert glossary.phonetic_rejection("Capobianco") is None
+
+    def test_an_invalid_phonetic_rule_is_dropped_on_construction(self):
+        m = GlossaryManager(
+            [GlossaryRule(trigger="Claude", replacement="Claude", match_type="phonetic")]
+        )
+        assert m.rules == []
+
+    def test_ordinary_words_are_left_alone(self):
+        m = self._manager()
+        text = "the quick brown fox jumped over the lazy dog"
+        assert m.apply(text) == text
+
+    def test_a_different_sounding_phrase_is_not_matched(self):
+        """Trey Fax codes TRFKS, threatfax codes 0RTFKS. Add an exact rule for
+        that variant rather than loosening the match."""
+        assert self._manager().apply("ask Trey Fax about it") == "ask Trey Fax about it"
+
+    def test_exact_rules_run_before_phonetic_ones(self):
+        m = GlossaryManager(
+            [
+                GlossaryRule(trigger="threat fax", replacement="EXACT"),
+                GlossaryRule(trigger="threatfax", replacement="PHONETIC", match_type="phonetic"),
+            ]
+        )
+        # The exact rule wins where it applies; phonetic sweeps what is left.
+        assert m.apply("threat fax and thread fax") == "EXACT and PHONETIC"
+
+    def test_punctuation_and_spacing_around_a_match_survive(self):
+        assert self._manager().apply("Is (threat fax) up?") == "Is (threatfax) up?"
+
+    def test_a_multi_word_match_beats_the_single_word_inside_it(self):
+        m = GlossaryManager(
+            [GlossaryRule(trigger="Wispr Flow", replacement="Wispr Flow", match_type="phonetic")]
+        )
+        assert m.apply("I used whisper flow yesterday") == "I used Wispr Flow yesterday"
+
+    def test_empty_trigger_is_refused(self):
+        assert glossary.phonetic_rejection("   ") is not None
+
+
+class TestHotwords:
+    """Per-application vocabulary for the Whisper backend."""
+
+    def test_budget_stops_at_the_character_limit(self):
+        assert glossary.budget(["alpha", "beta", "gamma"], chars=14) == ["alpha", "beta"]
+
+    def test_budget_drops_duplicates(self):
+        assert glossary.budget(["alpha", "alpha", "beta"]) == ["alpha", "beta"]
+
+    def test_an_app_with_no_entry_gets_nothing(self):
+        """Hotwords cost about 16 word errors per term rescued, and most
+        dictations contain no domain term - so they are per-app only."""
+        by_app = {"code": ["Traefik"]}
+        assert glossary.hotwords_for_app("notepad.exe", by_app) is None
+
+    def test_the_process_stem_is_matched_case_insensitively(self):
+        by_app = {"code": ["Traefik", "OPNsense"]}
+        assert glossary.hotwords_for_app("Code.exe", by_app) == "Traefik, OPNsense"
+
+    def test_glossary_replacements_join_the_vocabulary(self):
+        """Teaching the recognizer the right word beats patching it afterwards."""
+        manager = GlossaryManager([GlossaryRule(trigger="sonar cube", replacement="SonarQube")])
+        result = glossary.hotwords_for_app("code.exe", {"code": ["Traefik"]}, manager)
+        assert result == "Traefik, SonarQube"
+
+    def test_no_process_name_gets_nothing(self):
+        assert glossary.hotwords_for_app(None, {"code": ["Traefik"]}) is None
+
+    def test_the_default_budget_is_the_benchmarked_one(self):
+        """800 chars leaves a long clip no decoding budget at all."""
+        assert glossary.HOTWORD_CHAR_BUDGET == 400
+
+    def test_a_missing_file_is_an_empty_map(self, tmp_path):
+        assert glossary.load_hotwords_by_app(tmp_path / "absent.json") == {}
+
+    def test_malformed_json_is_an_empty_map(self, tmp_path):
+        path = tmp_path / "hotwords.json"
+        path.write_text("{not json", encoding="utf-8")
+        assert glossary.load_hotwords_by_app(path) == {}
+
+    def test_loads_and_lowercases_keys(self, tmp_path):
+        path = tmp_path / "hotwords.json"
+        path.write_text('{"Code": ["Traefik"], "olk": ["Capobianco"]}', encoding="utf-8")
+        assert glossary.load_hotwords_by_app(path) == {
+            "code": ["Traefik"],
+            "olk": ["Capobianco"],
+        }

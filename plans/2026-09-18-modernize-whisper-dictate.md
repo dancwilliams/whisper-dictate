@@ -589,8 +589,8 @@ Append one JSON line per dictation to `~/.whisper_dictate/history.jsonl`: `ts`, 
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest`, `uv run ruff check .` clean
-- [ ] `uv run python -c "from jellyfish import metaphone as m; assert m('threatfax')==m('threatfox')==m('threadfax')=='0RTFKS'; assert m('treyfax')!='0RTFKS'; print('ok')"`
+- [x] `uv run pytest`, `uv run ruff check .` clean
+- [x] `uv run python -c "from jellyfish import metaphone as m; assert m('threatfax')==m('threatfox')==m('threadfax')=='0RTFKS'; assert m('treyfax')!='0RTFKS'; print('ok')"`
 
 #### Manual Verification:
 - [ ] One phonetic rule `threatfax` fixes "threat fax" and "Threat Fox"; the dialog refuses to make `Claude` phonetic

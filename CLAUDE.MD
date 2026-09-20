@@ -59,7 +59,8 @@ Ruff enforces import sorting with the "I" rule:
 | `asr.py` | Recognizer backends and GPU residency | `WhisperBackend`, `CohereBackend`, `Resident`, `load_backend()` |
 | `llm_cleanup.py` | LLM text cleanup with OpenAI client | `clean_with_llm()`, `list_llm_models()` |
 | `s1.py` | Built-in cleanup with S1-mini (llama.cpp) | `S1Cleaner`, `build_prompt()` |
-| `glossary.py` | Glossary persistence and application | `GlossaryManager`, `GlossaryRule`, `apply_glossary()` |
+| `glossary.py` | Glossary persistence, phonetic rules, per-app hotwords | `GlossaryManager`, `GlossaryRule`, `apply_glossary()`, `hotwords_for_app()` |
+| `history.py` | Local dictation record and audio pruning | `record()`, `prune_audio()` |
 | `glossary_dialog.py` | GUI for glossary management | `GlossaryDialog` |
 | `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_hotkey_string()` |
 | `clipboard.py` | Clipboard snapshot/restore (ctypes) | `snapshot()`, `restore()`, `set_text()` |

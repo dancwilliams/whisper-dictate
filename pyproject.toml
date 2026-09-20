@@ -8,6 +8,8 @@ dependencies = [
     "ctranslate2>=4.8.2",
     "faster-whisper>=1.2.1",
     "keyring>=25.7.0",
+    # Metaphone, for opt-in phonetic glossary rules.
+    "jellyfish>=1.1.0",
     "numpy>=2.3.4",
     "nvidia-cublas-cu12==12.4.5.8",        # unchanged: CUDA pins are decided in Phase 3 with torch
     "nvidia-cuda-nvrtc-cu12==12.4.127",
