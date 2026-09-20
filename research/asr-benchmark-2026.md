@@ -70,3 +70,46 @@ fixes those at no cost to the error rate, which is what it is for.
 
 Phase 6 should apply the 400-char budget per application instead, where the
 vocabulary actually occurs, and leave general dictation unbiased.
+
+## Phonetic glossary rules, measured 2026-09-20
+
+Phonetic rules match on a single Metaphone code by exact equality. Measured
+against the same 198 clips, with the 12 terms in Dan's glossary whose codes are
+long enough to qualify:
+
+| glossary | domain-term recall | clips changed |
+|---|---|---|
+| exact rules only | 91.2% (103/113) | - |
+| exact + 12 phonetic rules | 91.2% (103/113) | 0 |
+
+**The phonetic rules change nothing on this corpus.** Every domain-term error the
+recognizer actually makes is either already fixed by an exact rule, or involves a
+term too short to be phonetic at all: `Claude` codes as `KLT` and `yessir` as
+`YSR`, both under the five-symbol floor that keeps them from rewriting ordinary
+speech.
+
+They are kept because they are free and safe rather than because they are
+pulling weight. Their value is speculative: a future variant that happens to
+share a code gets fixed without a new rule.
+
+### Why the match is not loosened
+
+The obvious complaint is that `threat facts` - what Whisper actually writes for
+`threatfax` - codes as `0RTFKTS`, one symbol from `0RTFKS`, and is missed.
+Allowing a one-symbol difference was measured over the same corpus:
+
+| matching | false positives on real text |
+|---|---|
+| exact equality (shipped) | none |
+| one-symbol difference | `Couldn't` -> Claude.MD, `Copying` -> Capobianco, `kept being` -> Capobianco, `out GPT-6` -> ChatGPT, `through DFW So` -> threatfax |
+
+Rewriting "Couldn't" into a filename is far worse than missing a variant, so the
+match stays exact. The remedy for a near-miss is an ordinary exact rule, which
+is what the hostname entries in the glossary already are.
+
+### Testing a phonetic rule
+
+Use a term whose recognizer errors differ in *sound*, not by an inserted
+consonant, and one that no exact rule already covers - otherwise the exact rule
+fires first and the test proves nothing. `sonar cube` is a poor test for this
+reason: an exact rule already catches it.
