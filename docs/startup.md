@@ -13,8 +13,8 @@ somewhere else.
 $repo = "$HOME\git\whisper-dictate"
 $lnk  = [Environment]::GetFolderPath('Startup') + '\whisper-dictate.lnk'
 $s    = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
-$s.TargetPath       = (Get-Command uv).Source
-$s.Arguments        = 'run --no-sync pythonw -m whisper_dictate.gui'
+$s.TargetPath       = "$repo\.venv\Scripts\pythonw.exe"
+$s.Arguments        = '-m whisper_dictate.gui'
 $s.WorkingDirectory = $repo
 $s.Description      = 'whisper-dictate'
 $s.Save()
@@ -25,13 +25,15 @@ window, no main window.
 
 ## Why each part
 
-- **`pythonw`** rather than `python`: no console window. A console would sit in
-  the taskbar for the life of the session and close the app if dismissed.
-- **`--no-sync`**: `uv run` normally checks and updates the environment first,
-  which adds seconds to every login and can fail if the network is down. The
-  environment is already correct; just use it.
-- **Working directory is the repo**: `uv run` finds the project from the working
-  directory, not from the script path.
+- **`pythonw.exe` from the venv**, not `uv run`: `uv.exe` is a console program,
+  so Windows opens a console for it and keeps it there for as long as the app
+  runs — running `pythonw` *through* `uv` does not help, because the console
+  belongs to `uv`, not to Python. `pythonw.exe` is a GUI-subsystem binary, so no
+  console is ever created. Going straight to the venv also skips `uv run`'s
+  environment check, which adds seconds to every login and can fail if the
+  network is down.
+- **Working directory is the repo**: not needed to find the interpreter, but the
+  app resolves project-relative paths from it.
 
 ## Removing it
 
@@ -64,6 +66,6 @@ causes:
   on startup" and "Auto-register hotkey after model loads" are on, in
   Settings → Automation. With either off, the app starts with its window
   visible so you have something to click.
-- **`uv` is not on PATH for the login session.** `(Get-Command uv).Source` in
-  the snippet above bakes in the full path, so re-run it rather than editing the
-  shortcut by hand.
+- **The venv moved or was rebuilt elsewhere.** The shortcut names
+  `.venv\Scripts\pythonw.exe` by absolute path, so re-run the snippet after
+  moving the clone rather than editing the shortcut by hand.
