@@ -46,3 +46,27 @@ The trade the table does not settle: hotwords cost 1.2 WER points and buy 3.6
 points of domain-term recall. Whether the vocabulary matters more than the
 general error rate is a judgement about how the tool is actually used, and is
 Dan's to make.
+
+## Decision, 2026-09-19
+
+**Primary: Whisper large-v3-turbo. Fallback: Cohere.** Whisper has the lowest
+WER, a third of Cohere's cold reload and 40% of its VRAM; Cohere stays as the
+fallback for when Whisper cannot be loaded.
+
+**Hotwords: off globally.** The percentages flatter the trade. In absolute terms
+over the 198 clips, the 400-char hotword string:
+
+- rescued 4 domain-term occurrences (98 -> 102 of 113) and broke one (`N8N`,
+  which plain Whisper got right)
+- cost about 63 additional word errors (467 -> 530 over 5,192 reference words)
+
+That is roughly 16 extra word errors for each domain term recovered. Only 85 of
+198 clips contain a domain term at all, so 57% of dictations would pay the cost
+for no benefit.
+
+The terms missed by both candidates - Traefik, Capobianco, OPNsense, Wispr Flow,
+Yessir - are the ones the glossary already has exact rules for. The string layer
+fixes those at no cost to the error rate, which is what it is for.
+
+Phase 6 should apply the 400-char budget per application instead, where the
+vocabulary actually occurs, and leave general dictation unbiased.

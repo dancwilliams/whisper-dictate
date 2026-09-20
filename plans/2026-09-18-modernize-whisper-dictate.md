@@ -421,11 +421,11 @@ class Resident:
 - [x] CI green with `--no-group ml`
 
 #### Manual Verification:
-- [ ] Dan reads the benchmark table and names primary + fallback; the choice and the numbers go in the PR description
-- [ ] Live dictation on the primary backend works; switching `asr_backend` works without restart
-- [ ] Wait 6 minutes idle → `nvidia-smi` shows the model's VRAM released; next press: beep is immediate, text arrives after the load with no lost audio
-- [ ] A 2-second utterance on a cold model: measure press-to-paste and record it (this is the worst case the 5-minute TTL buys)
-- [ ] With the HF token file removed → falls back with a warning, no crash
+- [x] Dan reads the benchmark table and names primary + fallback; the choice and the numbers go in the PR description
+- [x] Live dictation on the primary backend works; switching `asr_backend` works without restart
+- [x] Wait 6 minutes idle → `nvidia-smi` shows the model's VRAM released; next press: beep is immediate, text arrives after the load with no lost audio
+- [x] A 2-second utterance on a cold model: measure press-to-paste and record it (this is the worst case the 5-minute TTL buys)
+- [x] With the HF token file removed → falls back with a warning, no crash
 
 **Implementation Note**: pause for manual confirmation before Phase 4.
 
@@ -567,6 +567,8 @@ Phonetic glossary rules where they are safe, hotwords where the backend supports
 
 #### 2. Hotwords on a Whisper backend
 **File**: `whisper_dictate/gui.py`, `glossary.py`
+**Decided 2026-09-19 (see `research/asr-benchmark-2026.md`): hotwords stay off globally** - 400 chars cost ~63 extra word errors to rescue 4 domain terms, and 57% of dictations contain no domain term at all. Per-app only, budget 400 chars.
+
 When the active backend is Whisper: `hotwords` = per-app list from `~/.whisper_dictate/hotwords_by_app.json` (keyed by process stem; Dan copies `mined/hotwords_by_app.json` there once), else `hotwords.txt`, plus glossary replacement strings, trimmed to 800 chars (move the miner's `budget()` into `glossary.py`). `initial_prompt` (setting, `gui.py:1252`) and hotwords share Whisper's prompt context; log the final string length once per dictation at DEBUG. Cohere ignores hotwords.
 
 #### 3. History: text forever, 14 days of audio
