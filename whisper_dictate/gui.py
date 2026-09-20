@@ -5,17 +5,9 @@ import threading
 import time
 import winsound
 from collections import deque
-
-try:
-    import pyautogui
-
-    pyautogui.FAILSAFE = False
-except ImportError:
-    pyautogui = None
-
+from collections.abc import Callable
 from tkinter import END, BooleanVar, DoubleVar, Menu, StringVar, Text, Tk, Toplevel, messagebox, ttk
 
-import pyperclip
 import sounddevice as sd
 from faster_whisper import WhisperModel
 
@@ -23,6 +15,7 @@ from whisper_dictate import (
     app_context,
     app_prompts,
     audio,
+    clipboard,
     config,
     glossary,
     hotkeys,
@@ -68,6 +61,10 @@ TAP_SECONDS = 0.3
 
 # The cue that says capture is live. Short enough not to bleed into the first word.
 BEEP_HZ, BEEP_MS = 880, 60
+
+# How long to wait for a held chord to come up before pasting anyway. Generous:
+# holding the keys is the user's business, and a paste under them does nothing.
+MODIFIER_WAIT_SECONDS = 5.0
 
 # Note: Audio recorder thread is now managed internally by AudioRecorder class
 
@@ -158,6 +155,7 @@ class App(Tk):
         self.var_hotkey = StringVar(value="CTRL+SPACE")
         self.var_auto_paste = BooleanVar(value=True)
         self.var_paste_delay = DoubleVar(value=0.15)
+        self.var_restore_delay = DoubleVar(value=0.6)
 
         self.var_llm_enable = BooleanVar(value=DEFAULT_LLM_ENABLED)
         self.var_llm_endpoint = StringVar(value=DEFAULT_LLM_ENDPOINT)
@@ -368,6 +366,15 @@ class App(Tk):
                 to=1.0,
                 increment=0.05,
                 textvariable=self.var_paste_delay,
+                width=6,
+            ).pack(side="left", padx=(8, 0))
+            ttk.Label(paste_row, text="Clipboard restore delay (s)").pack(side="left", padx=(16, 0))
+            ttk.Spinbox(
+                paste_row,
+                from_=0.0,
+                to=3.0,
+                increment=0.05,
+                textvariable=self.var_restore_delay,
                 width=6,
             ).pack(side="left", padx=(8, 0))
 
@@ -936,6 +943,7 @@ class App(Tk):
         set_if_present("hotkey", self.var_hotkey, str)
         set_if_present("auto_paste", self.var_auto_paste, bool)
         set_if_present("paste_delay", self.var_paste_delay, float)
+        set_if_present("restore_delay", self.var_restore_delay, float)
         set_if_present("llm_enable", self.var_llm_enable, bool)
         set_if_present("llm_endpoint", self.var_llm_endpoint, str)
         set_if_present("llm_model", self.var_llm_model, str)
@@ -981,6 +989,7 @@ class App(Tk):
             "hotkey": self.var_hotkey.get().strip(),
             "auto_paste": bool(self.var_auto_paste.get()),
             "paste_delay": float(self.var_paste_delay.get()),
+            "restore_delay": float(self.var_restore_delay.get()),
             "llm_enable": bool(self.var_llm_enable.get()),
             "llm_endpoint": self.var_llm_endpoint.get().strip(),
             "llm_model": self.var_llm_model.get().strip(),
@@ -1179,9 +1188,9 @@ class App(Tk):
             if self.hotkey_manager is None:
                 # The hook thread must not touch Tk; marshal every callback.
                 self.hotkey_manager = hotkeys.HotkeyManager(
-                    lambda: self.after(0, self._on_hotkey_press),
-                    lambda: self.after(0, self._on_hotkey_release),
-                    lambda: self.after(0, self._on_hotkey_cancel),
+                    lambda: self._post(self._on_hotkey_press),
+                    lambda: self._post(self._on_hotkey_release),
+                    lambda: self._post(self._on_hotkey_cancel),
                 )
             self.hotkey_manager.register(combo)
             self._set_status("ready", f"Ready (hotkey: {combo})")
@@ -1206,6 +1215,10 @@ class App(Tk):
             return
         # register() parses before it unhooks, so a typo leaves the old chord live.
         self._register_hotkey()
+
+    def _post(self, handler: Callable[[], None]) -> None:
+        """Hand a hook-thread event to the Tk thread."""
+        self.after(0, handler)
 
     def _on_hotkey_press(self) -> None:
         """Chord went down: start recording, or end a recording locked by a tap."""
@@ -1367,28 +1380,68 @@ class App(Tk):
         self.txt_out.insert(END, f"[{ts}] {final_text}\n")
         self.txt_out.see(END)
 
-        try:
-            pyperclip.copy(final_text)
-            if self.var_auto_paste.get():
-                if pyautogui is None:
-                    self._set_status("warning", "pyautogui not installed; cannot auto-paste")
-                else:
-                    time.sleep(float(self.var_paste_delay.get()))
-                    try:
-                        pyautogui.hotkey("ctrl", "v")
-                        self._set_status("ready", "Pasted into active window")
-                    except (pyautogui.FailSafeException, pyautogui.PyAutoGUIException) as e:
-                        # FailSafeException: Mouse moved to corner (failsafe triggered)
-                        # PyAutoGUIException: Other pyautogui errors
-                        self._set_status("error", f"Auto-paste failed: {e}")
-                        logger.error(f"Auto-paste failed: {e}", exc_info=True)
-        except (pyperclip.PyperclipException, RuntimeError) as e:
-            # PyperclipException: Clipboard access errors
-            # RuntimeError: Other clipboard-related errors
-            logger.error(f"Clipboard copy failed: {e}", exc_info=True)
+        self._deliver(final_text)
 
         if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
             self._set_status("ready", "Ready")
+
+    def _deliver(self, text: str) -> None:
+        """Paste the dictation and give the clipboard back.
+
+        The clipboard is borrowed, not taken: whatever was on it - text, HTML,
+        an image, a copied file - goes back once the target app has read ours.
+        """
+        try:
+            saved = clipboard.snapshot()
+        except clipboard.ClipboardError as e:
+            # Someone else holds it. Better to lose their clipboard than the dictation.
+            logger.warning(f"Could not snapshot the clipboard: {e}")
+            saved = None
+
+        try:
+            clipboard.set_text(text)
+        except clipboard.ClipboardError as e:
+            self._set_status("error", "Clipboard write failed")
+            logger.error(f"Clipboard write failed: {e}", exc_info=True)
+            return
+
+        if self.var_auto_paste.get():
+            self._wait_for_modifiers_up()
+            time.sleep(float(self.var_paste_delay.get()))
+            # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
+            # dictation apps use.
+            if clipboard.send_paste():
+                self._set_status("ready", "Pasted into active window")
+            else:
+                self._set_status("error", "Auto-paste failed")
+                logger.error("SendInput refused the paste keystroke")
+
+        if saved is None:
+            return
+        # Give the target app time to read our text before taking it back.
+        time.sleep(float(self.var_restore_delay.get()))
+        try:
+            clipboard.restore(saved)
+        except clipboard.ClipboardError as e:
+            logger.warning(f"Could not restore the clipboard: {e}")
+
+    def _wait_for_modifiers_up(self, timeout: float = MODIFIER_WAIT_SECONDS) -> None:
+        """Block until every modifier key is released.
+
+        Injecting Shift+Insert while Ctrl or Win is still held sends the target
+        app a different shortcut entirely, and nothing pastes. Tap-to-lock is the
+        one flow that reaches here with the chord still down - every other path
+        ends on the release - so the wait has to outlast a deliberate hold.
+        """
+        if not self.hotkey_manager:
+            return
+        deadline = time.monotonic() + timeout
+        while not self.hotkey_manager.modifiers_up() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if not self.hotkey_manager.modifiers_up():
+            logger.warning(
+                f"Modifiers still held after {timeout}s; pasting anyway, it may not land"
+            )
 
     def _record_recent_process(self, process_name: str | None, window_title: str | None) -> None:
         """Track recently seen applications using process and window title."""

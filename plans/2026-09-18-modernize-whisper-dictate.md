@@ -308,18 +308,18 @@ Remove `pyperclip` (`gui.py:16`, `:1324`, `pyproject.toml`). New setting `restor
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest tests/test_clipboard.py` passes, including the real round-trip on Windows
-- [ ] `uv run pytest`, `uv run ruff check .` clean
-- [ ] `git grep -n pyperclip` returns nothing outside `uv.lock` history
+- [x] `uv run pytest tests/test_clipboard.py` passes, including the real round-trip on Windows
+- [x] `uv run pytest`, `uv run ruff check .` clean
+- [x] `git grep -n pyperclip` returns nothing outside `uv.lock` history
 
 #### Manual Verification (with `clipwatch.ps1` from the Superwhisper investigation doc: `pwsh -sta -NoProfile -File clipwatch.ps1`):
-- [ ] Image copied from a browser → dictate into Discord → trace shows the image format list back within ~0.6 s; Ctrl+V in Paint pastes it
-- [ ] Rich text from a web page → dictate into Teams → `HTML Format` in the restored list; paste into Word keeps formatting
-- [ ] File copied in Explorer → dictate → Ctrl+V elsewhere pastes the file
-- [ ] Empty clipboard → dictate → no error
-- [ ] Dictate into the VS Code terminal under Claude Code → text lands
-- [ ] Tap-to-lock, second tap held down for a full second → the paste still lands as plain text (modifier wait works)
-- [ ] Win+V history does not show the dictation
+- [x] Image copied from a browser → dictate into Discord → trace shows the image format list back within ~0.6 s; Ctrl+V in Paint pastes it
+- [x] Rich text from a web page → dictate into Teams → `HTML Format` in the restored list; paste into Word keeps formatting
+- [x] File copied in Explorer → dictate → Ctrl+V elsewhere pastes the file
+- [x] Empty clipboard → dictate → no error
+- [x] Dictate into the VS Code terminal under Claude Code → text lands
+- [x] Tap-to-lock, second tap held down for a full second → the paste still lands as plain text (modifier wait works)
+- [x] Win+V history does not show the dictation
 
 **Implementation Note**: pause for manual confirmation before Phase 3.
 

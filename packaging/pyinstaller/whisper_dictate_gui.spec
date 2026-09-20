@@ -39,7 +39,6 @@ hiddenimports = sorted(
     set(
         collect_submodules("whisper_dictate")
         + collect_submodules("faster_whisper")
-        + collect_submodules("pyautogui")
     )
 )
 

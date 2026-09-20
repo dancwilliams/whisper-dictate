@@ -14,6 +14,7 @@ import ctypes
 import ctypes.wintypes
 import threading
 from collections.abc import Callable
+from typing import Any
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
@@ -34,6 +35,10 @@ MODIFIER_VKS = {
 }
 NAMED_VKS = {"SPACE": 0x20}
 ALL_MODIFIERS: set[int] = set().union(*MODIFIER_VKS.values())
+
+# The modifiers Windows folds into any keystroke, left/right agnostic:
+# CONTROL, SHIFT, MENU (alt), LWIN, RWIN.
+MODIFIER_STATE_VKS = (0x11, 0x10, 0x12, 0x5B, 0x5C)
 
 
 class HotkeyError(Exception):
@@ -145,6 +150,18 @@ user32.CallNextHookEx.argtypes = [
 user32.CallNextHookEx.restype = LRESULT
 kernel32.GetModuleHandleW.argtypes = [ctypes.wintypes.LPCWSTR]
 kernel32.GetModuleHandleW.restype = ctypes.wintypes.HMODULE
+user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
+user32.GetAsyncKeyState.restype = ctypes.c_short
+
+
+def modifiers_held() -> bool:
+    """True while any modifier key is physically down, according to Windows.
+
+    Asked of the OS rather than the chord tracker: this is the state that will
+    be folded into a keystroke we inject, and it also catches modifiers the
+    user is holding that are no part of the chord.
+    """
+    return any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in MODIFIER_STATE_VKS)
 
 
 class HotkeyManager:
@@ -169,7 +186,7 @@ class HotkeyManager:
         self.chord_string: str | None = None  # what is live, so callers can spot a change
         self.msg_thread: threading.Thread | None = None
         self._hook = None
-        self._proc: HOOKPROC | None = None  # must outlive the hook
+        self._proc: Any = None  # the CFUNCTYPE object; must outlive the hook
         self._msg_tid: int | None = None
         self._running = False
         self._ready: threading.Event | None = None
@@ -218,14 +235,12 @@ class HotkeyManager:
         self._msg_tid = None
 
     def modifiers_up(self) -> bool:
-        """True when no modifier of the registered chord is currently held.
+        """True when no modifier key is physically held.
 
         The paste path waits on this: injecting Shift+Insert under a held Ctrl or
         Win turns it into a different shortcut in the target app.
         """
-        if not self.chord:
-            return True
-        return not (self.chord.down & ALL_MODIFIERS)
+        return not modifiers_held()
 
     def _handle(self, vk: int, is_down: bool) -> None:
         """Feed one transition to the chord and dispatch the matching callback."""
@@ -253,7 +268,7 @@ class HotkeyManager:
                     swallow = self.chord is not None and self.chord.swallows(kb.vkCode)
         if swallow:
             return 1
-        return user32.CallNextHookEx(None, n_code, w_param, l_param)
+        return int(user32.CallNextHookEx(None, n_code, w_param, l_param))
 
     def _message_pump(self) -> None:
         """Install the hook and pump messages for it (runs in a background thread)."""
