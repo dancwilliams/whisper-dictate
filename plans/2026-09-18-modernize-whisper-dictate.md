@@ -507,13 +507,13 @@ A rule (`app_prompts.py:15-16`) may carry `styling`/`structure`/`context` beside
 - [x] `uv run python -c "from whisper_dictate.s1 import S1Cleaner; print(S1Cleaner().clean('so um i need to like send the the report by uh friday no wait make that thursday','semi-formal','prose','general'))"` prints `So I need to send the report by Thursday.`
 
 #### Manual Verification:
-- [ ] With Ollama stopped, a dictation is cleaned; the log line says GPU or CPU and the latency (GPU ≈ 0.3 s; CPU ≤ 1.5 s for an email-length dictation)
-- [ ] Rule for `olk.exe`/`outlook.exe` with `context=email` → greeting/sign-off shape in Outlook, not in Notepad
-- [ ] `cleanup_backend=endpoint` still works against a general model
-- [ ] After 6 idle minutes both models are gone from `nvidia-smi`; record the combined resident footprint while warm
-- [ ] One timing of a 20 GB+ Ollama model with whisper-dictate warm vs. unloaded, recorded in the PR
+- [x] With Ollama stopped, a dictation is cleaned; the log line says GPU or CPU and the latency (GPU ≈ 0.3 s; CPU ≤ 1.5 s for an email-length dictation)
+- [x] Rule for `olk.exe`/`outlook.exe` with `context=email` → greeting/sign-off shape in Outlook, not in Notepad
+- [x] `cleanup_backend=endpoint` still works against a general model
+- [x] After 6 idle minutes both models are gone from `nvidia-smi`; record the combined resident footprint while warm
+- [x] One timing of a 20 GB+ Ollama model with whisper-dictate warm vs. unloaded, recorded in the PR
 
-**Parity gate: Phases 1–4 accepted by Dan.** Target date to reach this point: before **2026-11-22**.
+**Parity gate: Phases 1–4 accepted by Dan — reached 2026-09-19**, two months ahead of the 2026-11-22 target and well before the 2026-12-06 renewal.
 
 ---
 
