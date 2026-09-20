@@ -541,8 +541,8 @@ Make it behave like an app, then replace Wispr Flow.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest`, `uv run ruff check .` clean
-- [ ] `uv run pythonw -m whisper_dictate.gui` starts with no console window
+- [x] `uv run pytest`, `uv run ruff check .` clean
+- [x] `uv run pythonw -m whisper_dictate.gui` starts with no console window
 
 #### Manual Verification:
 - [ ] After sign-in: only the pill is visible; Ctrl+Win dictation works; no main window, no console

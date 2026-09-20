@@ -303,6 +303,7 @@ When creating PRs, target the `main` branch.
 
 Refer to:
 - `README.md` — User-facing documentation
+- `docs/startup.md` — Running at login, the pill menu, single-instance behaviour
 - `docs/build.md` — Build instructions
 - Test files in `tests/` — Usage examples
 - Module docstrings — Implementation details
