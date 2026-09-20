@@ -69,7 +69,7 @@ Hold **Ctrl+Win**, hear a beep when capture is live, speak, release. About a sec
 - No settings migration logic. One user, one settings file; new keys take defaults.
 - No string-layer glossary rules for ordinary English words (`traffic`, `cloud`).
 - No always-open microphone, no pre-roll buffer.
-- No changes to Ollama, LM Studio, or anything on the media server.
+- No changes to Ollama or anything on the media server. (LM Studio is no longer in use on this machine; Ollama only.)
 
 ---
 
@@ -507,7 +507,7 @@ A rule (`app_prompts.py:15-16`) may carry `styling`/`structure`/`context` beside
 - [x] `uv run python -c "from whisper_dictate.s1 import S1Cleaner; print(S1Cleaner().clean('so um i need to like send the the report by uh friday no wait make that thursday','semi-formal','prose','general'))"` prints `So I need to send the report by Thursday.`
 
 #### Manual Verification:
-- [ ] With LM Studio and Ollama stopped, a dictation is cleaned; the log line says GPU or CPU and the latency (GPU ≈ 0.3 s; CPU ≤ 1.5 s for an email-length dictation)
+- [ ] With Ollama stopped, a dictation is cleaned; the log line says GPU or CPU and the latency (GPU ≈ 0.3 s; CPU ≤ 1.5 s for an email-length dictation)
 - [ ] Rule for `olk.exe`/`outlook.exe` with `context=email` → greeting/sign-off shape in Outlook, not in Notepad
 - [ ] `cleanup_backend=endpoint` still works against a general model
 - [ ] After 6 idle minutes both models are gone from `nvidia-smi`; record the combined resident footprint while warm
@@ -560,6 +560,14 @@ Make it behave like an app, then replace Wispr Flow.
 Phonetic glossary rules where they are safe, hotwords where the backend supports them, and a local history that feeds the next round of mining and the next benchmark.
 
 ### Changes Required
+
+**Measured 2026-09-19 on the 198-clip corpus, with Dan's 32 live rules:** the
+glossary lifts domain-term recall from 86.7% to 91.2% (98 -> 103 of 113),
+rescuing 4 clips and breaking none, and it alters the text of only 5 clips in
+198. It beats hotwords on every axis - higher recall than the 400-char budget's
+90.3%, at no cost to the word error rate. S1-mini cleanup preserved every
+glossary fix across all 85 clips containing a domain term, so the second
+glossary pass is currently a no-op; it stays as cheap insurance.
 
 #### 1. Phonetic rules, opt-in, 5+ symbol codes
 **File**: `whisper_dictate/glossary.py`, `glossary_dialog.py`; add `jellyfish` to runtime deps
