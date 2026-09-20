@@ -318,7 +318,7 @@ Remove `pyperclip` (`gui.py:16`, `:1324`, `pyproject.toml`). New setting `restor
 - [x] File copied in Explorer → dictate → Ctrl+V elsewhere pastes the file
 - [x] Empty clipboard → dictate → no error
 - [x] Dictate into the VS Code terminal under Claude Code → text lands
-- [ ] Tap-to-lock, second tap held down for a full second → the paste still lands as plain text (modifier wait works)
+- [x] Tap-to-lock, second tap held down for a full second → the paste still lands as plain text (modifier wait works)
 - [x] Win+V history does not show the dictation
 
 **Implementation Note**: pause for manual confirmation before Phase 3.
