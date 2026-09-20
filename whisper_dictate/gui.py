@@ -82,7 +82,10 @@ class App(Tk):
         super().__init__()
         self.title("Whisper Dictate + LLM")
         self.geometry("980x680")
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        # Closing the window hides it; the app lives in the pill. Quitting is
+        # deliberate, through the pill's menu, so a stray Alt+F4 on a
+        # login-launched app does not end dictation for the day.
+        self.protocol("WM_DELETE_WINDOW", self.hide_window)
 
         self._settings_saved = False
 
@@ -123,6 +126,11 @@ class App(Tk):
         self._build_ui()
         self._setup_status_indicator()
         self._auto_startup()
+
+        # Launched at login, the app should start out of the way. Only when it
+        # is set up to run by itself: otherwise the user has nothing to click.
+        if self.var_auto_load_model.get() and self.var_auto_register_hotkey.get():
+            self.withdraw()
 
     def _build_menus(self) -> None:
         """Build application menu bar."""
@@ -879,9 +887,29 @@ class App(Tk):
         widget.grid(row=row, column=1, sticky="we", pady=4 if row > 0 else (0, 4), padx=(12, 0))
 
     def _setup_status_indicator(self) -> None:
-        """Set up the floating status indicator."""
-        self.indicator = StatusIndicator(self, initial_position=self._indicator_position)
+        """Set up the floating status indicator, which is the app's real face."""
+        self.indicator = StatusIndicator(
+            self,
+            initial_position=self._indicator_position,
+            menu_items=(
+                ("Show window", self.show_window),
+                ("Cleanup settings...", self._open_llm_settings),
+                ("-", lambda: None),
+                ("Quit", self._on_close),
+            ),
+        )
+        self.indicator.show()
         self._set_status("idle", "Idle")
+
+    def show_window(self) -> None:
+        """Bring the main window back from hiding."""
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def hide_window(self) -> None:
+        """Hide the main window, leaving the pill and the hotkey working."""
+        self.withdraw()
 
     def _auto_startup(self) -> None:
         """Perform auto-startup tasks based on settings."""

@@ -1,6 +1,7 @@
 """Reusable GUI components for whisper-dictate."""
 
-from tkinter import END, Canvas, Text, Tk, Toplevel, ttk
+from collections.abc import Callable, Sequence
+from tkinter import END, Canvas, Menu, Text, Tk, Toplevel, ttk
 
 
 class PromptDialog(Toplevel):
@@ -55,7 +56,18 @@ class StatusIndicator:
         "error": "#dc3545",
     }
 
-    def __init__(self, master: Tk, initial_position: tuple[int, int] | None = None):
+    def __init__(
+        self,
+        master: Tk,
+        initial_position: tuple[int, int] | None = None,
+        menu_items: Sequence[tuple[str, Callable[[], None]]] | None = None,
+    ):
+        """
+        Args:
+            menu_items: (label, command) pairs for the right-click menu; "-" is a
+                separator. With the main window hidden this menu is the only way
+                to reach the app.
+        """
         self.master = master
         self.window = Toplevel(master)
         self.window.withdraw()
@@ -93,8 +105,28 @@ class StatusIndicator:
             w.bind("<ButtonRelease-1>", self._end_drag, add="+")
             w.bind("<Double-Button-1>", self._reset_position, add="+")
 
+        self.menu: Menu | None = None
+        if menu_items:
+            self.menu = Menu(self.window, tearoff=False)
+            for label, command in menu_items:
+                if label == "-":
+                    self.menu.add_separator()
+                else:
+                    self.menu.add_command(label=label, command=command)
+            for w in (self.window, frame, self.label, self.dot):
+                w.bind("<Button-3>", self._show_menu, add="+")
+
         # Keep the floating window pinned above everything else
         self.window.after(1500, self._ensure_topmost)
+
+    def _show_menu(self, event) -> None:
+        """Open the right-click menu at the pointer."""
+        if self.menu is None:
+            return
+        try:
+            self.menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.menu.grab_release()
 
     def _start_drag(self, event) -> None:
         """Start dragging the indicator."""
@@ -173,6 +205,18 @@ class StatusIndicator:
         self.window.lift()
         self.window.attributes("-topmost", True)
         self.window.after(3000, self._ensure_topmost)
+
+    def show(self) -> None:
+        """Make the indicator visible.
+
+        Called at startup rather than waiting for the first status change: with
+        the main window hidden the pill is the whole app, and an app you cannot
+        see has not started as far as the user is concerned.
+        """
+        if not self.window.winfo_viewable():
+            self.window.deiconify()
+        self.window.update_idletasks()
+        self._reposition()
 
     def update(self, state: str, message: str) -> None:
         """Update the indicator with new state and message."""

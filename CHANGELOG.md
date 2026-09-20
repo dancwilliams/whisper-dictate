@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- The floating pill is now the app
+  - Right-click it for Show window, Cleanup settings and Quit
+  - Closing the main window hides it; the hotkey keeps working. Quitting is
+    deliberate, through the pill's menu, so a stray close on a login-launched
+    app does not end dictation for the day.
+  - The main window starts hidden when both auto-load and auto-register are on.
+    With either off it starts visible, so there is always something to click.
+  - The pill is shown at startup rather than on the first status change
+- `docs/startup.md`: a Startup-folder shortcut running
+  `uv run --no-sync pythonw -m whisper_dictate.gui`, with no console window
+
 - Built-in transcript cleanup with S1-mini (`s1.py`), no server required
   - Prompt built by hand, byte for byte: one system sentence, a control line and
     an assistant turn opening with an empty think block. Any other system text

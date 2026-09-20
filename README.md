@@ -221,6 +221,7 @@ For developers and contributors:
 
 - **[Architecture Documentation](docs/architecture.md)** — System architecture diagrams, data flow, module responsibilities, and design patterns
 - **[Build Instructions](docs/build.md)** — Detailed guide for creating standalone executables
+- **[Starting at Login](docs/startup.md)** — Startup shortcut, the floating pill's menu, and what to check when nothing appears
 - **[CLAUDE.md](CLAUDE.md)** — AI assistant context and development guidelines
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Contribution guidelines and coding standards
 - **[CHANGELOG.md](CHANGELOG.md)** — Project history and release notes
