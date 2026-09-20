@@ -23,7 +23,7 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --no-group ml
 
       - name: Run ruff linting
         run: uv run ruff check .
@@ -47,7 +47,7 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --no-group ml
 
       - name: Run mypy
         run: uv run mypy whisper_dictate
@@ -73,7 +73,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --no-group ml
 
       - name: Run pytest with coverage
         run: uv run pytest

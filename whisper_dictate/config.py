@@ -27,6 +27,16 @@ DEFAULT_LLM_DEBUG = False
 DEFAULT_AUTO_LOAD_MODEL = False
 DEFAULT_AUTO_REGISTER_HOTKEY = False
 
+# Chosen by scripts/bench_asr.py over 200 of Dan's own dictations; see
+# research/asr-benchmark-2026.md. Whisper won on word error rate, cold reload
+# and VRAM. Cohere is the fallback when Whisper cannot be loaded.
+DEFAULT_ASR_BACKEND = "whisper"
+
+# Minutes idle before the recognizer is unloaded and the GPU handed back.
+# 0 means never. At 5 minutes about 35% of dictations start cold, which the
+# warm-on-press in the GUI is there to hide.
+DEFAULT_IDLE_TTL_MINUTES = 5.0
+
 # Default LLM prompt
 DEFAULT_LLM_PROMPT = """
 You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.

@@ -155,6 +155,29 @@ class TestTranscription:
         call_kwargs = mock_model.transcribe.call_args.kwargs
         assert call_kwargs["initial_prompt"] == "Technical discussion about Python and APIs."
 
+    def test_transcribe_audio_with_hotwords(self):
+        """Hotwords must reach the model, or the vocabulary never reaches the
+        recognizer and the glossary is left patching it afterwards."""
+        mock_model = MagicMock()
+        mock_segment = MagicMock()
+        mock_segment.text = "Traefik is up"
+        mock_model.transcribe.return_value = ([mock_segment], {})
+
+        result = transcribe_audio(mock_model, b"audio", hotwords="Traefik, threatfax")
+
+        assert result == "Traefik is up"
+        assert mock_model.transcribe.call_args.kwargs["hotwords"] == "Traefik, threatfax"
+
+    def test_transcribe_audio_without_hotwords_passes_none(self):
+        mock_model = MagicMock()
+        mock_segment = MagicMock()
+        mock_segment.text = "Test"
+        mock_model.transcribe.return_value = ([mock_segment], {})
+
+        transcribe_audio(mock_model, b"audio")
+
+        assert mock_model.transcribe.call_args.kwargs["hotwords"] is None
+
     def test_transcribe_audio_with_temperature(self):
         """Test transcription with temperature parameter."""
         mock_model = MagicMock()

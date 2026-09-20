@@ -33,7 +33,7 @@ jobs:
       - name: Sync project environment
         shell: pwsh
         run: |
-          uv sync --frozen --python 3.11
+          uv sync --frozen --python 3.11 --no-group ml
 
       - name: Build executable with PyInstaller
         shell: pwsh

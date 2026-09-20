@@ -209,8 +209,16 @@ class TestSendPaste:
 class TestRealWindowsRoundTrip:
     @pytest.fixture(autouse=True)
     def preserve_the_developers_clipboard(self):
-        """Running the suite must not cost you whatever you had copied."""
-        saved = clipboard.snapshot()
+        """Running the suite must not cost you whatever you had copied.
+
+        Another app can hold the clipboard open for as long as it likes, and
+        some do. That is a fact about the machine, not a failure of this code,
+        so skip rather than fail - the mocked tests above still cover the logic.
+        """
+        try:
+            saved = clipboard.snapshot()
+        except clipboard.ClipboardError:
+            pytest.skip("another app is holding the clipboard open")
         yield
         clipboard.restore(saved)
 

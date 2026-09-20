@@ -9,11 +9,11 @@ from collections.abc import Callable
 from tkinter import END, BooleanVar, DoubleVar, Menu, StringVar, Text, Tk, Toplevel, messagebox, ttk
 
 import sounddevice as sd
-from faster_whisper import WhisperModel
 
 from whisper_dictate import (
     app_context,
     app_prompts,
+    asr,
     audio,
     clipboard,
     config,
@@ -26,10 +26,12 @@ from whisper_dictate import (
 )
 from whisper_dictate.app_prompt_dialog import AppPromptDialog
 from whisper_dictate.config import (
+    DEFAULT_ASR_BACKEND,
     DEFAULT_AUTO_LOAD_MODEL,
     DEFAULT_AUTO_REGISTER_HOTKEY,
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
+    DEFAULT_IDLE_TTL_MINUTES,
     DEFAULT_LLM_DEBUG,
     DEFAULT_LLM_ENABLED,
     DEFAULT_LLM_ENDPOINT,
@@ -95,8 +97,11 @@ class App(Tk):
             maxlen=self.RECENT_PROCESSES_MAX
         )
 
-        # Model and hotkey manager
-        self.model: WhisperModel | None = None
+        # Recognizer and hotkey manager. The factory reads _asr_config, never
+        # the Tk variables: it runs on a loader thread, and touching Tk from
+        # there deadlocks whenever the main thread is inside a Tcl callback.
+        self._asr_config: tuple[str, str, str, str] = ("", "", "", "")
+        self.asr = asr.Resident(self._build_backend, ttl=0.0)
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self._press_at = 0.0
         self.llm_models: list[str] = []
@@ -148,6 +153,8 @@ class App(Tk):
         """Build the main UI."""
         # Variables
         self.var_model = StringVar(value=DEFAULT_MODEL)
+        self.var_asr_backend = StringVar(value=DEFAULT_ASR_BACKEND)
+        self.var_idle_ttl_minutes = DoubleVar(value=DEFAULT_IDLE_TTL_MINUTES)
         self.var_model_display = StringVar(value="")  # For formatted model name in dropdown
         self.var_device = StringVar(value=DEFAULT_DEVICE)
         self.var_compute = StringVar(value=DEFAULT_COMPUTE)
@@ -236,6 +243,7 @@ class App(Tk):
             self.btn_llm_refresh = None
         elif window_attr == "_automation_window":
             self._apply_hotkey_change()
+            self._apply_idle_ttl()
         elif window_attr == "_speech_window":
             # Clean up trace callbacks to prevent accessing destroyed widgets
             for var, trace_id in self._speech_window_traces:
@@ -253,7 +261,17 @@ class App(Tk):
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(1, weight=1)
 
-            # Device selection (moved to top since it affects model display)
+            backend_combo = ttk.Combobox(
+                frame,
+                textvariable=self.var_asr_backend,
+                values=list(asr.BACKENDS),
+                width=12,
+                state="readonly",
+            )
+            backend_combo.bind("<<ComboboxSelected>>", lambda _e: self._reload_backend())
+            self._add_labeled_widget(frame, "Recognizer", 0, backend_combo)
+
+            # Device selection (affects the model display below)
             device_combo = ttk.Combobox(
                 frame,
                 textvariable=self.var_device,
@@ -261,30 +279,30 @@ class App(Tk):
                 width=10,
                 state="readonly",
             )
-            self._add_labeled_widget(frame, "Device", 0, device_combo)
+            self._add_labeled_widget(frame, "Device", 1, device_combo)
 
             # Model selection with size info
             model_combo = ttk.Combobox(
                 frame, textvariable=self.var_model_display, state="readonly", width=45
             )
-            self._add_labeled_widget(frame, "Model", 1, model_combo)
+            self._add_labeled_widget(frame, "Model (Whisper only)", 2, model_combo)
 
             # Description label for selected model
             desc_label = ttk.Label(
                 frame, text="", wraplength=380, foreground="gray", font=("Segoe UI", 9, "italic")
             )
-            desc_label.grid(row=2, column=1, sticky="w", padx=(12, 0), pady=(0, 8))
+            desc_label.grid(row=3, column=1, sticky="w", padx=(12, 0), pady=(0, 8))
 
             # Compute type display (read-only, auto-configured)
             compute_label = ttk.Label(frame, text=f"Compute type: {self.var_compute.get()} (auto)")
-            compute_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 4))
+            compute_label.grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 4))
 
             # Input device dropdown
             input_device_names = self._get_input_device_names()
             input_combo = ttk.Combobox(
                 frame, textvariable=self.var_input, values=input_device_names, state="readonly"
             )
-            self._add_labeled_widget(frame, "Input device", 4, input_combo)
+            self._add_labeled_widget(frame, "Input device", 5, input_combo)
 
             def update_model_display(*args) -> None:
                 """Update model dropdown values when device changes."""
@@ -378,21 +396,35 @@ class App(Tk):
                 width=6,
             ).pack(side="left", padx=(8, 0))
 
+            ttl_row = ttk.Frame(frame)
+            ttl_row.grid(row=4, column=0, sticky="we", pady=(8, 0))
+            ttk.Label(ttl_row, text="Unload the model after (minutes idle)").pack(side="left")
+            ttk.Spinbox(
+                ttl_row,
+                from_=0,
+                to=120,
+                increment=1,
+                textvariable=self.var_idle_ttl_minutes,
+                width=6,
+                command=self._apply_idle_ttl,
+            ).pack(side="left", padx=(8, 0))
+            ttk.Label(ttl_row, text="0 = never", foreground="gray").pack(side="left", padx=(8, 0))
+
             # Auto-startup options
             ttk.Separator(frame, orient="horizontal").grid(
-                row=4, column=0, sticky="we", pady=(12, 8)
+                row=5, column=0, sticky="we", pady=(12, 8)
             )
             ttk.Label(frame, text="Startup", font=("Segoe UI", 9, "bold")).grid(
-                row=5, column=0, sticky="w"
+                row=6, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame, text="Auto-load model on startup", variable=self.var_auto_load_model
-            ).grid(row=6, column=0, sticky="w", pady=(4, 0))
+            ).grid(row=7, column=0, sticky="w", pady=(4, 0))
             ttk.Checkbutton(
                 frame,
                 text="Auto-register hotkey after model loads",
                 variable=self.var_auto_register_hotkey,
-            ).grid(row=7, column=0, sticky="w")
+            ).grid(row=8, column=0, sticky="w")
 
         self._open_window("_automation_window", "Automation", build)
 
@@ -601,7 +633,9 @@ class App(Tk):
                 font=("Segoe UI", 9, "italic"),
             ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-        self._open_window("_advanced_transcription_window", "Advanced Transcription", build)
+        self._open_window(
+            "_advanced_transcription_window", "Advanced Transcription (Whisper only)", build
+        )
 
     def _open_llm_settings(self) -> None:
         """Open LLM cleanup settings window."""
@@ -814,57 +848,12 @@ class App(Tk):
         device_id = self._parse_input_device_id(self.var_input.get().strip())
         threading.Thread(target=audio.prewarm, args=(device_id,), daemon=True).start()
 
+        self._apply_idle_ttl()
         if not self.var_auto_load_model.get():
             return
 
         # Schedule model loading for after the event loop starts
-        self.after(100, self._auto_load_model_task)
-
-    def _auto_load_model_task(self) -> None:
-        """Background task for auto-loading model."""
-
-        def worker():
-            try:
-                model_name = self.var_model.get().strip()
-                device = self.var_device.get().strip()
-                compute = self.var_compute.get().strip()
-
-                # Set input device if provided
-                inp = self.var_input.get().strip()
-                device_id = self._parse_input_device_id(inp)
-                if device_id is not None:
-                    sd.default.device = (device_id, None)
-
-                self._set_status("processing", f"Auto-loading {model_name}...")
-                self.model = transcription.load_model(model_name, device, compute)
-
-                def on_success():
-                    self._set_status("ready", "Model ready (auto-loaded)")
-                    self.btn_load.config(state="disabled")
-                    self.btn_hotkey.config(state="normal")
-                    self.btn_toggle.config(state="normal")
-                    logger.info(f"Auto-loaded model: {model_name} on {device} ({compute})")
-
-                    # Auto-register hotkey if enabled
-                    if self.var_auto_register_hotkey.get():
-                        self.after(100, lambda: self._register_hotkey(quiet=True))
-
-                self.after(0, on_success)
-
-            except (OSError, RuntimeError, ValueError) as e:
-                error_msg = str(e)
-
-                def on_error():
-                    self._set_status("error", "Auto-load failed")
-                    logger.error(f"Auto-load model failed: {error_msg}", exc_info=True)
-                    messagebox.showerror(
-                        "Auto-load error",
-                        f"Failed to auto-load model:\n{error_msg}\n\nYou can try loading manually.",
-                    )
-
-                self.after(0, on_error)
-
-        threading.Thread(target=worker, daemon=True).start()
+        self.after(100, lambda: self._load_model(quiet=True))
 
     def _set_status(self, state: str, message: str) -> None:
         """Update status in both label and indicator."""
@@ -917,6 +906,8 @@ class App(Tk):
             var.set(value)
 
         set_if_present("model", self.var_model, str)
+        set_if_present("asr_backend", self.var_asr_backend, str)
+        set_if_present("idle_ttl_minutes", self.var_idle_ttl_minutes, float)
         set_if_present("device", self.var_device, str)
         set_if_present("compute", self.var_compute, str)
 
@@ -981,6 +972,8 @@ class App(Tk):
         """Persist current settings to disk."""
         settings = {
             "model": self.var_model.get().strip(),
+            "asr_backend": self.var_asr_backend.get().strip(),
+            "idle_ttl_minutes": float(self.var_idle_ttl_minutes.get()),
             "device": self.var_device.get().strip(),
             "compute": config.normalize_compute_type(
                 self.var_device.get().strip(), self.var_compute.get().strip()
@@ -1140,34 +1133,80 @@ class App(Tk):
             logger.warning(f"Could not parse device ID from: {device_string}")
             return None
 
-    def _load_model(self) -> None:
-        """Load the Whisper model."""
-        model_name = self.var_model.get().strip()
-        device = self.var_device.get().strip()
-        compute = self.var_compute.get().strip()
+    def _capture_asr_config(self) -> None:
+        """Copy the recognizer settings out of Tk. Main thread only."""
+        self._asr_config = (
+            self.var_asr_backend.get().strip() or DEFAULT_ASR_BACKEND,
+            self.var_model.get().strip(),
+            self.var_device.get().strip(),
+            self.var_compute.get().strip(),
+        )
 
+    def _build_backend(self):
+        """Factory for the Resident. Runs on a loader thread: no Tk in here."""
+        backend, model_name, device, compute = self._asr_config
+        logger.info(f"Loading ASR backend {backend} ({model_name} on {device}, {compute})")
+        return asr.load_backend(
+            backend,
+            model_name,
+            device,
+            compute,
+            on_warning=lambda m: self._set_status("warning", m),
+        )
+
+    def _apply_idle_ttl(self) -> None:
+        """Push the TTL setting onto the Resident. 0 minutes means never unload."""
+        self.asr.ttl = max(0.0, float(self.var_idle_ttl_minutes.get())) * 60.0
+        self._capture_asr_config()
+
+    def _load_model(self, quiet: bool = False) -> None:
+        """Warm the recognizer, and report when it is up.
+
+        The recording path no longer waits on this: the hotkey works cold, and
+        _on_hotkey_press warms the model while the user is still speaking.
+        """
         # Set input device if provided
-        inp = self.var_input.get().strip()
-        device_id = self._parse_input_device_id(inp)
+        device_id = self._parse_input_device_id(self.var_input.get().strip())
         if device_id is not None:
             sd.default.device = (device_id, None)
 
-        try:
-            self._set_status("processing", f"Loading {model_name} on {device} ({compute})")
-            self.update_idletasks()
-            self.model = transcription.load_model(model_name, device, compute)
-            self._set_status("ready", "Model ready")
-            self.btn_load.config(state="disabled")
-            self.btn_hotkey.config(state="normal")
-            self.btn_toggle.config(state="normal")
-            logger.info(f"Model loaded: {model_name} on {device} ({compute})")
-        except (OSError, RuntimeError, ValueError) as e:
-            # OSError: Model file access errors
-            # RuntimeError: CUDA/device initialization errors
-            # ValueError: Invalid model parameters
-            self._set_status("error", "Model load failed")
-            logger.error(f"Model load failed: {e}", exc_info=True)
-            messagebox.showerror("Model error", str(e))
+        self._apply_idle_ttl()
+        self._set_status("processing", f"Loading {self.var_model.get().strip()}...")
+        self.asr.warm()
+
+        def watcher():
+            try:
+                self.asr.get()
+            except (OSError, RuntimeError, ValueError) as e:
+                error_msg = str(e)
+
+                def on_error():
+                    self._set_status("error", "Model load failed")
+                    logger.error(f"Model load failed: {error_msg}", exc_info=True)
+                    if not quiet:
+                        messagebox.showerror("Model error", error_msg)
+
+                self.after(0, on_error)
+                return
+
+            def on_success():
+                self._set_status("ready", "Model ready")
+                self.btn_load.config(state="disabled")
+                self.btn_hotkey.config(state="normal")
+                self.btn_toggle.config(state="normal")
+                if quiet and self.var_auto_register_hotkey.get():
+                    self.after(100, lambda: self._register_hotkey(quiet=True))
+
+            self.after(0, on_success)
+
+        threading.Thread(target=watcher, daemon=True).start()
+
+    def _reload_backend(self) -> None:
+        """Drop the resident recognizer so the next press builds the new one."""
+        self.asr.release()
+        self._capture_asr_config()
+        self._apply_idle_ttl()
+        self._set_status("ready", f"ASR backend: {self.var_asr_backend.get()}")
 
     def _register_hotkey(self, quiet: bool = False) -> None:
         """Register the global hotkey.
@@ -1175,12 +1214,6 @@ class App(Tk):
         Args:
             quiet: Log a failure instead of raising a dialog (the startup caller).
         """
-        if not self.model:
-            if not quiet:
-                self._set_status("warning", "Load the model first")
-                messagebox.showwarning("Hotkey", "Load the model first.")
-            return
-
         combo = self.var_hotkey.get().strip()
         try:
             # One manager for the life of the app: a second one would leave the
@@ -1222,6 +1255,11 @@ class App(Tk):
 
     def _on_hotkey_press(self) -> None:
         """Chord went down: start recording, or end a recording locked by a tap."""
+        # Load the recognizer while the user speaks; cold, the wait they feel is
+        # max(0, load - utterance) rather than the whole load. Settings are read
+        # here, on the Tk thread, because the loader thread must not touch Tk.
+        self._capture_asr_config()
+        self.asr.warm()
         if audio.is_recording():
             self._stop_and_transcribe()
             return
@@ -1255,9 +1293,6 @@ class App(Tk):
 
     def _start_recording(self) -> None:
         """Open the microphone. The status cue waits for the first block of audio."""
-        if not self.model:
-            return
-
         inp = self.var_input.get().strip()
         device_id = self._parse_input_device_id(inp)
 
@@ -1312,9 +1347,12 @@ class App(Tk):
                     "speech_pad_ms": int(self.var_vad_speech_pad_ms.get()),
                 }
 
-            text = transcription.transcribe_audio(
-                self.model,
+            if not self.asr.is_loaded():
+                self._set_status("processing", "Loading model...")
+            backend = self.asr.get()
+            text = backend.transcribe(
                 audio_data,
+                hotwords=None,
                 beam_size=int(self.var_beam_size.get()),
                 vad_filter=self.var_vad_enabled.get(),
                 vad_parameters=vad_params,
@@ -1325,7 +1363,7 @@ class App(Tk):
                 temperature=self.var_temperature.get(),
                 initial_prompt=self.var_initial_prompt.get().strip() or None,
             )
-        except transcription.TranscriptionError as e:
+        except (transcription.TranscriptionError, OSError, RuntimeError, ValueError) as e:
             self._set_status("error", "Transcription failed")
             logger.error(f"Transcription failed: {e}", exc_info=True)
             messagebox.showerror("Transcribe", str(e))
@@ -1401,7 +1439,9 @@ class App(Tk):
         try:
             clipboard.set_text(text)
         except clipboard.ClipboardError as e:
-            self._set_status("error", "Clipboard write failed")
+            # Another app is holding the clipboard open. The text is still in the
+            # transcript box, so the dictation is not lost, only undelivered.
+            self._set_status("error", "Clipboard locked; text is in the transcript")
             logger.error(f"Clipboard write failed: {e}", exc_info=True)
             return
 
