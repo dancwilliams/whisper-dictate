@@ -27,6 +27,16 @@ dev = [
     "mypy>=1.8.0",
     "pyinstaller>=6.22",
 ]
+# Heavy ML wheels: installed locally, excluded in CI (`uv sync --no-group ml`).
+# The tests mock these; this Windows machine exercises the real thing.
+ml = [
+    "torch",
+    "transformers>=5.4.0",
+    "huggingface-hub",
+    # CohereAsrFeatureExtractor imports librosa at class load, whatever the audio
+    # source. Not optional, despite audio.py already yielding 16 kHz float32.
+    "librosa",
+]
 
 [project.scripts]
 dictate-gui = "whisper_dictate.gui:main"
@@ -37,6 +47,15 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 package = true
+default-groups = ["dev", "ml"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'win32'" }]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -60,8 +60,17 @@ class ClipboardError(Exception):
     """Raised when the clipboard cannot be opened."""
 
 
-def _open(retries: int = 10, delay: float = 0.02) -> None:
+# Reading is optional - a failed snapshot only costs the old clipboard - so it
+# waits briefly. Writing is what delivers the dictation, so it waits longer.
+READ_RETRIES, WRITE_RETRIES = 10, 25
+
+
+def _open(retries: int = READ_RETRIES, delay: float = 0.04) -> None:
     """Open the clipboard, waiting out whoever else has it.
+
+    Another app can hold the clipboard open indefinitely, and some do; when the
+    owner opened it with a NULL window GetOpenClipboardWindow reports nothing,
+    so there is no one to name in the error.
 
     Raises:
         ClipboardError: If the clipboard stays locked.
@@ -212,7 +221,7 @@ def send_paste() -> bool:
 
 def set_text(text: str) -> None:
     """Replace the clipboard with one string, kept out of Win+V history."""
-    _open()
+    _open(retries=WRITE_RETRIES)
     try:
         user32.EmptyClipboard()
         _put(CF_UNICODETEXT, text.encode("utf-16-le") + b"\x00\x00")

@@ -56,6 +56,7 @@ Ruff enforces import sorting with the "I" rule:
 | `app_prompt_dialog.py` | GUI for per-app prompt management | `AppPromptDialog` |
 | `audio.py` | Audio recording with sounddevice | `AudioRecorder`, `start_recording()`, `stop_recording()` |
 | `transcription.py` | Whisper model loading and transcription | `load_model()`, `transcribe_audio()` |
+| `asr.py` | Recognizer backends and GPU residency | `WhisperBackend`, `CohereBackend`, `Resident`, `load_backend()` |
 | `llm_cleanup.py` | LLM text cleanup with OpenAI client | `clean_with_llm()`, `list_llm_models()` |
 | `glossary.py` | Glossary persistence and application | `GlossaryManager`, `GlossaryRule`, `apply_glossary()` |
 | `glossary_dialog.py` | GUI for glossary management | `GlossaryDialog` |

@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import numpy as np
 from faster_whisper import WhisperModel
 
 from whisper_dictate.config import normalize_compute_type
@@ -13,7 +14,7 @@ class TranscriptionError(Exception):
 
 def transcribe_audio(
     model: WhisperModel,
-    audio: bytes | memoryview,
+    audio: np.ndarray | bytes | memoryview,
     beam_size: int = 5,
     language: str = "en",
     vad_filter: bool = False,
@@ -25,6 +26,7 @@ def transcribe_audio(
     temperature: float | list[float] = 0.0,
     initial_prompt: str | None = None,
     condition_on_previous_text: bool = True,
+    hotwords: str | None = None,
 ) -> str:
     """
     Transcribe audio using Whisper model with VAD and hallucination prevention.
@@ -43,6 +45,9 @@ def transcribe_audio(
         temperature: Temperature for sampling (default: 0.0 for deterministic)
         initial_prompt: Optional prompt for context/style
         condition_on_previous_text: Use previous text for context (default: True)
+        hotwords: Vocabulary to bias the recognizer towards. faster-whisper
+            encodes these into the prompt context and silently truncates at
+            max_length // 2 (~220 tokens).
 
     Returns:
         Transcribed text
@@ -73,6 +78,7 @@ def transcribe_audio(
             temperature=temperature,
             initial_prompt=initial_prompt,
             condition_on_previous_text=condition_on_previous_text,
+            hotwords=hotwords,
         )
         text = "".join(s.text for s in segments).strip()
         return text

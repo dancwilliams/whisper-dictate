@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Selectable ASR backend with idle unloading (`asr.py`)
+  - `WhisperBackend` (faster-whisper, supports hotwords) and `CohereBackend`
+    (CohereLabs/cohere-transcribe-03-2026, gated, no vocabulary biasing)
+  - `Resident` loads either lazily, warms on the hotkey press so the model loads
+    while you speak, and frees the GPU after `idle_ttl_minutes` (default 5)
+  - Measured release on an RTX 5090: Whisper holds 2.26 GB and returns 2.25 GB;
+    Cohere holds 4.71 GB and returns 4.56 GB. The remainder is the CUDA context,
+    which stays for the life of the process.
+  - `load_backend` falls back to Whisper with a warning on ImportError, OSError
+    (a missing or revoked Hugging Face token) or a CUDA refusal
+- `hotwords` passed through `transcription.transcribe_audio` to faster-whisper
+- `scripts/bench_asr.py`: WER, domain-term recall, latency, VRAM, cold reload and
+  garbage rate over the Wispr Flow export. Results in
+  `research/asr-benchmark-2026.md`
+
+### Verified
+- **torch cu128 and ctranslate2 coexist in one process, in either import order.**
+  The open risk was that both load cuDNN 9 and cuBLAS by the same DLL names and
+  whichever loaded first would win. Tested on this machine with
+  `torch 2.11.0+cu128` and `ctranslate2 4.8.2` against the nvidia cuDNN 9.5
+  wheels: `import torch; torch.zeros(1).cuda()` then a CUDA `WhisperModel`
+  transcribe, and the reverse order in a fresh process. Both exit 0, so no
+  wheel bump or `CUDA_PATH` change was needed and both backends can share the
+  process.
+
 - Comprehensive test coverage improvements (#41)
   - Added tests for CUDA path configuration
   - Added tests for app prompt normalization and conversion functions
