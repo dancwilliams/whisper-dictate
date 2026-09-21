@@ -333,15 +333,19 @@ Branch: `fix/delivery-races`. N3, N4, N6, N7 and the measurement. Independent; o
 
 **File**: `tests/test_hotkeys.py` — beside `test_handle_dispatches_press_release_and_cancel` (`:153`): an `on_press` that advances a patched `hotkeys.time.perf_counter` by 0.2 s produces the warning (`caplog`); a fast one does not.
 
+**As built (deviation).** `hotkeys.py` was left alone. `test_no_key_codes_are_logged` (`tests/test_hotkeys.py:261`) asserts the word `logger` does not appear in that module: the hook sees every keystroke, and the module is kept free of logging on purpose. The timing went into `gui._post` instead, the one place all three callbacks wait on Tk, as `SLOW_HOOK_POST_SECONDS`; the test is `test_a_slow_post_is_logged` in `tests/test_gui_pipeline.py`. The log text is as written above, so the rule below holds.
+
+The `print(` criterion also caught four prints this section does not name, in `glossary.py` and `prompt.py`. Same defect under `pythonw.exe`; they are `logger.error` now.
+
 **The rule for what happens next.** After a normal day's use including one cold start, run `Select-String "held the hook thread" $env:USERPROFILE\.whisper_dictate\logs\whisper_dictate.log`. No lines: the lead is closed; leave the warning in. Any line at 250 ms or more, or the hotkey stops responding: open a follow-up to make the hook callbacks `queue.Queue.put_nowait` and have Tk drain the queue from a 10 ms `after` loop, so the hook thread never waits on Tk. That change is not part of this plan.
 
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest tests/test_gui_pipeline.py tests/test_audio.py tests/test_llm_cleanup.py tests/test_hotkeys.py -v` passes
-- [ ] `git grep -n "max_retries=0" whisper_dictate/llm_cleanup.py` shows two lines
-- [ ] `git grep -n "print(" whisper_dictate/` returns nothing
-- [ ] Coverage for `whisper_dictate\audio.py` is 100%
+- [x] `uv run pytest tests/test_gui_pipeline.py tests/test_audio.py tests/test_llm_cleanup.py tests/test_hotkeys.py -v` passes
+- [x] `git grep -n "max_retries=0" whisper_dictate/llm_cleanup.py` shows two lines
+- [x] `git grep -n "print(" whisper_dictate/` returns nothing
+- [x] Coverage for `whisper_dictate\audio.py` is 100%
 - [ ] The four check commands exit 0; CI green
 
 #### Manual Verification:
