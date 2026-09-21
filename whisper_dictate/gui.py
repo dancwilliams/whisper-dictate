@@ -87,6 +87,48 @@ BEEP_HZ, BEEP_MS = 880, 60
 # holding the keys is the user's business, and a paste under them does nothing.
 MODIFIER_WAIT_SECONDS = 5.0
 
+# Every setting that lives in a Tk variable: (settings key, variable, type). It
+# drives load, save and the worker's snapshot. int and float are both DoubleVars.
+SETTINGS: tuple[tuple[str, str, type], ...] = (
+    ("model", "var_model", str),
+    ("asr_backend", "var_asr_backend", str),
+    ("idle_ttl_minutes", "var_idle_ttl_minutes", float),
+    ("history_enable", "var_history_enable", bool),
+    ("history_audio_days", "var_history_audio_days", int),
+    ("device", "var_device", str),
+    ("compute", "var_compute", str),
+    ("input", "var_input", str),
+    ("hotkey", "var_hotkey", str),
+    ("auto_paste", "var_auto_paste", bool),
+    ("paste_delay", "var_paste_delay", float),
+    ("restore_delay", "var_restore_delay", float),
+    ("cleanup_backend", "var_cleanup_backend", str),
+    ("s1_styling", "var_s1_styling", str),
+    ("s1_structure", "var_s1_structure", str),
+    ("s1_context", "var_s1_context", str),
+    ("llm_endpoint", "var_llm_endpoint", str),
+    ("llm_model", "var_llm_model", str),
+    # Never reaches the JSON file: settings_store moves it to the credential manager.
+    ("llm_key", "var_llm_key", str),
+    ("llm_temp", "var_llm_temp", float),
+    ("llm_debug", "var_llm_debug", bool),
+    ("glossary_enable", "var_glossary_enable", bool),
+    ("auto_load_model", "var_auto_load_model", bool),
+    ("auto_register_hotkey", "var_auto_register_hotkey", bool),
+    ("vad_enabled", "var_vad_enabled", bool),
+    ("vad_threshold", "var_vad_threshold", float),
+    ("vad_min_speech_ms", "var_vad_min_speech_ms", int),
+    ("vad_min_silence_ms", "var_vad_min_silence_ms", int),
+    ("vad_speech_pad_ms", "var_vad_speech_pad_ms", int),
+    ("compression_ratio_threshold", "var_compression_ratio_threshold", float),
+    ("log_prob_threshold", "var_log_prob_threshold", float),
+    ("no_speech_threshold", "var_no_speech_threshold", float),
+    ("word_timestamps", "var_word_timestamps", bool),
+    ("temperature", "var_temperature", float),
+    ("beam_size", "var_beam_size", int),
+    ("initial_prompt", "var_initial_prompt", str),
+)
+
 
 class App(Tk):
     """Main application window."""
@@ -227,6 +269,11 @@ class App(Tk):
         self.var_initial_prompt = StringVar(value="")
 
         self._indicator_position: tuple[int, int] | None = None
+
+        # A blank Spinbox falls back to the value its variable was created with.
+        self._defaults: dict[str, float] = {
+            name: getattr(self, name).get() for _, name, cast in SETTINGS if cast in (int, float)
+        }
 
         self._load_settings()
         self._refresh_glossary_cache()
@@ -918,78 +965,30 @@ class App(Tk):
                 if isinstance(entry, (list, tuple)) and len(entry) >= 1:
                     self._record_recent_process(entry[0], None)
 
-        def set_if_present(key, var, cast=None):
-            if key not in saved:
-                return
-            value = saved[key]
-            if cast:
-                try:
-                    value = cast(value)
-                except (TypeError, ValueError):
-                    return
-            var.set(value)
-
-        set_if_present("model", self.var_model, str)
-        set_if_present("asr_backend", self.var_asr_backend, str)
-        set_if_present("idle_ttl_minutes", self.var_idle_ttl_minutes, float)
-        set_if_present("history_enable", self.var_history_enable, bool)
-        set_if_present("history_audio_days", self.var_history_audio_days, float)
-        set_if_present("device", self.var_device, str)
-        set_if_present("compute", self.var_compute, str)
-
         # Migrate old integer device ID to new "index: name" format
-        if "input" in saved:
-            input_val = saved["input"]
-            if isinstance(input_val, int) or (isinstance(input_val, str) and input_val.isdigit()):
-                # Old format: just a number - convert to "index: name" format
-                device_id = int(input_val)
-                try:
-                    devices = sd.query_devices()
-                    if 0 <= device_id < len(devices):
-                        device_name = devices[device_id].get("name", "")
-                        self.var_input.set(f"{device_id}: {device_name}")
-                    else:
-                        # Invalid device ID, clear it
-                        self.var_input.set("")
-                except (sd.PortAudioError, RuntimeError):
-                    self.var_input.set("")
-            else:
-                # Already in new format or empty
-                set_if_present("input", self.var_input, str)
+        input_val = saved.get("input")
+        if isinstance(input_val, int) or (isinstance(input_val, str) and input_val.isdigit()):
+            device_id = int(input_val)
+            saved["input"] = ""
+            try:
+                devices = sd.query_devices()
+                if 0 <= device_id < len(devices):
+                    saved["input"] = f"{device_id}: {devices[device_id].get('name', '')}"
+            except (sd.PortAudioError, RuntimeError):
+                pass
 
-        set_if_present("hotkey", self.var_hotkey, str)
-        set_if_present("auto_paste", self.var_auto_paste, bool)
-        set_if_present("paste_delay", self.var_paste_delay, float)
-        set_if_present("restore_delay", self.var_restore_delay, float)
-        set_if_present("cleanup_backend", self.var_cleanup_backend, str)
-        set_if_present("s1_styling", self.var_s1_styling, str)
-        set_if_present("s1_structure", self.var_s1_structure, str)
-        set_if_present("s1_context", self.var_s1_context, str)
-        set_if_present("llm_endpoint", self.var_llm_endpoint, str)
-        set_if_present("llm_model", self.var_llm_model, str)
-        # Load API key from secure storage (not from JSON settings)
+        for key, name, cast in SETTINGS:
+            if key not in saved:
+                continue
+            try:
+                getattr(self, name).set(cast(saved[key]))
+            except (TypeError, ValueError):
+                continue
+
+        # The API key lives in secure storage, not in the JSON settings.
         api_key = settings_store.get_secure_setting("llm_key")
         if api_key:
             self.var_llm_key.set(api_key)
-        set_if_present("llm_temp", self.var_llm_temp, float)
-        set_if_present("llm_debug", self.var_llm_debug, bool)
-        set_if_present("glossary_enable", self.var_glossary_enable, bool)
-        set_if_present("auto_load_model", self.var_auto_load_model, bool)
-        set_if_present("auto_register_hotkey", self.var_auto_register_hotkey, bool)
-
-        # Load advanced transcription settings
-        set_if_present("vad_enabled", self.var_vad_enabled, bool)
-        set_if_present("vad_threshold", self.var_vad_threshold, float)
-        set_if_present("vad_min_speech_ms", self.var_vad_min_speech_ms, float)
-        set_if_present("vad_min_silence_ms", self.var_vad_min_silence_ms, float)
-        set_if_present("vad_speech_pad_ms", self.var_vad_speech_pad_ms, float)
-        set_if_present("compression_ratio_threshold", self.var_compression_ratio_threshold, float)
-        set_if_present("log_prob_threshold", self.var_log_prob_threshold, float)
-        set_if_present("no_speech_threshold", self.var_no_speech_threshold, float)
-        set_if_present("word_timestamps", self.var_word_timestamps, bool)
-        set_if_present("temperature", self.var_temperature, float)
-        set_if_present("beam_size", self.var_beam_size, float)
-        set_if_present("initial_prompt", self.var_initial_prompt, str)
 
         pos = saved.get("indicator_position")
         if isinstance(pos, dict):
@@ -997,64 +996,35 @@ class App(Tk):
             if isinstance(x, int) and isinstance(y, int):
                 self._indicator_position = (x, y)
 
-    def _num(self, var, default: float) -> float:
+    def _num(self, name: str) -> float:
         """A blank or half-typed Spinbox raises TclError; fall back, do not crash."""
         try:
-            return float(var.get())
+            return float(getattr(self, name).get())
         except (TclError, ValueError):
-            return default
+            return self._defaults[name]
+
+    def _read_vars(self) -> dict[str, Any]:
+        """Every setting in SETTINGS, read out of Tk. Main thread only."""
+        values: dict[str, Any] = {}
+        for key, name, cast in SETTINGS:
+            if cast is str:
+                values[key] = getattr(self, name).get().strip()
+            elif cast is bool:
+                values[key] = bool(getattr(self, name).get())
+            else:
+                values[key] = cast(self._num(name))
+        return values
 
     def _save_settings(self) -> None:
         """Persist current settings to disk."""
-        settings = {
-            "model": self.var_model.get().strip(),
-            "asr_backend": self.var_asr_backend.get().strip(),
-            "idle_ttl_minutes": self._num(self.var_idle_ttl_minutes, DEFAULT_IDLE_TTL_MINUTES),
-            "history_enable": bool(self.var_history_enable.get()),
-            "history_audio_days": self._num(
-                self.var_history_audio_days, DEFAULT_HISTORY_AUDIO_DAYS
-            ),
-            "device": self.var_device.get().strip(),
-            "compute": config.normalize_compute_type(
-                self.var_device.get().strip(), self.var_compute.get().strip()
-            ),
-            "input": self.var_input.get().strip(),
-            "hotkey": self.var_hotkey.get().strip(),
-            "auto_paste": bool(self.var_auto_paste.get()),
-            "paste_delay": self._num(self.var_paste_delay, 0.15),
-            "restore_delay": self._num(self.var_restore_delay, 0.6),
-            "cleanup_backend": self.var_cleanup_backend.get().strip(),
-            "s1_styling": self.var_s1_styling.get().strip(),
-            "s1_structure": self.var_s1_structure.get().strip(),
-            "s1_context": self.var_s1_context.get().strip(),
-            "llm_endpoint": self.var_llm_endpoint.get().strip(),
-            "llm_model": self.var_llm_model.get().strip(),
-            "llm_key": self.var_llm_key.get(),
-            "llm_temp": self._num(self.var_llm_temp, DEFAULT_LLM_TEMP),
-            "llm_debug": bool(self.var_llm_debug.get()),
-            "glossary_enable": bool(self.var_glossary_enable.get()),
-            "auto_load_model": bool(self.var_auto_load_model.get()),
-            "auto_register_hotkey": bool(self.var_auto_register_hotkey.get()),
-            "app_prompts": self.app_prompts,
-            # Process names only: a window title can be a document or a subject
-            # line, and the Automation window promises those are never stored.
-            "recent_processes": list(
-                dict.fromkeys(entry["process_name"] for entry in self.recent_processes)
-            ),
-            # Advanced transcription settings
-            "vad_enabled": bool(self.var_vad_enabled.get()),
-            "vad_threshold": self._num(self.var_vad_threshold, 0.5),
-            "vad_min_speech_ms": self._num(self.var_vad_min_speech_ms, 250),
-            "vad_min_silence_ms": self._num(self.var_vad_min_silence_ms, 500),
-            "vad_speech_pad_ms": self._num(self.var_vad_speech_pad_ms, 400),
-            "compression_ratio_threshold": self._num(self.var_compression_ratio_threshold, 2.4),
-            "log_prob_threshold": self._num(self.var_log_prob_threshold, -1.0),
-            "no_speech_threshold": self._num(self.var_no_speech_threshold, 0.6),
-            "word_timestamps": bool(self.var_word_timestamps.get()),
-            "temperature": self._num(self.var_temperature, 0.0),
-            "beam_size": int(self._num(self.var_beam_size, 5)),
-            "initial_prompt": self.var_initial_prompt.get().strip(),
-        }
+        settings = self._read_vars()
+        settings["compute"] = config.normalize_compute_type(settings["device"], settings["compute"])
+        settings["app_prompts"] = self.app_prompts
+        # Process names only: a window title can be a document or a subject
+        # line, and the Automation window promises those are never stored.
+        settings["recent_processes"] = list(
+            dict.fromkeys(entry["process_name"] for entry in self.recent_processes)
+        )
 
         if hasattr(self, "indicator"):
             pos = self.indicator.get_position()
@@ -1214,7 +1184,7 @@ class App(Tk):
 
     def _apply_idle_ttl(self) -> None:
         """Push the TTL setting onto the Resident. 0 minutes means never unload."""
-        ttl = max(0.0, self._num(self.var_idle_ttl_minutes, DEFAULT_IDLE_TTL_MINUTES)) * 60.0
+        ttl = max(0.0, self._num("var_idle_ttl_minutes")) * 60.0
         self.asr.ttl = ttl
         self.s1.ttl = ttl
         self._capture_asr_config()
@@ -1391,35 +1361,10 @@ class App(Tk):
 
     def _capture_dictation_config(self) -> dict[str, Any]:
         """Copy every setting a dictation uses out of Tk. Main thread only."""
-        return {
-            "vad_enabled": bool(self.var_vad_enabled.get()),
-            "vad_threshold": self._num(self.var_vad_threshold, 0.5),
-            "vad_min_speech_ms": int(self._num(self.var_vad_min_speech_ms, 250)),
-            "vad_min_silence_ms": int(self._num(self.var_vad_min_silence_ms, 500)),
-            "vad_speech_pad_ms": int(self._num(self.var_vad_speech_pad_ms, 400)),
-            "beam_size": int(self._num(self.var_beam_size, 5)),
-            "compression_ratio_threshold": self._num(self.var_compression_ratio_threshold, 2.4),
-            "log_prob_threshold": self._num(self.var_log_prob_threshold, -1.0),
-            "no_speech_threshold": self._num(self.var_no_speech_threshold, 0.6),
-            "word_timestamps": bool(self.var_word_timestamps.get()),
-            "temperature": self._num(self.var_temperature, 0.0),
-            "initial_prompt": self.var_initial_prompt.get().strip() or None,
-            "glossary_enable": bool(self.var_glossary_enable.get()),
-            "cleanup_backend": self.var_cleanup_backend.get().strip(),
-            "llm_endpoint": self.var_llm_endpoint.get().strip(),
-            "llm_model": self.var_llm_model.get().strip(),
-            "llm_key": self.var_llm_key.get().strip() or None,
-            "llm_temp": self._num(self.var_llm_temp, DEFAULT_LLM_TEMP),
-            "llm_debug": bool(self.var_llm_debug.get()),
-            "history_enable": bool(self.var_history_enable.get()),
-            "history_audio_days": int(
-                self._num(self.var_history_audio_days, DEFAULT_HISTORY_AUDIO_DAYS)
-            ),
-            "asr_backend": self.var_asr_backend.get().strip(),
-            "auto_paste": bool(self.var_auto_paste.get()),
-            "paste_delay": self._num(self.var_paste_delay, 0.15),
-            "restore_delay": self._num(self.var_restore_delay, 0.6),
-        }
+        cfg = self._read_vars()
+        cfg["initial_prompt"] = cfg["initial_prompt"] or None
+        cfg["llm_key"] = cfg["llm_key"] or None
+        return cfg
 
     def _append_transcript(self, text: str) -> None:
         """Add a line to the transcript box. Main thread only."""
