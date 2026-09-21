@@ -40,7 +40,6 @@ class AudioRecorder:
         self._buffer_lock = threading.Lock()
         self._stream: sd.InputStream | None = None
         self._recorder_thread: threading.Thread | None = None
-        self._stop_recorder = threading.Event()
         self._on_first_audio: Callable[[], None] | None = None
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: dict, status) -> None:
@@ -58,15 +57,11 @@ class AudioRecorder:
 
     def _recorder_loop(self) -> None:
         """Background thread that collects audio chunks from the queue."""
-        while not self._stop_recorder.is_set():
-            try:
-                # Use timeout to allow checking stop flag
-                chunk = self._audio_queue.get(timeout=0.1)
-                with self._buffer_lock:
-                    self._audio_buffer.append(chunk)
-                self._audio_queue.task_done()
-            except queue.Empty:
-                continue
+        while True:
+            chunk = self._audio_queue.get()
+            with self._buffer_lock:
+                self._audio_buffer.append(chunk)
+            self._audio_queue.task_done()
 
     def start(
         self, device: int | None = None, on_first_audio: Callable[[], None] | None = None
@@ -86,7 +81,6 @@ class AudioRecorder:
 
         # Start recorder thread if not already running
         if self._recorder_thread is None or not self._recorder_thread.is_alive():
-            self._stop_recorder.clear()
             self._recorder_thread = threading.Thread(target=self._recorder_loop, daemon=True)
             self._recorder_thread.start()
 
@@ -155,10 +149,3 @@ class AudioRecorder:
     def is_recording(self) -> bool:
         """Check if currently recording."""
         return self._recording
-
-    def shutdown(self) -> None:
-        """Shutdown the recorder and cleanup resources."""
-        self.stop()
-        self._stop_recorder.set()
-        if self._recorder_thread and self._recorder_thread.is_alive():
-            self._recorder_thread.join(timeout=1.0)

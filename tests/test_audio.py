@@ -144,19 +144,6 @@ class TestAudioRecorder:
         assert recorder.chunk_ms == 100
 
     @patch("whisper_dictate.audio.sd.InputStream")
-    def test_shutdown(self, mock_stream_class):
-        """Test shutdown cleanup."""
-        mock_stream = MagicMock()
-        mock_stream_class.return_value = mock_stream
-
-        recorder = AudioRecorder()
-        recorder.start()
-        recorder.shutdown()
-
-        assert recorder.is_recording() is False
-        assert recorder._stop_recorder.is_set()
-
-    @patch("whisper_dictate.audio.sd.InputStream")
     def test_stop_with_stream_error(self, mock_stream_class):
         """Test that stop handles stream errors gracefully."""
         mock_stream = MagicMock()
