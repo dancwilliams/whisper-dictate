@@ -20,37 +20,15 @@ last_load_error: str | None = None
 
 
 def load_settings() -> dict[str, Any]:
-    """Load saved settings from disk, returning defaults on failure.
+    """Load saved settings from disk. Empty on failure: the defaults are the GUI's.
 
     Automatically migrates plaintext API keys to secure storage if found.
     """
-    # Default advanced transcription settings
-    defaults = {
-        "app_prompts": {},
-        "vad_enabled": False,  # Disabled by default for backward compatibility
-        "vad_threshold": 0.5,
-        "vad_min_speech_ms": 250,
-        "vad_min_silence_ms": 500,
-        "vad_speech_pad_ms": 400,
-        "compression_ratio_threshold": 2.4,
-        "log_prob_threshold": -1.0,
-        "no_speech_threshold": 0.6,
-        "word_timestamps": False,
-        "temperature": 0.0,
-        "beam_size": 5,
-        "initial_prompt": "",
-    }
-
     global last_load_error
     last_load_error = None
     try:
         if SETTINGS_FILE.is_file():
             settings: dict[str, Any] = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-
-            # Merge with defaults (preserve existing, add missing)
-            for key, value in defaults.items():
-                if key not in settings:
-                    settings[key] = value
 
             # Migrate plaintext API keys to secure storage
             _migrate_secure_settings(settings)
@@ -67,7 +45,7 @@ def load_settings() -> dict[str, Any]:
         logger.error(f"Could not read saved settings: {e}. Copy kept at {backup}")
     except OSError as e:  # pragma: no cover
         logger.error(f"Could not read saved settings: {e}")
-    return defaults
+    return {}
 
 
 def save_settings(settings: dict[str, Any]) -> bool:

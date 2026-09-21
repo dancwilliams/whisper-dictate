@@ -24,22 +24,8 @@ def settings_file(tmp_path, monkeypatch):
 
 
 def get_expected_defaults():
-    """Get the expected default settings returned by load_settings."""
-    return {
-        "app_prompts": {},
-        "vad_enabled": False,  # Disabled by default for backward compatibility
-        "vad_threshold": 0.5,
-        "vad_min_speech_ms": 250,
-        "vad_min_silence_ms": 500,
-        "vad_speech_pad_ms": 400,
-        "compression_ratio_threshold": 2.4,
-        "log_prob_threshold": -1.0,
-        "no_speech_threshold": 0.6,
-        "word_timestamps": False,
-        "temperature": 0.0,
-        "beam_size": 5,
-        "initial_prompt": "",
-    }
+    """load_settings holds no defaults of its own; they live in the GUI's Tk variables."""
+    return {}
 
 
 class TestLoadSettings:
@@ -73,26 +59,8 @@ class TestLoadSettings:
 
         result = load_settings()
 
-        # Should have test settings plus defaults for missing keys
-        expected = {**get_expected_defaults(), **test_settings}
-        assert result == expected
+        assert result == test_settings
         mock_path.read_text.assert_called_once_with(encoding="utf-8")
-
-    def test_load_settings_adds_app_prompts_key_if_missing(self, monkeypatch):
-        """Test that load_settings adds app_prompts key if not present in loaded settings."""
-        test_settings = {"model": "base", "compute_type": "int8"}
-
-        mock_path = MagicMock(spec=Path)
-        mock_path.is_file.return_value = True
-        mock_path.read_text.return_value = json.dumps(test_settings)
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
-
-        result = load_settings()
-
-        assert "app_prompts" in result
-        assert result["app_prompts"] == {}
-        assert result["model"] == "base"
-        assert result["compute_type"] == "int8"
 
     def test_load_settings_handles_invalid_json(self, monkeypatch, caplog):
         """Test that load_settings returns default dict when JSON is invalid."""

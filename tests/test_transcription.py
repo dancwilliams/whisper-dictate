@@ -84,26 +84,6 @@ class TestTranscription:
         assert call_kwargs["vad_parameters"]["threshold"] == 0.5
         assert call_kwargs["vad_parameters"]["min_speech_duration_ms"] == 250
 
-    def test_transcribe_audio_vad_default_parameters(self):
-        """Test that VAD uses default parameters when enabled but not specified."""
-        mock_model = MagicMock()
-        mock_segment = MagicMock()
-        mock_segment.text = "Test"
-        mock_model.transcribe.return_value = ([mock_segment], {})
-
-        audio_data = b"fake audio data"
-        # Explicitly enable VAD to test default parameters
-        result = transcribe_audio(mock_model, audio_data, vad_filter=True)
-
-        assert result == "Test"
-        call_kwargs = mock_model.transcribe.call_args.kwargs
-        assert call_kwargs["vad_filter"] is True
-        assert call_kwargs["vad_parameters"] is not None
-        assert call_kwargs["vad_parameters"]["threshold"] == 0.5
-        assert call_kwargs["vad_parameters"]["min_speech_duration_ms"] == 250
-        assert call_kwargs["vad_parameters"]["min_silence_duration_ms"] == 500
-        assert call_kwargs["vad_parameters"]["speech_pad_ms"] == 400
-
     def test_transcribe_audio_vad_disabled_by_default(self):
         """Test that VAD is disabled by default for backward compatibility."""
         mock_model = MagicMock()

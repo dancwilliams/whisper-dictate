@@ -37,7 +37,7 @@ def transcribe_audio(
         beam_size: Beam size for decoding (default: 5)
         language: Language code (default: "en")
         vad_filter: Whether to use VAD filtering (default: False)
-        vad_parameters: Custom VAD parameters (default: optimal settings)
+        vad_parameters: Custom VAD parameters (default: faster-whisper's own)
         compression_ratio_threshold: Detect repetitive hallucinations (default: 2.4)
         log_prob_threshold: Filter low-confidence segments (default: -1.0)
         no_speech_threshold: Detect silence/non-speech (default: 0.6)
@@ -56,15 +56,6 @@ def transcribe_audio(
         TranscriptionError: If transcription fails
     """
     try:
-        # Default VAD parameters if not provided
-        if vad_filter and vad_parameters is None:
-            vad_parameters = {
-                "threshold": 0.5,
-                "min_speech_duration_ms": 250,
-                "min_silence_duration_ms": 500,
-                "speech_pad_ms": 400,
-            }
-
         segments, info = model.transcribe(
             audio,
             beam_size=beam_size,
