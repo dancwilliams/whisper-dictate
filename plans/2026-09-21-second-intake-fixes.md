@@ -379,8 +379,8 @@ Branch: `chore/deletions-2`. Report section 5, minus the miner. One commit per i
 - [x] Coverage for `credentials.py` and `audio.py` stays at 100%
 
 #### Manual Verification:
-- [ ] Quit from the pill after a dictation: the process exits within a second (the collector is a daemon thread; nothing joins it now)
-- [ ] With a settings file carrying a plaintext `llm_key` (the implementer prepares a copy and gives Dan the steps): launch, the key is in Credential Manager and gone from the JSON
+- [x] Quit from the pill after a dictation: the process exits within a second (the collector is a daemon thread; nothing joins it now)
+- [x] With a settings file carrying a plaintext `llm_key` (the implementer prepares a copy and gives Dan the steps): launch, the key is in Credential Manager and gone from the JSON
 
 ---
 
