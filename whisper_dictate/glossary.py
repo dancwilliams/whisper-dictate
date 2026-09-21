@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
 from typing import Literal, cast, get_args
+
+logger = logging.getLogger("whisper_dictate")
 
 MatchType = Literal["word", "phrase", "regex", "phonetic"]
 
@@ -173,7 +176,7 @@ class GlossaryManager:
         except (OSError, UnicodeDecodeError) as e:  # pragma: no cover
             # OSError: File access errors
             # UnicodeDecodeError: Invalid UTF-8 encoding
-            print(f"(Glossary) Could not read saved glossary: {e}")
+            logger.error(f"Could not read saved glossary: {e}")
             return cls()
 
         content = content.strip()
@@ -208,7 +211,7 @@ class GlossaryManager:
             # UnicodeEncodeError: Invalid character encoding
             # TypeError: Non-serializable values in rules
             # ValueError: Invalid JSON structure
-            print(f"(Glossary) Could not save glossary: {e}")
+            logger.error(f"Could not save glossary: {e}")
             return False
 
     # ------------------------------------------------------------------
