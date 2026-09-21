@@ -91,6 +91,7 @@ def make_app(mods):
         app.glossary_manager = mods.glossary.load_glossary_manager.return_value
         app.prompt_content = ""
         app._press_at = 0.0
+        app._status_state = "ready"
         app._settings_saved = False
         return app
 
@@ -189,7 +190,6 @@ class TestTranscribeAndClean:
         assert "warning" in states(app)
         mods.clipboard.set_text.assert_called_once_with("hello world")
 
-    @pytest.mark.xfail(strict=True, reason="B1, fixed in phase 3")
     def test_endpoint_failure_warning_survives(self, make_app, mods):
         mods.llm_cleanup.clean_with_llm.side_effect = llm_cleanup.LLMCleanupError("down")
         app = make_app(var_cleanup_backend="endpoint")
@@ -258,6 +258,35 @@ class TestRecentProcesses:
             app._record_recent_process(f"p{i}.exe", None)
         assert len(app.recent_processes) == gui.App.RECENT_PROCESSES_MAX
         assert app.recent_processes[0]["process_name"] == f"p{gui.App.RECENT_PROCESSES_MAX + 4}.exe"
+
+    def test_save_writes_process_names_without_titles(self, make_app, mocker):
+        store = mocker.patch.object(gui, "settings_store")
+        save_only = dict.fromkeys(
+            (
+                "var_model",
+                "var_idle_ttl_minutes",
+                "var_device",
+                "var_compute",
+                "var_input",
+                "var_hotkey",
+                "var_s1_styling",
+                "var_s1_structure",
+                "var_s1_context",
+                "var_auto_load_model",
+                "var_auto_register_hotkey",
+            ),
+            "0",
+        )
+        app = make_app(**save_only)
+        app.indicator.get_position.return_value = None
+        app._record_recent_process("a.exe", "Quarterly results - Word")
+        app._record_recent_process("b.exe", "two")
+        app._record_recent_process("a.exe", "other title")
+        app._save_settings()
+
+        saved = store.save_settings.call_args.args[0]
+        assert saved["recent_processes"] == ["a.exe", "b.exe"]
+        assert "window_title" not in repr(saved)
 
 
 class TestOnClose:

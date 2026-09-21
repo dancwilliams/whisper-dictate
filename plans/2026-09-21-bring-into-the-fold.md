@@ -249,10 +249,10 @@ Branch: `fix/small-bugs`. B1, B3, B5, B7. Independent of each other; one commit 
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest` passes with the B1 xfail marker removed
-- [ ] `git grep -n "_status_state" whisper_dictate/` shows an assignment, not only the read
-- [ ] `git grep -n "delete_credential" whisper_dictate/` shows a caller in `settings_store.py`
-- [ ] `make check` exits 0
+- [x] `uv run pytest` passes with the B1 xfail marker removed (360 passed, 1 skipped, 2 xfailed)
+- [x] `git grep -n "_status_state" whisper_dictate/` shows an assignment, not only the read
+- [x] `git grep -n "delete_credential" whisper_dictate/` shows a caller in `settings_store.py`
+- [x] `make check` exits 0 (run as its four commands)
 
 #### Manual Verification:
 - [ ] Settings → Automation: "History" sits above the history controls, "Startup" above the startup controls

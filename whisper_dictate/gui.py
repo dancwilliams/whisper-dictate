@@ -113,6 +113,7 @@ class App(Tk):
         self.s1 = asr.Resident(s1.S1Cleaner, ttl=0.0)
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self._press_at = 0.0
+        self._status_state = "ready"
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
         self.btn_llm_refresh: ttk.Button | None = None
@@ -434,7 +435,7 @@ class App(Tk):
                 row=5, column=0, sticky="we", pady=(12, 8)
             )
             ttk.Label(frame, text="History", font=("Segoe UI", 9, "bold")).grid(
-                row=11, column=0, sticky="w"
+                row=6, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame,
@@ -472,7 +473,7 @@ class App(Tk):
                 row=10, column=0, sticky="we", pady=(12, 8)
             )
             ttk.Label(frame, text="Startup", font=("Segoe UI", 9, "bold")).grid(
-                row=6, column=0, sticky="w"
+                row=11, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame, text="Auto-load model on startup", variable=self.var_auto_load_model
@@ -973,6 +974,9 @@ class App(Tk):
 
     def _set_status(self, state: str, message: str) -> None:
         """Update status in both label and indicator."""
+        # Recorded on the calling thread, not in the after() callback: the worker
+        # reads it back straight away to decide whether a warning is still standing.
+        self._status_state = state
         if threading.current_thread() is not threading.main_thread():
             self.after(0, self._set_status, state, message)
             return
@@ -999,16 +1003,14 @@ class App(Tk):
                     self._record_recent_process(entry, None)
                     continue
 
+                # Older files carry window titles. Drop them here and the next
+                # save takes them off the disk.
                 if isinstance(entry, dict):
-                    process = entry.get("process_name")
-                    window_title = entry.get("window_title")
-                    self._record_recent_process(process, window_title)
+                    self._record_recent_process(entry.get("process_name"), None)
                     continue
 
                 if isinstance(entry, (list, tuple)) and len(entry) >= 1:
-                    process = entry[0]
-                    window_title = entry[1] if len(entry) > 1 else None
-                    self._record_recent_process(process, window_title)
+                    self._record_recent_process(entry[0], None)
 
         def set_if_present(key, var, cast=None):
             if key not in saved:
@@ -1119,14 +1121,11 @@ class App(Tk):
             "auto_load_model": bool(self.var_auto_load_model.get()),
             "auto_register_hotkey": bool(self.var_auto_register_hotkey.get()),
             "app_prompts": self.app_prompts,
-            "recent_processes": [
-                {
-                    "process_name": entry.get("process_name", ""),
-                    "window_title": entry.get("window_title"),
-                }
-                for entry in self.recent_processes
-                if entry.get("process_name")
-            ],
+            # Process names only: a window title can be a document or a subject
+            # line, and the Automation window promises those are never stored.
+            "recent_processes": list(
+                dict.fromkeys(entry["process_name"] for entry in self.recent_processes)
+            ),
             # Advanced transcription settings
             "vad_enabled": bool(self.var_vad_enabled.get()),
             "vad_threshold": float(self.var_vad_threshold.get()),
@@ -1600,7 +1599,7 @@ class App(Tk):
 
         self._deliver(final_text)
 
-        if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
+        if self._status_state not in {"error", "warning"}:
             self._set_status("ready", "Ready")
 
     def _capture_s1_style(self) -> None:
@@ -1675,11 +1674,12 @@ class App(Tk):
             time.sleep(float(self.var_paste_delay.get()))
             # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
             # dictation apps use.
-            if clipboard.send_paste():
-                self._set_status("ready", "Pasted into active window")
-            else:
+            if not clipboard.send_paste():
                 self._set_status("error", "Auto-paste failed")
                 logger.error("SendInput refused the paste keystroke")
+            elif self._status_state not in {"error", "warning"}:
+                # A cleanup warning outranks the news that the paste landed.
+                self._set_status("ready", "Pasted into active window")
 
         if saved is None:
             return

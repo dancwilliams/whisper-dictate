@@ -293,6 +293,34 @@ class TestSaveSettings:
         assert "llm_endpoint" in saved_data
 
 
+class TestClearedSecureSetting:
+    """A blanked API key leaves the credential manager; a partial save does not touch it."""
+
+    @pytest.fixture
+    def creds(self, monkeypatch):
+        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", MagicMock(spec=Path))
+        with patch.multiple(
+            "whisper_dictate.settings_store.credentials",
+            store_credential=MagicMock(),
+            delete_credential=MagicMock(),
+        ):
+            from whisper_dictate import credentials
+
+            yield credentials
+
+    def test_blank_value_deletes_credential(self, creds):
+        save_settings({"model": "base", "llm_key": "  "})
+
+        creds.delete_credential.assert_called_once_with("llm_api_key")
+        creds.store_credential.assert_not_called()
+
+    def test_absent_key_does_not_delete(self, creds):
+        save_settings({"model": "base"})
+
+        creds.delete_credential.assert_not_called()
+        creds.store_credential.assert_not_called()
+
+
 class TestGetSecureSetting:
     """Tests for get_secure_setting function."""
 
