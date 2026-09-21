@@ -10,18 +10,18 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 
 ## ✨ Features
 
-- **100% local transcription** — no cloud calls
+- **100% local transcription** — audio never leaves your machine (models are downloaded once from Hugging Face; see [Security & Privacy](#-security--privacy))
 - **Secure credential storage** — API keys encrypted in Windows Credential Manager
 - **Optional LLM cleanup** via an OpenAI-style endpoint (Ollama, or any OpenAI-compatible server)
 - **Glossary injection** to enforce product names, jargon, or key phrases during normalization and LLM cleanup
-- **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate_prompt.txt`
+- **Prompt editor** (Edit → Prompt…) with your changes saved to `~/.whisper_dictate/whisper_dictate_prompt.txt`
 - **Per-application prompts** so you can override the cleanup prompt per app or window title (Edit → Per-app prompts…)
 - **Glossary editor** (Edit → Glossary…) with add/edit/delete controls, CSV import/export, and entries saved to
   `~/.whisper_dictate/whisper_dictate_glossary.json`
 - **Saves your settings** (model, device, hotkey, LLM config, paste delay) to `~/.whisper_dictate/whisper_dictate_settings.json`
 - **Advanced transcription settings** including VAD, hallucination prevention, beam size, temperature, and initial prompts
 - **Global hotkey** for push-to-talk from any application
-- **Auto-paste** into the focused window (`Ctrl+V`), with a configurable delay
+- **Auto-paste** into the focused window (`Shift+Insert`), with a configurable delay
 - **Fetch available LLM models** from your endpoint directly inside the LLM settings window
 - **Floating status indicator** that mirrors the app state (idle, listening, cleaning, etc.)
 - **Reset floating status indicator** button if you drag the indicator off screen
@@ -62,7 +62,7 @@ If "Auto-paste" is enabled, the result pastes automatically into the app you wer
 
 ### 3. Configure (optional)
 
-- **Edit → Prompt…** to customize the cleanup prompt (persisted to `~/.whisper_dictate_prompt.txt`).
+- **Edit → Prompt…** to customize the cleanup prompt (persisted to `~/.whisper_dictate/whisper_dictate_prompt.txt`).
 - **Edit → Per-app prompts…** to override the cleanup prompt for specific processes (e.g., `winword.exe`, `notion.exe`).
   Use the **recent apps** dropdown to prefill entries with the last windows you dictated into, and optionally add a window-title
   regex to scope a prompt to a particular document or channel. These rules are persisted to
@@ -96,7 +96,7 @@ sending text to the LLM cleanup step. Clear entries to fall back to the global p
 When the **Auto-paste** checkbox (GUI) is enabled:
 
 1. The final text is copied to the clipboard.
-2. After a short delay (default 0.15 s), `Ctrl + V` is sent to the active window.
+2. After a short delay (default 0.15 s), `Shift + Insert` is sent to the active window, and your previous clipboard is restored.
 
 If you toggle recording from inside Word, Notion, VS Code, or a chat window, the cleaned text appears directly where your cursor is.
 
@@ -288,9 +288,15 @@ The executable will be created in `dist/whisper-dictate-gui/` with all required 
 - The GUI displays a prominent warning when debug mode is active
 
 ### Privacy-First Design
-- All transcription happens **100% locally** — no cloud calls
-- LLM cleanup is optional and only used if you configure an endpoint
-- Your data never leaves your machine unless you explicitly enable LLM cleanup
+- All transcription happens **100% locally** — your audio is never sent anywhere
+- LLM cleanup is optional. The built-in S1-mini cleanup runs locally; endpoint cleanup sends the transcript to the endpoint you configure
+- Your data never leaves your machine unless you point endpoint cleanup at a remote server
+
+### Network Use
+- **Model downloads**: the first time you use a recognizer or the built-in S1-mini cleanup, its model is downloaded from [Hugging Face](https://huggingface.co/) into `~/.cache/huggingface`. Only the model files come down; nothing of yours goes up.
+- **After that**: the Cohere recognizer and S1-mini load straight from the cache and make no network request. faster-whisper asks Hugging Face whether the cached Whisper model is current when a connection is available, and uses the cache when it is not.
+- **Cohere recognizer**: the model is gated, so it needs a Hugging Face token in `~/.cache/huggingface/token` for that first download.
+- **With no network at all**: everything works once the models are cached, as long as cleanup is off, built-in, or pointed at a local endpoint (such as Ollama).
 
 ---
 
