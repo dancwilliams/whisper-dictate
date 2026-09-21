@@ -1,5 +1,6 @@
 """Audio recording functionality."""
 
+import logging
 import queue
 import threading
 from collections.abc import Callable
@@ -8,6 +9,8 @@ import numpy as np
 import sounddevice as sd
 
 from whisper_dictate.config import CHUNK_MS, INPUT_CHANNELS, SAMPLE_RATE
+
+logger = logging.getLogger("whisper_dictate")
 
 
 class AudioRecorder:
@@ -43,7 +46,7 @@ class AudioRecorder:
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: dict, status) -> None:
         """Callback for audio input stream."""
         if status:
-            print("Audio status:", status)
+            logger.warning(f"Audio status: {status}")
         # The first block is the only honest moment to say "listening": the device
         # takes a few hundred ms to open, and a cue before that lies.
         if self._on_first_audio is not None:
@@ -61,6 +64,7 @@ class AudioRecorder:
                 chunk = self._audio_queue.get(timeout=0.1)
                 with self._buffer_lock:
                     self._audio_buffer.append(chunk)
+                self._audio_queue.task_done()
             except queue.Empty:
                 continue
 
@@ -110,6 +114,11 @@ class AudioRecorder:
                 # AttributeError: Stream object is invalid
                 pass
             self._stream = None
+        # The stream is closed, so nothing more is coming. Wait for the collector
+        # to move what is queued, or get_buffer() misses the end of the utterance.
+        # Only while it is alive: join() has no timeout and this is the Tk thread.
+        if self._recorder_thread and self._recorder_thread.is_alive():
+            self._audio_queue.join()
         self._recording = False
 
     def prewarm(self, device: int | None = None) -> None:

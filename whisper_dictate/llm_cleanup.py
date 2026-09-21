@@ -35,7 +35,7 @@ def list_llm_models(endpoint: str, api_key: str | None, timeout: float = 10.0) -
         LLMCleanupError: If listing fails
     """
     try:
-        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key")
+        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key", max_retries=0)
         response = client.models.list(timeout=timeout)
         models = [m.id for m in getattr(response, "data", []) if getattr(m, "id", None)]
         return sorted(set(models))
@@ -109,7 +109,9 @@ def clean_with_llm(
         )
 
     try:
-        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key")
+        # The SDK retries twice by default, which turns a 15 s timeout into 45 s
+        # of "Cleaning with LLM...".
+        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key", max_retries=0)
 
         # Start timing
         start_time = time.perf_counter()

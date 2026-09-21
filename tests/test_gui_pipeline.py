@@ -4,9 +4,11 @@ The app is built with App.__new__, so no Tk interpreter and no display: every
 Tk variable and widget the method under test touches is a MagicMock.
 """
 
+import threading
 import time
 from collections import deque
 from tkinter import TclError
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -103,6 +105,7 @@ def make_app(mods):
         app.prompt_content = ""
         app._press_at = 0.0
         app._status_state = "ready"
+        app._deliver_lock = threading.Lock()
         app._settings_saved = False
         app._defaults = {
             name: VAR_DEFAULTS[name] for _, name, cast in gui.SETTINGS if cast in (int, float)
@@ -183,6 +186,37 @@ class TestDeliver:
             app._deliver("hi", app._capture_dictation_config())
 
         mods.clipboard.restore.assert_called_once_with("SAVED")
+
+    def test_two_deliveries_do_not_interleave(self, make_app, mods):
+        app = make_app()
+        # Off the main thread _set_status re-posts itself through after(), which
+        # the harness runs on the spot: it would recurse for ever.
+        app._set_status = MagicMock()
+        cfg = app._capture_dictation_config()
+        in_paste, go = threading.Event(), threading.Event()
+
+        def paste():
+            in_paste.set()
+            go.wait(2.0)
+            return True
+
+        mods.clipboard.send_paste.side_effect = paste
+        a = threading.Thread(target=app._deliver, args=("A", cfg))
+        a.start()
+        assert in_paste.wait(2.0)
+        b = threading.Thread(target=app._deliver, args=("B", cfg))
+        b.start()
+        b.join(0.1)  # B must be parked on the lock, not snapshotting A's text
+        assert [c[0] for c in mods.clipboard.mock_calls].count("snapshot") == 1
+        go.set()
+        a.join(2.0)
+        b.join(2.0)
+        assert [c[0] for c in mods.clipboard.mock_calls] == [
+            "snapshot",
+            "set_text",
+            "send_paste",
+            "restore",
+        ] * 2
 
 
 class TestTranscribeAndClean:
@@ -293,6 +327,20 @@ class TestSpeechWindowClose:
 
 
 class TestHotkey:
+    @pytest.mark.parametrize(("held", "warned"), [(0.2, True), (0.01, False)])
+    def test_a_slow_post_is_logged(self, held, warned, make_app, mocker, caplog):
+        """Windows drops the hook at 300 ms; the log must say when we get close."""
+        app = make_app()
+        clock = [0.0]
+        # gui's own reference only: pytest times tests with the real clock.
+        mocker.patch.object(gui, "time", SimpleNamespace(perf_counter=lambda: clock[0]))
+        app.after = MagicMock(side_effect=lambda *_: clock.__setitem__(0, clock[0] + held))
+
+        with caplog.at_level("WARNING", logger="whisper_dictate"):
+            app._post(app._on_hotkey_press)
+
+        assert ("Hotkey press callback held the hook thread for 200 ms" in caplog.text) is warned
+
     def test_tap_locks_recording(self, make_app, mods):
         app = make_app()
         app.recorder.is_recording.return_value = True

@@ -87,6 +87,10 @@ BEEP_HZ, BEEP_MS = 880, 60
 # holding the keys is the user's business, and a paste under them does nothing.
 MODIFIER_WAIT_SECONDS = 5.0
 
+# Windows drops a low-level hook that overruns LowLevelHooksTimeout, 300 ms by
+# default, and the hook thread waits on Tk in _post. Say so well before that.
+SLOW_HOOK_POST_SECONDS = 0.1
+
 # Every setting that lives in a Tk variable: (settings key, variable, type). It
 # drives load, save and the worker's snapshot. int and float are both DoubleVars.
 SETTINGS: tuple[tuple[str, str, type], ...] = (
@@ -168,6 +172,7 @@ class App(Tk):
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self._press_at = 0.0
         self._status_state = "ready"
+        self._deliver_lock = threading.Lock()
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
         self.btn_llm_refresh: ttk.Button | None = None
@@ -1269,8 +1274,19 @@ class App(Tk):
         self._register_hotkey()
 
     def _post(self, handler: Callable[[], None]) -> None:
-        """Hand a hook-thread event to the Tk thread."""
+        """Hand a hook-thread event to the Tk thread.
+
+        Timed here and not in hotkeys.py: that module sees every keystroke and
+        is kept free of logging on purpose.
+        """
+        started = time.perf_counter()
         self.after(0, handler)
+        elapsed = time.perf_counter() - started
+        if elapsed > SLOW_HOOK_POST_SECONDS:
+            event = handler.__name__.removeprefix("_on_hotkey_")
+            logger.warning(
+                f"Hotkey {event} callback held the hook thread for {elapsed * 1000:.0f} ms"
+            )
 
     def _on_hotkey_press(self) -> None:
         """Chord went down: start recording, or end a recording locked by a tap."""
@@ -1553,44 +1569,47 @@ class App(Tk):
 
         The clipboard is borrowed, not taken: whatever was on it - text, HTML,
         an image, a copied file - goes back once the target app has read ours.
+        Borrowing is only safe one borrower at a time, or the second saves the
+        first one's dictation as the user's clipboard.
         """
-        try:
-            saved = clipboard.snapshot()
-        except clipboard.ClipboardError as e:
-            # Someone else holds it. Better to lose their clipboard than the dictation.
-            logger.warning(f"Could not snapshot the clipboard: {e}")
-            saved = None
+        with self._deliver_lock:
+            try:
+                saved = clipboard.snapshot()
+            except clipboard.ClipboardError as e:
+                # Someone else holds it. Better to lose their clipboard than the dictation.
+                logger.warning(f"Could not snapshot the clipboard: {e}")
+                saved = None
 
-        try:
-            clipboard.set_text(text)
-        except clipboard.ClipboardError as e:
-            # Another app is holding the clipboard open. The text is still in the
-            # transcript box, so the dictation is not lost, only undelivered.
-            self._set_status("error", "Clipboard locked; text is in the transcript")
-            logger.error(f"Clipboard write failed: {e}", exc_info=True)
-            return
+            try:
+                clipboard.set_text(text)
+            except clipboard.ClipboardError as e:
+                # Another app is holding the clipboard open. The text is still in the
+                # transcript box, so the dictation is not lost, only undelivered.
+                self._set_status("error", "Clipboard locked; text is in the transcript")
+                logger.error(f"Clipboard write failed: {e}", exc_info=True)
+                return
 
-        # From here the clipboard holds our text: whatever happens, give theirs back.
-        try:
-            if cfg["auto_paste"]:
-                self._wait_for_modifiers_up()
-                time.sleep(cfg["paste_delay"])
-                # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
-                # dictation apps use.
-                if not clipboard.send_paste():
-                    self._set_status("error", "Auto-paste failed")
-                    logger.error("SendInput refused the paste keystroke")
-                elif self._status_state not in {"error", "warning"}:
-                    # A cleanup warning outranks the news that the paste landed.
-                    self._set_status("ready", "Pasted into active window")
-        finally:
-            if saved is not None:
-                # Give the target app time to read our text before taking it back.
-                time.sleep(cfg["restore_delay"])
-                try:
-                    clipboard.restore(saved)
-                except clipboard.ClipboardError as e:
-                    logger.warning(f"Could not restore the clipboard: {e}")
+            # From here the clipboard holds our text: whatever happens, give theirs back.
+            try:
+                if cfg["auto_paste"]:
+                    self._wait_for_modifiers_up()
+                    time.sleep(cfg["paste_delay"])
+                    # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
+                    # dictation apps use.
+                    if not clipboard.send_paste():
+                        self._set_status("error", "Auto-paste failed")
+                        logger.error("SendInput refused the paste keystroke")
+                    elif self._status_state not in {"error", "warning"}:
+                        # A cleanup warning outranks the news that the paste landed.
+                        self._set_status("ready", "Pasted into active window")
+            finally:
+                if saved is not None:
+                    # Give the target app time to read our text before taking it back.
+                    time.sleep(cfg["restore_delay"])
+                    try:
+                        clipboard.restore(saved)
+                    except clipboard.ClipboardError as e:
+                        logger.warning(f"Could not restore the clipboard: {e}")
 
     def _wait_for_modifiers_up(self, timeout: float = MODIFIER_WAIT_SECONDS) -> None:
         """Block until every modifier key is released.

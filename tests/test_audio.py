@@ -1,5 +1,6 @@
 """Tests for audio recording functionality."""
 
+import threading
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -86,6 +87,12 @@ class TestAudioRecorder:
         queued_data = recorder._audio_queue.get_nowait()
         assert len(queued_data) == 3  # Should be mono
 
+    def test_audio_status_reaches_the_log(self, caplog):
+        """Under pythonw.exe a print goes nowhere; an overflow must be findable."""
+        with caplog.at_level("WARNING", logger="whisper_dictate"):
+            AudioRecorder()._audio_callback(np.array([0.1]), 1, {}, "input overflow")
+        assert "Audio status: input overflow" in caplog.text
+
     @patch("whisper_dictate.audio.sd.InputStream")
     def test_on_first_audio_fires_once_per_recording(self, mock_stream_class):
         """The cue must fire on the first block and not again mid-recording."""
@@ -161,3 +168,21 @@ class TestAudioRecorder:
         recorder.stop()  # Should not raise
 
         assert recorder.is_recording() is False
+
+    @patch("whisper_dictate.audio.sd.InputStream")
+    def test_stop_waits_for_the_collector(self, mock_stream_class):
+        """The worker reads the buffer straight after stop(): the tail must be in it."""
+        mock_stream_class.return_value = MagicMock()
+        recorder = AudioRecorder()
+        recorder.start()
+        block = np.array([0.1, 0.2, 0.3])
+
+        # Hold the collector off the buffer so the blocks are still queued at stop().
+        recorder._buffer_lock.acquire()
+        for _ in range(3):
+            recorder._audio_callback(block, len(block), {}, None)
+        threading.Timer(0.05, recorder._buffer_lock.release).start()
+        recorder.stop()
+
+        assert recorder._audio_queue.unfinished_tasks == 0
+        assert len(recorder.get_buffer()) == 3 * len(block)
