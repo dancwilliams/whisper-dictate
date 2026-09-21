@@ -148,7 +148,7 @@ EOF
 - [x] `uv run pytest` — 343 passed, 1 skipped
 - [x] `git grep -n "continue-on-error" .github/` returns nothing
 - [x] CI on the PR shows five checks, all green, including `Test (Python 3.13)` (PR #62)
-- [ ] After step 4: `gh api repos/dancwilliams/whisper-dictate/branches/main/protection -q '.required_status_checks.contexts | length'` prints `5`
+- [x] After step 4: `gh api repos/dancwilliams/whisper-dictate/branches/main/protection -q '.required_status_checks.contexts | length'` prints `5`
 
 #### Manual Verification:
 - [ ] The app launches and a dictation pastes (nothing here should change behaviour; this is the smoke test for the annotations)
@@ -206,10 +206,10 @@ until the marker is removed, so the fix cannot land without the test being switc
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest tests/test_gui_pipeline.py -v` — all pass or xfail, none error
-- [ ] `uv run pytest` coverage line for `whisper_dictate\gui.py` is above 0% and `_deliver` / `_transcribe_and_clean` lines appear as covered in `htmlcov`
-- [ ] `make check` exits 0
-- [ ] No test in the new file creates a `Tk()` (grep the file for `Tk(`)
+- [x] `uv run pytest tests/test_gui_pipeline.py -v` — 13 passed, 3 xfailed
+- [x] `uv run pytest` coverage line for `whisper_dictate\gui.py` is above 0% (21%) and `_deliver` / `_transcribe_and_clean` lines appear as covered
+- [x] `make check` exits 0 (run as its four commands)
+- [x] No test in the new file creates a `Tk()` (grep the file for `Tk(`)
 
 #### Manual Verification:
 - [ ] None. No production code changes in this phase.
