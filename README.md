@@ -258,7 +258,7 @@ USE_UV=1 make build-exe
 uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
 ```
 
-The executable will be created in `dist/whisper-dictate-gui/` with all required CUDA DLLs bundled. See [`docs/build.md`](docs/build.md) for detailed build instructions.
+The build is a single file, `dist/whisper-dictate-gui.exe`, with all required CUDA DLLs bundled inside it. See [`docs/build.md`](docs/build.md) for detailed build instructions.
 
 ---
 

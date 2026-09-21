@@ -16,7 +16,7 @@ This project ships a standalone Windows executable generated with [PyInstaller](
    uv sync --python 3.11
    ```
    This materializes a `.venv` with the locked dependencies. Prefer `--frozen` when you want to guarantee the lock file is respected.
-2. **Build the executable.** The PyInstaller spec writes the output to `dist/whisper-dictate-gui/` and includes the GUI icon plus CUDA DLLs. When using uv the Makefile target keeps everything in the managed environment:
+2. **Build the executable.** The PyInstaller spec writes a single file, `dist/whisper-dictate-gui.exe`, with the GUI icon and the CUDA DLLs inside it. When using uv the Makefile target keeps everything in the managed environment:
    ```bash
    USE_UV=1 make build-exe
    # which expands to: uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
@@ -25,9 +25,9 @@ This project ships a standalone Windows executable generated with [PyInstaller](
 3. **Code signing (optional).** Use `signtool.exe` on Windows with your `.pfx` certificate and timestamp service:
    ```powershell
    signtool sign /fd sha256 /f path\to\certificate.pfx /p <password> \
-     /tr http://timestamp.digicert.com /td sha256 dist\whisper-dictate-gui\whisper-dictate-gui.exe
+     /tr http://timestamp.digicert.com /td sha256 dist\whisper-dictate-gui.exe
    ```
-4. **Artifacts.** Ship the entire `dist/whisper-dictate-gui/` folder (the executable requires the bundled DLLs).
+4. **Artifacts.** Ship `dist/whisper-dictate-gui.exe`; it is a one-file build and carries its DLLs.
 
 ## Automated GitHub Actions build
 
@@ -36,12 +36,12 @@ Trigger **Build Windows executable** from the *Actions* tab. The workflow runs w
 Key workflow steps:
 
 1. **Checkout and install** – Uses `actions/setup-python` (3.11) followed by `uv sync --frozen --python 3.11` so the lock file defines the exact dependency set (including PyInstaller and the CUDA-enabled wheels).
-2. **PyInstaller build** – Executes `uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm` to produce `dist/whisper-dictate-gui/`.
+2. **PyInstaller build** – Executes `uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm` to produce `dist/whisper-dictate-gui.exe`.
 3. **Code signing** – If the following repository secrets are defined, the workflow signs the executable and applies an RFC 3161 timestamp:
    * `WINDOWS_SIGNING_CERTIFICATE`: Base64-encoded `.pfx` file.
    * `WINDOWS_SIGNING_PASSWORD`: Password protecting the certificate.
    * `WINDOWS_TIMESTAMP_URL`: Optional timestamp authority URL (leave empty to skip).
-4. **Artifact upload** – Publishes the `dist/whisper-dictate-gui/` directory as a workflow artifact named `whisper-dictate-gui`.
+4. **Artifact upload** – Publishes `dist/whisper-dictate-gui.exe` as a workflow artifact named `whisper-dictate-gui`.
 
 ## Troubleshooting tips
 
