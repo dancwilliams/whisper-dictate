@@ -448,10 +448,10 @@ site than `not modifiers_held()`.
 - [x] `git ls-files commit.txt scripts/prefetch_model.py` prints nothing
 
 #### Manual Verification:
-- [ ] Settings → Advanced transcription: every control from before is there except "Word timestamps", and changing beam size then relaunching keeps the value
-- [ ] Every settings window: change one value in each, quit, relaunch, all four kept
-- [ ] A dictation with endpoint cleanup on still cleans; check the debug log shows the prompt without a cursor-position line
-- [ ] `make build-exe` produces a working exe
+- [x] Settings → Advanced transcription: every control from before is there except "Word timestamps", and changing beam size then relaunching keeps the value
+- [x] Every settings window: change one value in each, quit, relaunch, all four kept
+- [x] A dictation with endpoint cleanup on still cleans; check the debug log shows the prompt without a cursor-position line (Ollama, qwen2.5:7b-instruct)
+- [x] `make build-exe` produces a working exe — launches, dictates, endpoint cleanup works. S1 cleanup does not work in the exe: the spec never bundled `llama_cpp\lib`. Older than this plan; not fixed here
 - [ ] Run `/repo-intake quick`: no tier 1 blocker, no tier 2 FAIL, B1-B7 not reported
 
 ---
