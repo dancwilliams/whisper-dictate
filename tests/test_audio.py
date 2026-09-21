@@ -87,6 +87,12 @@ class TestAudioRecorder:
         queued_data = recorder._audio_queue.get_nowait()
         assert len(queued_data) == 3  # Should be mono
 
+    def test_audio_status_reaches_the_log(self, caplog):
+        """Under pythonw.exe a print goes nowhere; an overflow must be findable."""
+        with caplog.at_level("WARNING", logger="whisper_dictate"):
+            AudioRecorder()._audio_callback(np.array([0.1]), 1, {}, "input overflow")
+        assert "Audio status: input overflow" in caplog.text
+
     @patch("whisper_dictate.audio.sd.InputStream")
     def test_on_first_audio_fires_once_per_recording(self, mock_stream_class):
         """The cue must fire on the first block and not again mid-recording."""

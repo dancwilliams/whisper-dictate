@@ -1,5 +1,6 @@
 """Audio recording functionality."""
 
+import logging
 import queue
 import threading
 from collections.abc import Callable
@@ -8,6 +9,8 @@ import numpy as np
 import sounddevice as sd
 
 from whisper_dictate.config import CHUNK_MS, INPUT_CHANNELS, SAMPLE_RATE
+
+logger = logging.getLogger("whisper_dictate")
 
 
 class AudioRecorder:
@@ -43,7 +46,7 @@ class AudioRecorder:
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: dict, status) -> None:
         """Callback for audio input stream."""
         if status:
-            print("Audio status:", status)
+            logger.warning(f"Audio status: {status}")
         # The first block is the only honest moment to say "listening": the device
         # takes a few hundred ms to open, and a cue before that lies.
         if self._on_first_audio is not None:
