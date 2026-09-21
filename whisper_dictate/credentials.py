@@ -34,11 +34,8 @@ def store_credential(key: str, value: str) -> None:
 
     Raises:
         CredentialStorageError: If storage fails
-        ValueError: If key or value is empty
+        ValueError: If value is empty
     """
-    if not key or not key.strip():
-        raise ValueError("Credential key cannot be empty")
-
     if not value or not value.strip():
         raise ValueError("Credential value cannot be empty")
 
@@ -62,11 +59,7 @@ def retrieve_credential(key: str) -> str | None:
 
     Raises:
         CredentialStorageError: If retrieval fails
-        ValueError: If key is empty
     """
-    if not key or not key.strip():
-        raise ValueError("Credential key cannot be empty")
-
     try:
         value = keyring.get_password(SERVICE_NAME, key)
         if value:
@@ -88,11 +81,7 @@ def delete_credential(key: str) -> None:
 
     Raises:
         CredentialStorageError: If deletion fails
-        ValueError: If key is empty
     """
-    if not key or not key.strip():
-        raise ValueError("Credential key cannot be empty")
-
     try:
         keyring.delete_password(SERVICE_NAME, key)
         logger.info(f"Deleted credential: {key}")

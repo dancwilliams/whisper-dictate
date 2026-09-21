@@ -20,17 +20,6 @@ class TestStoreCredential:
         )
 
     @patch("whisper_dictate.credentials.keyring")
-    def test_store_credential_empty_key(self, mock_keyring):
-        """Test storing with empty key raises ValueError."""
-        with pytest.raises(ValueError, match="key cannot be empty"):
-            credentials.store_credential("", "test_value")
-
-        with pytest.raises(ValueError, match="key cannot be empty"):
-            credentials.store_credential("   ", "test_value")
-
-        mock_keyring.set_password.assert_not_called()
-
-    @patch("whisper_dictate.credentials.keyring")
     def test_store_credential_empty_value(self, mock_keyring):
         """Test storing with empty value raises ValueError."""
         with pytest.raises(ValueError, match="value cannot be empty"):
@@ -76,17 +65,6 @@ class TestRetrieveCredential:
         mock_keyring.get_password.assert_called_once_with(credentials.SERVICE_NAME, "test_key")
 
     @patch("whisper_dictate.credentials.keyring")
-    def test_retrieve_credential_empty_key(self, mock_keyring):
-        """Test retrieving with empty key raises ValueError."""
-        with pytest.raises(ValueError, match="key cannot be empty"):
-            credentials.retrieve_credential("")
-
-        with pytest.raises(ValueError, match="key cannot be empty"):
-            credentials.retrieve_credential("   ")
-
-        mock_keyring.get_password.assert_not_called()
-
-    @patch("whisper_dictate.credentials.keyring")
     def test_retrieve_credential_keyring_error(self, mock_keyring):
         """Test handling of keyring errors during retrieval."""
         from keyring.errors import KeyringError
@@ -120,17 +98,6 @@ class TestDeleteCredential:
         credentials.delete_credential("test_key")
 
         mock_keyring.delete_password.assert_called_once_with(credentials.SERVICE_NAME, "test_key")
-
-    @patch("whisper_dictate.credentials.keyring")
-    def test_delete_credential_empty_key(self, mock_keyring):
-        """Test deleting with empty key raises ValueError."""
-        with pytest.raises(ValueError, match="key cannot be empty"):
-            credentials.delete_credential("")
-
-        with pytest.raises(ValueError, match="key cannot be empty"):
-            credentials.delete_credential("   ")
-
-        mock_keyring.delete_password.assert_not_called()
 
     @patch("whisper_dictate.credentials.keyring")
     def test_delete_credential_keyring_error(self, mock_keyring):
