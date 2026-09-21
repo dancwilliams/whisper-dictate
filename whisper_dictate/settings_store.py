@@ -89,11 +89,11 @@ def _migrate_secure_settings(settings: dict[str, Any]) -> None:
             if isinstance(plaintext_value, str) and plaintext_value.strip():
                 # Attempt migration
                 try:
-                    if credentials.migrate_from_plaintext(plaintext_value, SECURE_KEYS[key]):
-                        # Remove from settings dict after successful migration
-                        del settings[key]
-                        logger.info(f"Migrated {key} to secure storage")
-                except Exception as e:
+                    credentials.store_credential(SECURE_KEYS[key], plaintext_value)
+                    # Only once it is stored: dropping it first would lose the key.
+                    del settings[key]
+                    logger.info(f"Migrated {key} to secure storage")
+                except (credentials.CredentialStorageError, ValueError) as e:
                     logger.warning(f"Failed to migrate {key}: {e}")
 
 

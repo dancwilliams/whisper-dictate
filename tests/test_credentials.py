@@ -141,35 +141,3 @@ class TestDeleteCredential:
 
         with pytest.raises(credentials.CredentialStorageError, match="Failed to delete credential"):
             credentials.delete_credential("test_key")
-
-
-class TestMigrateFromPlaintext:
-    """Test migration of plaintext credentials."""
-
-    @patch("whisper_dictate.credentials.store_credential")
-    def test_migrate_from_plaintext_success(self, mock_store):
-        """Test successful migration of plaintext credential."""
-        result = credentials.migrate_from_plaintext("my_api_key", "test_key")
-
-        assert result is True
-        mock_store.assert_called_once_with("test_key", "my_api_key")
-
-    @patch("whisper_dictate.credentials.store_credential")
-    def test_migrate_from_plaintext_empty_value(self, mock_store):
-        """Test migration with empty value returns False."""
-        result = credentials.migrate_from_plaintext("", "test_key")
-        assert result is False
-
-        result = credentials.migrate_from_plaintext("   ", "test_key")
-        assert result is False
-
-        mock_store.assert_not_called()
-
-    @patch("whisper_dictate.credentials.store_credential")
-    def test_migrate_from_plaintext_storage_error(self, mock_store):
-        """Test migration handles storage errors gracefully."""
-        mock_store.side_effect = credentials.CredentialStorageError("Storage failed")
-
-        result = credentials.migrate_from_plaintext("my_api_key", "test_key")
-
-        assert result is False
