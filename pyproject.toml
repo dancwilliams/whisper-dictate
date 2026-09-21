@@ -5,7 +5,6 @@ description = "A privacy-first, local speech-to-text and AI cleanup tool for Win
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "ctranslate2>=4.8.2",
     "faster-whisper>=1.2.1",
     "keyring>=25.7.0",
     # Metaphone, for opt-in phonetic glossary rules.
@@ -16,7 +15,6 @@ dependencies = [
     "nvidia-cuda-runtime-cu12==12.4.127",
     "nvidia-cudnn-cu12==9.5.0.50",
     "openai>=3.16",
-    "pillow>=12.0.0",
     "sounddevice>=0.5.6",
 ]
 

@@ -43,29 +43,21 @@ This project aims to foster an open and welcoming environment. We expect all con
 ### Prerequisites
 
 - **Python 3.11 or higher**
-- **uv package manager** (recommended) - [Installation instructions](https://github.com/astral-sh/uv)
+- **uv package manager** - [Installation instructions](https://github.com/astral-sh/uv)
 - **CUDA 12.4 + cuDNN 9.5** (optional, for GPU support)
 - **Windows OS** (primary target platform)
 
 ### Installing Dependencies
 
-Using `uv` (recommended):
 ```bash
 # Install all dependencies including dev tools (the `dev` group installs by default)
 uv sync
-
-# Or if you don't have uv, use pip
-pip install -e . --group dev
 ```
 
 ### Running the Application
 
 ```bash
-# Using uv
 uv run python -m whisper_dictate.gui
-
-# Using standard Python
-python -m whisper_dictate.gui
 ```
 
 ## Development Workflow
