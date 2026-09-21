@@ -442,16 +442,16 @@ site than `not modifiers_held()`.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `make check` exits 0 before every commit in this phase, not only at the end
-- [ ] `wc -l whisper_dictate/*.py | tail -1` is at least 250 lines below the 5,667 measured at `1974cd4`
-- [ ] Coverage for `gui.py` has not dropped from its Phase 4 figure
-- [ ] `git ls-files commit.txt scripts/prefetch_model.py` prints nothing
+- [x] `make check` exits 0 before every commit in this phase, not only at the end (run as its four commands; the Makefile-only and docs-only commits changed no Python)
+- [x] `wc -l whisper_dictate/*.py | tail -1` is at least 250 lines below the 5,667 measured at `1974cd4` — 5,383: 284 below, and 403 below the 5,786 this phase started from
+- [x] Coverage for `gui.py` has not dropped from its Phase 4 figure (25% to 30%)
+- [x] `git ls-files commit.txt scripts/prefetch_model.py` prints nothing
 
 #### Manual Verification:
-- [ ] Settings → Advanced transcription: every control from before is there except "Word timestamps", and changing beam size then relaunching keeps the value
-- [ ] Every settings window: change one value in each, quit, relaunch, all four kept
-- [ ] A dictation with endpoint cleanup on still cleans; check the debug log shows the prompt without a cursor-position line
-- [ ] `make build-exe` produces a working exe
+- [x] Settings → Advanced transcription: every control from before is there except "Word timestamps", and changing beam size then relaunching keeps the value
+- [x] Every settings window: change one value in each, quit, relaunch, all four kept
+- [x] A dictation with endpoint cleanup on still cleans; check the debug log shows the prompt without a cursor-position line (Ollama, qwen2.5:7b-instruct)
+- [x] `make build-exe` produces a working exe — launches, dictates, endpoint cleanup works. S1 cleanup does not work in the exe: the spec never bundled `llama_cpp\lib`. Older than this plan; not fixed here
 - [ ] Run `/repo-intake quick`: no tier 1 blocker, no tier 2 FAIL, B1-B7 not reported
 
 ---

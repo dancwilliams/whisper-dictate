@@ -12,27 +12,21 @@ class TestActiveContext:
 
     def test_active_context_creation(self):
         """Test creating ActiveContext with all fields."""
-        ctx = app_context.ActiveContext(
-            window_title="Test Window", process_name="test.exe", cursor_position=(100, 200)
-        )
+        ctx = app_context.ActiveContext(window_title="Test Window", process_name="test.exe")
 
         assert ctx.window_title == "Test Window"
         assert ctx.process_name == "test.exe"
-        assert ctx.cursor_position == (100, 200)
 
     def test_active_context_with_none_values(self):
         """Test creating ActiveContext with None values."""
-        ctx = app_context.ActiveContext(window_title=None, process_name=None, cursor_position=None)
+        ctx = app_context.ActiveContext(window_title=None, process_name=None)
 
         assert ctx.window_title is None
         assert ctx.process_name is None
-        assert ctx.cursor_position is None
 
     def test_active_context_is_frozen(self):
         """Test that ActiveContext is immutable (frozen dataclass)."""
-        ctx = app_context.ActiveContext(
-            window_title="Test", process_name="test.exe", cursor_position=(0, 0)
-        )
+        ctx = app_context.ActiveContext(window_title="Test", process_name="test.exe")
 
         with pytest.raises(AttributeError):
             ctx.window_title = "Modified"
@@ -46,7 +40,6 @@ class TestFormatContextForPrompt:
         ctx = app_context.ActiveContext(
             window_title="Document - Word",
             process_name="winword.exe",
-            cursor_position=(120, 340),
         )
 
         fragment = app_context.format_context_for_prompt(ctx)
@@ -54,14 +47,13 @@ class TestFormatContextForPrompt:
         assert fragment
         assert "Active application: winword.exe" in fragment
         assert "window: Document - Word" in fragment
-        assert "Cursor position at screen coordinates x=120, y=340" in fragment
+        assert "Cursor" not in fragment
 
     def test_format_context_with_process_only(self):
         """Test formatting context with only process name."""
         ctx = app_context.ActiveContext(
             window_title=None,
             process_name="notepad.exe",
-            cursor_position=None,
         )
 
         fragment = app_context.format_context_for_prompt(ctx)
@@ -73,24 +65,11 @@ class TestFormatContextForPrompt:
         ctx = app_context.ActiveContext(
             window_title="Untitled - Notepad",
             process_name=None,
-            cursor_position=None,
         )
 
         fragment = app_context.format_context_for_prompt(ctx)
 
         assert fragment == "Active window: Untitled - Notepad."
-
-    def test_format_context_with_cursor_only(self):
-        """Test formatting context with only cursor position."""
-        ctx = app_context.ActiveContext(
-            window_title=None,
-            process_name=None,
-            cursor_position=(500, 600),
-        )
-
-        fragment = app_context.format_context_for_prompt(ctx)
-
-        assert fragment == "Cursor position at screen coordinates x=500, y=600."
 
     def test_format_context_returns_none_for_none_input(self):
         """Test that None input returns None."""
@@ -103,7 +82,6 @@ class TestFormatContextForPrompt:
         ctx = app_context.ActiveContext(
             window_title=None,
             process_name=None,
-            cursor_position=None,
         )
 
         fragment = app_context.format_context_for_prompt(ctx)
@@ -135,28 +113,18 @@ class TestGetActiveContextWindows:
         # Mock GetForegroundWindow to return a valid hwnd
         mock_user32.GetForegroundWindow.return_value = 12345
 
-        # Mock GetCursorPos
-        def mock_get_cursor_pos(point_ref):
-            point_ref.contents.x = 100
-            point_ref.contents.y = 200
-            return True
-
-        mock_user32.GetCursorPos.side_effect = mock_get_cursor_pos
-
         monkeypatch.setattr(app_context, "USER32", mock_user32)
         monkeypatch.setattr(app_context, "KERNEL32", mock_kernel32)
 
         # Mock the helper functions
         monkeypatch.setattr(app_context, "_get_window_title", lambda hwnd: "Test Window")
         monkeypatch.setattr(app_context, "_get_process_name", lambda hwnd: "test.exe")
-        monkeypatch.setattr(app_context, "_get_cursor_position", lambda: (100, 200))
 
         result = app_context.get_active_context()
 
         assert result is not None
         assert result.window_title == "Test Window"
         assert result.process_name == "test.exe"
-        assert result.cursor_position == (100, 200)
 
     def test_get_active_context_no_foreground_window(self, monkeypatch):
         """Test that None is returned when no foreground window exists."""
@@ -351,36 +319,3 @@ class TestGetProcessName:
         assert result is None
         # Verify CloseHandle was still called
         mock_kernel32.CloseHandle.assert_called_once_with(99999)
-
-
-class TestGetCursorPosition:
-    """Tests for _get_cursor_position helper function."""
-
-    def test_get_cursor_position_success(self, monkeypatch):
-        """Test successful cursor position retrieval."""
-        mock_user32 = MagicMock()
-
-        def mock_get_cursor_pos(point_ref):
-            # Simulate setting the POINT structure
-            point_ref._obj.x = 150
-            point_ref._obj.y = 250
-            return True
-
-        mock_user32.GetCursorPos.side_effect = mock_get_cursor_pos
-
-        monkeypatch.setattr(app_context, "USER32", mock_user32)
-
-        result = app_context._get_cursor_position()
-
-        assert result == (150, 250)
-
-    def test_get_cursor_position_api_failure(self, monkeypatch):
-        """Test that None is returned when GetCursorPos fails."""
-        mock_user32 = MagicMock()
-        mock_user32.GetCursorPos.return_value = False  # Failure
-
-        monkeypatch.setattr(app_context, "USER32", mock_user32)
-
-        result = app_context._get_cursor_position()
-
-        assert result is None

@@ -24,7 +24,6 @@ class ActiveContext:
 
     window_title: str | None
     process_name: str | None
-    cursor_position: tuple[int, int] | None
 
 
 def _get_window_title(hwnd: int) -> str | None:
@@ -59,14 +58,6 @@ def _get_process_name(hwnd: int) -> str | None:
     return None
 
 
-def _get_cursor_position() -> tuple[int, int] | None:
-    assert USER32 is not None  # get_active_context returns before calling this off Windows
-    point = ctypes.wintypes.POINT()
-    if USER32.GetCursorPos(ctypes.byref(point)):
-        return point.x, point.y
-    return None
-
-
 def get_active_context() -> ActiveContext | None:
     """Return information about the active application on Windows."""
     if USER32 is None or KERNEL32 is None:
@@ -80,7 +71,6 @@ def get_active_context() -> ActiveContext | None:
         return ActiveContext(
             window_title=_get_window_title(hwnd),
             process_name=_get_process_name(hwnd),
-            cursor_position=_get_cursor_position(),
         )
     except (OSError, AttributeError, ValueError, RuntimeError):
         # OSError: Windows API failures (includes WinError)
@@ -104,9 +94,5 @@ def format_context_for_prompt(context: ActiveContext | None) -> str | None:
         parts.append(f"Active application: {context.process_name}.")
     elif context.window_title:
         parts.append(f"Active window: {context.window_title}.")
-
-    if context.cursor_position:
-        x, y = context.cursor_position
-        parts.append(f"Cursor position at screen coordinates x={x}, y={y}.")
 
     return " ".join(parts) if parts else None

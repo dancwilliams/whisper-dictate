@@ -11,15 +11,13 @@ from whisper_dictate.glossary import (
     GlossaryRule,
     apply_glossary,
     load_glossary_manager,
-    load_saved_glossary,
-    write_saved_glossary,
 )
 
 
 class TestGlossaryPersistence:
     """Test glossary loading and saving using structured JSON."""
 
-    def test_load_saved_glossary_json_round_trip(self, tmp_path: Path) -> None:
+    def test_json_round_trip(self, tmp_path: Path) -> None:
         rules = [
             GlossaryRule(trigger="valida tech", replacement="ValidaTek"),
             GlossaryRule(
@@ -30,9 +28,8 @@ class TestGlossaryPersistence:
         manager = GlossaryManager(rules)
         with patch("whisper_dictate.glossary.GLOSSARY_FILE", glossary_file):
             assert manager.save() is True
-            loaded_text = load_saved_glossary()
-        assert "valida tech => ValidaTek" in loaded_text
-        assert "uscis => USCIS" in loaded_text
+            loaded = load_glossary_manager()
+        assert loaded.rules == rules
 
     def test_load_glossary_from_legacy_text(self, tmp_path: Path) -> None:
         glossary_file = tmp_path / "whisper_dictate_glossary.json"
@@ -41,14 +38,6 @@ class TestGlossaryPersistence:
             manager = load_glossary_manager()
         assert [r.trigger for r in manager.rules] == ["Alpha", "Beta"]
         assert [r.replacement for r in manager.rules] == ["first", "second"]
-
-    def test_write_saved_glossary_serializes_to_json(self, tmp_path: Path) -> None:
-        glossary_file = tmp_path / "glossary.json"
-        with patch("whisper_dictate.glossary.GLOSSARY_FILE", glossary_file):
-            assert write_saved_glossary("team ai => TeamAI") is True
-            content = glossary_file.read_text(encoding="utf-8")
-        assert '"trigger": "team ai"' in content
-        assert '"replacement": "TeamAI"' in content
 
 
 class TestGlossaryApplication:

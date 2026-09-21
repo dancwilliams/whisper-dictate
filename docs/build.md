@@ -18,7 +18,7 @@ This project ships a standalone Windows executable generated with [PyInstaller](
    This materializes a `.venv` with the locked dependencies. Prefer `--frozen` when you want to guarantee the lock file is respected.
 2. **Build the executable.** The PyInstaller spec writes a single file, `dist/whisper-dictate-gui.exe`, with the GUI icon and the CUDA DLLs inside it. When using uv the Makefile target keeps everything in the managed environment:
    ```bash
-   USE_UV=1 make build-exe
+   make build-exe
    # which expands to: uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
    # or run: uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
    ```

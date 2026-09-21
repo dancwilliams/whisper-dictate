@@ -17,57 +17,49 @@ from whisper_dictate import clipboard, gui, llm_cleanup
 AUDIO = np.zeros(1600, dtype=np.float32)
 
 VAR_DEFAULTS = {
-    "var_vad_enabled": False,
-    "var_vad_threshold": 0.5,
-    "var_vad_min_speech_ms": 250,
-    "var_vad_min_silence_ms": 500,
-    "var_vad_speech_pad_ms": 400,
-    "var_beam_size": 5,
-    "var_compression_ratio_threshold": 2.4,
-    "var_log_prob_threshold": -1.0,
-    "var_no_speech_threshold": 0.6,
-    "var_word_timestamps": False,
-    "var_temperature": 0.0,
-    "var_initial_prompt": "",
-    "var_glossary_enable": False,
+    "var_model": "small",
+    "var_asr_backend": "whisper",
+    "var_idle_ttl_minutes": 5.0,
+    "var_history_enable": False,
+    "var_history_audio_days": 0,
+    "var_device": "cuda",
+    "var_compute": "float16",
+    "var_input": "",
+    "var_hotkey": "CTRL+SPACE",
+    "var_auto_paste": True,
+    "var_paste_delay": 0.15,
+    "var_restore_delay": 0.6,
     "var_cleanup_backend": "off",
+    "var_s1_styling": "semi-casual",
+    "var_s1_structure": "prose",
+    "var_s1_context": "general",
     "var_llm_endpoint": "http://localhost:11434/v1",
     "var_llm_model": "some-model",
     "var_llm_key": "",
     "var_llm_temp": 0.1,
     "var_llm_debug": False,
-    "var_history_enable": False,
-    "var_history_audio_days": 0,
-    "var_asr_backend": "whisper",
-    "var_auto_paste": True,
-    "var_paste_delay": 0.15,
-    "var_restore_delay": 0.6,
+    "var_glossary_enable": False,
+    "var_auto_load_model": False,
+    "var_auto_register_hotkey": False,
+    "var_vad_enabled": False,
+    "var_vad_threshold": 0.5,
+    "var_vad_min_speech_ms": 250,
+    "var_vad_min_silence_ms": 500,
+    "var_vad_speech_pad_ms": 400,
+    "var_compression_ratio_threshold": 2.4,
+    "var_log_prob_threshold": -1.0,
+    "var_no_speech_threshold": 0.6,
+    "var_temperature": 0.0,
+    "var_beam_size": 5,
+    "var_initial_prompt": "",
 }
-
-# Variables only _save_settings reads.
-SAVE_ONLY = dict.fromkeys(
-    (
-        "var_model",
-        "var_idle_ttl_minutes",
-        "var_device",
-        "var_compute",
-        "var_input",
-        "var_hotkey",
-        "var_s1_styling",
-        "var_s1_structure",
-        "var_s1_context",
-        "var_auto_load_model",
-        "var_auto_register_hotkey",
-    ),
-    "0",
-)
 
 
 @pytest.fixture
 def mods(mocker):
     """The modules the pipeline reaches out through, mocked."""
     m = MagicMock()
-    for name in ("audio", "clipboard", "app_context", "history", "llm_cleanup", "glossary"):
+    for name in ("clipboard", "app_context", "history", "llm_cleanup", "glossary"):
         mocker.patch.object(gui, name, getattr(m, name))
     m.messagebox = mocker.patch.object(gui, "messagebox")
     mocker.patch.object(gui.time, "sleep")
@@ -75,7 +67,6 @@ def mods(mocker):
     m.clipboard.ClipboardError = clipboard.ClipboardError
     m.llm_cleanup.LLMCleanupError = llm_cleanup.LLMCleanupError
 
-    m.audio.get_audio_buffer.return_value = AUDIO
     m.app_context.get_active_context.return_value = None
     m.glossary.hotwords_for_app.return_value = ""
     m.glossary.apply_glossary.side_effect = lambda text, _manager: text
@@ -103,6 +94,8 @@ def make_app(mods):
         app.asr = MagicMock()
         app.asr.get.return_value.transcribe.return_value = "hello world"
         app.s1 = MagicMock()
+        app.recorder = MagicMock()
+        app.recorder.get_buffer.return_value = AUDIO
         app.recent_processes = deque(maxlen=gui.App.RECENT_PROCESSES_MAX)
         app.app_prompts = {}
         app.hotwords_by_app = {}
@@ -111,6 +104,9 @@ def make_app(mods):
         app._press_at = 0.0
         app._status_state = "ready"
         app._settings_saved = False
+        app._defaults = {
+            name: VAR_DEFAULTS[name] for _, name, cast in gui.SETTINGS if cast in (int, float)
+        }
         return app
 
     return _make
@@ -191,8 +187,8 @@ class TestDeliver:
 
 class TestTranscribeAndClean:
     def test_no_audio(self, make_app, mods):
-        mods.audio.get_audio_buffer.return_value = None
         app = make_app()
+        app.recorder.get_buffer.return_value = None
         run(app)
 
         assert states(app) == ["warning"]
@@ -263,19 +259,19 @@ class TestTranscribeAndClean:
 
 class TestHotkey:
     def test_tap_locks_recording(self, make_app, mods):
-        mods.audio.is_recording.return_value = True
         app = make_app()
+        app.recorder.is_recording.return_value = True
         app._stop_and_transcribe = MagicMock()
         app._press_at = time.monotonic()
         app._on_hotkey_release()
 
         app._stop_and_transcribe.assert_not_called()
-        mods.audio.stop_recording.assert_not_called()
+        app.recorder.stop.assert_not_called()
         assert "locked" in messages(app)[-1]
 
     def test_hold_transcribes_on_release(self, make_app, mods):
-        mods.audio.is_recording.return_value = True
         app = make_app()
+        app.recorder.is_recording.return_value = True
         app._stop_and_transcribe = MagicMock()
         app._press_at = time.monotonic() - gui.TAP_SECONDS - 1
         app._on_hotkey_release()
@@ -283,12 +279,12 @@ class TestHotkey:
         app._stop_and_transcribe.assert_called_once()
 
     def test_cancel_discards_buffer(self, make_app, mods):
-        mods.audio.is_recording.return_value = True
         app = make_app()
+        app.recorder.is_recording.return_value = True
         app._on_hotkey_cancel()
 
-        mods.audio.stop_recording.assert_called_once()
-        mods.audio.get_audio_buffer.assert_called_once()
+        app.recorder.stop.assert_called_once()
+        app.recorder.get_buffer.assert_called_once()
         assert messages(app)[-1] == "Cancelled"
         mods.clipboard.set_text.assert_not_called()
 
@@ -315,7 +311,7 @@ class TestRecentProcesses:
 
     def test_save_writes_process_names_without_titles(self, make_app, mocker):
         store = mocker.patch.object(gui, "settings_store")
-        app = make_app(**SAVE_ONLY)
+        app = make_app()
         app.indicator.get_position.return_value = None
         app._record_recent_process("a.exe", "Quarterly results - Word")
         app._record_recent_process("b.exe", "two")
@@ -348,7 +344,7 @@ class TestOnClose:
 
     def test_blank_numeric_field_saves_its_default(self, make_app, mocker):
         store = mocker.patch.object(gui, "settings_store")
-        app = make_app(**SAVE_ONLY)
+        app = make_app()
         app.indicator.get_position.return_value = None
         app.var_paste_delay.get.side_effect = TclError('expected floating-point number but got ""')
         app._save_settings()
@@ -356,3 +352,25 @@ class TestOnClose:
         saved = store.save_settings.call_args.args[0]
         assert saved["paste_delay"] == 0.15
         assert saved["restore_delay"] == 0.6
+
+
+class TestSettingsTable:
+    def test_every_variable_is_in_the_table(self):
+        assert {name for _, name, _ in gui.SETTINGS} == set(VAR_DEFAULTS)
+
+    def test_round_trip(self, make_app, mocker):
+        store = mocker.patch.object(gui, "settings_store")
+        store.get_secure_setting.return_value = None
+        app = make_app(var_beam_size=3, var_hotkey=" CTRL+ALT+D ", var_vad_enabled=True)
+        app.indicator.get_position.return_value = (10, 20)
+        app._save_settings()
+
+        saved = store.save_settings.call_args.args[0]
+        assert saved["hotkey"] == "CTRL+ALT+D"
+        store.load_settings.return_value = saved
+        fresh = make_app()
+        fresh._load_settings()
+
+        for key, name, _cast in gui.SETTINGS:
+            getattr(fresh, name).set.assert_called_once_with(saved[key])
+        assert fresh._indicator_position == (10, 20)

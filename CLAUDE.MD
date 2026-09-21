@@ -54,7 +54,7 @@ Ruff enforces import sorting with the "I" rule:
 | `prompt.py` | LLM prompt loading/saving | `load_saved_prompt()`, `write_saved_prompt()` |
 | `app_prompts.py` | Per-application prompt resolution | `resolve_app_prompt()`, `normalize_app_prompts()` |
 | `app_prompt_dialog.py` | GUI for per-app prompt management | `AppPromptDialog` |
-| `audio.py` | Audio recording with sounddevice | `AudioRecorder`, `start_recording()`, `stop_recording()` |
+| `audio.py` | Audio recording with sounddevice | `AudioRecorder` (`start()`, `stop()`, `get_buffer()`) |
 | `transcription.py` | Whisper model loading and transcription | `load_model()`, `transcribe_audio()` |
 | `asr.py` | Recognizer backends and GPU residency | `WhisperBackend`, `CohereBackend`, `Resident`, `load_backend()` |
 | `llm_cleanup.py` | LLM text cleanup with OpenAI client | `clean_with_llm()`, `list_llm_models()` |
@@ -88,7 +88,7 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "asr_backend": "whisper",
   "idle_ttl_minutes": 5.0,
   "history_enable": true,
-  "history_audio_days": 14.0,
+  "history_audio_days": 14,
   "device": "cuda",
   "compute": "float16",
   "input": "",
@@ -124,7 +124,6 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "compression_ratio_threshold": 2.4,
   "log_prob_threshold": -1.0,
   "no_speech_threshold": 0.6,
-  "word_timestamps": false,
   "temperature": 0.0,
   "beam_size": 5,
   "initial_prompt": "",
@@ -250,7 +249,7 @@ save_settings(settings)
 ### Create Standalone EXE
 ```powershell
 # Using Makefile (recommended)
-USE_UV=1 make build-exe
+make build-exe
 
 # Direct PyInstaller
 uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm

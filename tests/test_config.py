@@ -8,7 +8,6 @@ from whisper_dictate.config import (
     DEFAULT_AUTO_REGISTER_HOTKEY,
     DEFAULT_COMPUTE,
     DEFAULT_DEVICE,
-    DEFAULT_LLM_ENABLED,
     DEFAULT_LLM_ENDPOINT,
     DEFAULT_LLM_KEY,
     DEFAULT_LLM_MODEL,
@@ -31,7 +30,6 @@ class TestConfig:
         assert DEFAULT_MODEL is not None
         assert DEFAULT_DEVICE in ("cpu", "cuda")
         assert DEFAULT_COMPUTE is not None
-        assert DEFAULT_LLM_ENABLED is not None
         assert DEFAULT_LLM_ENDPOINT is not None
         assert DEFAULT_LLM_MODEL is not None
         assert DEFAULT_LLM_KEY is not None

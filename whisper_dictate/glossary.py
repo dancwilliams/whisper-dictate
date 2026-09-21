@@ -363,11 +363,6 @@ class GlossaryManager:
 
         return "\n".join(lines)
 
-    def to_legacy_text(self) -> str:
-        """Represent rules in the simple `trigger => replacement` format."""
-
-        return "\n".join(f"{r.trigger} => {r.replacement}" for r in self.rules)
-
 
 # ----------------------------------------------------------------------
 # Backwards-compatible helpers for existing UI/tests
@@ -430,26 +425,10 @@ def hotwords_for_app(
     return ", ".join(trimmed) if trimmed else None
 
 
-def load_saved_glossary(default: str = "") -> str:
-    """Return glossary as legacy text for the editor."""
-
-    manager = GlossaryManager.load()
-    text = manager.to_legacy_text().strip()
-    return text if text else default
-
-
 def load_glossary_manager() -> GlossaryManager:
     """Load the glossary manager from disk."""
 
     return GlossaryManager.load()
-
-
-def write_saved_glossary(glossary_text: str) -> bool:
-    """Persist glossary text (legacy format) as structured JSON."""
-
-    rules = _parse_legacy_rules(glossary_text)
-    manager = GlossaryManager(rules)
-    return manager.save()
 
 
 def apply_glossary(text: str, manager: GlossaryManager | None) -> str:

@@ -22,10 +22,8 @@ def transcribe_audio(
     compression_ratio_threshold: float = 2.4,
     log_prob_threshold: float = -1.0,
     no_speech_threshold: float = 0.6,
-    word_timestamps: bool = False,
     temperature: float | list[float] = 0.0,
     initial_prompt: str | None = None,
-    condition_on_previous_text: bool = True,
     hotwords: str | None = None,
 ) -> str:
     """
@@ -37,14 +35,12 @@ def transcribe_audio(
         beam_size: Beam size for decoding (default: 5)
         language: Language code (default: "en")
         vad_filter: Whether to use VAD filtering (default: False)
-        vad_parameters: Custom VAD parameters (default: optimal settings)
+        vad_parameters: Custom VAD parameters (default: faster-whisper's own)
         compression_ratio_threshold: Detect repetitive hallucinations (default: 2.4)
         log_prob_threshold: Filter low-confidence segments (default: -1.0)
         no_speech_threshold: Detect silence/non-speech (default: 0.6)
-        word_timestamps: Enable word-level timestamps (default: False)
         temperature: Temperature for sampling (default: 0.0 for deterministic)
         initial_prompt: Optional prompt for context/style
-        condition_on_previous_text: Use previous text for context (default: True)
         hotwords: Vocabulary to bias the recognizer towards. faster-whisper
             encodes these into the prompt context and silently truncates at
             max_length // 2 (~220 tokens).
@@ -56,15 +52,6 @@ def transcribe_audio(
         TranscriptionError: If transcription fails
     """
     try:
-        # Default VAD parameters if not provided
-        if vad_filter and vad_parameters is None:
-            vad_parameters = {
-                "threshold": 0.5,
-                "min_speech_duration_ms": 250,
-                "min_silence_duration_ms": 500,
-                "speech_pad_ms": 400,
-            }
-
         segments, info = model.transcribe(
             audio,
             beam_size=beam_size,
@@ -74,10 +61,8 @@ def transcribe_audio(
             compression_ratio_threshold=compression_ratio_threshold,
             log_prob_threshold=log_prob_threshold,
             no_speech_threshold=no_speech_threshold,
-            word_timestamps=word_timestamps,
             temperature=temperature,
             initial_prompt=initial_prompt,
-            condition_on_previous_text=condition_on_previous_text,
             hotwords=hotwords,
         )
         text = "".join(s.text for s in segments).strip()

@@ -91,7 +91,7 @@ sequenceDiagram
 
     User->>Hotkey: Press Ctrl+Win+G
     Hotkey->>GUI: Post hotkey event
-    GUI->>Audio: start_recording(device)
+    GUI->>Audio: recorder.start(device)
     Audio->>Mic: Open audio stream
     loop While recording
         Mic->>Audio: Audio chunks
@@ -99,7 +99,7 @@ sequenceDiagram
     end
     User->>Hotkey: Release hotkey
     Hotkey->>GUI: Post hotkey event
-    GUI->>Audio: stop_recording()
+    GUI->>Audio: recorder.stop()
     Audio->>GUI: Return buffered audio
 ```
 
@@ -200,9 +200,9 @@ sequenceDiagram
 
 ## Key Design Patterns
 
-### Singleton Pattern
-- **AudioRecorder**: Global instance via `get_default_recorder()` for backward compatibility
-- **Whisper Model**: Cached in `transcription.py` to avoid reloading
+### Single Instances
+- **AudioRecorder**: One instance, held by `App` as `self.recorder`
+- **Recognizer and cleanup model**: Held by `asr.Resident`, which loads on demand and unloads after the idle TTL
 
 ### Observer Pattern
 - **Hotkeys**: Windows message loop posts events to GUI thread
@@ -229,9 +229,9 @@ graph LR
     Worker[Dictation Worker<br/>one per dictation]
 
     HookThread -->|after 0: press, release, cancel| MainThread
-    MainThread -->|start_recording| AudioThread
+    MainThread -->|recorder.start| AudioThread
     AudioThread -->|audio chunks| RecorderThread
-    MainThread -->|stop_recording| RecorderThread
+    MainThread -->|recorder.stop| RecorderThread
     MainThread -->|settings snapshot| Worker
     RecorderThread -->|buffered data| Worker
     Worker -->|after 0: status, transcript, dialogs| MainThread

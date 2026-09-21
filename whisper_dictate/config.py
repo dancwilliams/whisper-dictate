@@ -16,8 +16,6 @@ DEFAULT_DEVICE: Literal["cpu", "cuda"] = "cuda"  # cpu or cuda
 DEFAULT_COMPUTE = "float16"  # good default; GUI will coerce based on device
 
 # LLM defaults
-# Superseded by DEFAULT_CLEANUP_BACKEND; kept so an old settings file still loads.
-DEFAULT_LLM_ENABLED = True
 DEFAULT_LLM_ENDPOINT = "http://localhost:1234/v1"  # LM Studio default
 DEFAULT_LLM_MODEL = "openai/gpt-oss-20b"
 DEFAULT_LLM_KEY = ""  # LM Studio usually does not require a key
