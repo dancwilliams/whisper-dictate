@@ -249,7 +249,7 @@ save_settings(settings)
 ### Create Standalone EXE
 ```powershell
 # Using Makefile (recommended)
-USE_UV=1 make build-exe
+make build-exe
 
 # Direct PyInstaller
 uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm

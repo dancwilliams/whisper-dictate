@@ -1,18 +1,8 @@
 PYINSTALLER_SPEC ?= packaging/pyinstaller/whisper_dictate_gui.spec
-USE_UV ?= 1
-
-PYINSTALLER ?= pyinstaller
-
-ifeq ($(USE_UV),1)
-PYINSTALLER := uv run pyinstaller
-UV_RUN := uv run
-else
-UV_RUN :=
-endif
 
 .PHONY: build-exe
 build-exe:
-	$(PYINSTALLER) $(PYINSTALLER_SPEC) --noconfirm
+	uv run pyinstaller $(PYINSTALLER_SPEC) --noconfirm
 
 .PHONY: clean
 clean:
@@ -20,31 +10,30 @@ clean:
 
 .PHONY: test
 test:
-	$(UV_RUN) pytest
+	uv run pytest
 
 .PHONY: test-coverage
-test-coverage:
-	$(UV_RUN) pytest --cov=whisper_dictate --cov-report=term-missing --cov-report=html
+test-coverage: test
 
 .PHONY: lint
 lint:
-	$(UV_RUN) ruff check .
+	uv run ruff check .
 
 .PHONY: lint-fix
 lint-fix:
-	$(UV_RUN) ruff check --fix .
+	uv run ruff check --fix .
 
 .PHONY: format
 format:
-	$(UV_RUN) ruff format .
+	uv run ruff format .
 
 .PHONY: format-check
 format-check:
-	$(UV_RUN) ruff format --check .
+	uv run ruff format --check .
 
 .PHONY: typecheck
 typecheck:
-	$(UV_RUN) mypy whisper_dictate
+	uv run mypy whisper_dictate
 
 .PHONY: check
 check: lint format-check typecheck test
@@ -58,7 +47,7 @@ help:
 	@echo "  build-exe       - Build Windows executable with PyInstaller"
 	@echo "  clean           - Remove build artifacts and cache directories"
 	@echo "  test            - Run pytest test suite"
-	@echo "  test-coverage   - Run tests with coverage report (HTML + terminal)"
+	@echo "  test-coverage   - Same as test; coverage is always on (pyproject addopts)"
 	@echo "  lint            - Run ruff linting checks"
 	@echo "  lint-fix        - Run ruff linting with auto-fix"
 	@echo "  format          - Format code with ruff"

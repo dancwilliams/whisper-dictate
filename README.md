@@ -252,7 +252,7 @@ Build a standalone Windows executable using the PyInstaller spec:
 
 ```powershell
 # Using the Makefile (recommended)
-USE_UV=1 make build-exe
+make build-exe
 
 # Or directly with PyInstaller
 uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
