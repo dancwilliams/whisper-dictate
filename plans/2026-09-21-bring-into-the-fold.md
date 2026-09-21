@@ -255,10 +255,10 @@ Branch: `fix/small-bugs`. B1, B3, B5, B7. Independent of each other; one commit 
 - [x] `make check` exits 0 (run as its four commands)
 
 #### Manual Verification:
-- [ ] Settings → Automation: "History" sits above the history controls, "Startup" above the startup controls
-- [ ] With Notepad's clipboard held by another app (or the endpoint unreachable with cleanup on), the pill stays amber/red after the dictation instead of going green
-- [ ] Enter an API key, quit, relaunch: key is there. Blank it, quit, relaunch: field is empty, and `cmdkey /list` (or Credential Manager) no longer shows the entry
-- [ ] Dictate into two apps, quit, open `%USERPROFILE%\.whisper_dictate\whisper_dictate_settings.json`: `recent_processes` is a list of process names with no titles
+- [x] Settings → Automation: "History" sits above the history controls, "Startup" above the startup controls
+- [x] With Notepad's clipboard held by another app (or the endpoint unreachable with cleanup on), the pill stays amber/red after the dictation instead of going green
+- [x] Enter an API key, quit, relaunch: key is there. Blank it, quit, relaunch: field is empty, and `cmdkey /list` (or Credential Manager) no longer shows the entry
+- [x] Dictate into two apps, quit, open `%USERPROFILE%\.whisper_dictate\whisper_dictate_settings.json`: `recent_processes` is a list of process names with no titles
 
 **Implementation Note**: pause here for Dan's confirmation before Phase 4.
 
