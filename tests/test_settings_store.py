@@ -6,12 +6,21 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from whisper_dictate import settings_store
 from whisper_dictate.settings_store import (
     SETTINGS_FILE,
     get_secure_setting,
     load_settings,
     save_settings,
 )
+
+
+@pytest.fixture
+def settings_file(tmp_path, monkeypatch):
+    """A real settings path, in a directory that does not exist yet."""
+    path = tmp_path / "conf" / "whisper_dictate_settings.json"
+    monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", path)
+    return path
 
 
 def get_expected_defaults():
@@ -142,163 +151,121 @@ class TestLoadSettings:
 
 
 class TestSaveSettings:
-    """Tests for save_settings function."""
+    """Tests for save_settings function, against a real file: the write is atomic,
+    and that is file system behaviour a mock path cannot show."""
 
-    def test_save_settings_success(self, monkeypatch):
-        """Test successful saving of settings."""
+    def test_save_settings_success(self, settings_file):
         test_settings = {
             "model": "base",
             "compute_type": "int8",
             "app_prompts": {"vscode": "Write code"},
         }
 
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+        assert save_settings(test_settings) is True
 
-        result = save_settings(test_settings)
+        assert json.loads(settings_file.read_text(encoding="utf-8")) == test_settings
+        # The parent directory did not exist; nothing but the settings file is left in it.
+        assert [f.name for f in settings_file.parent.iterdir()] == [settings_file.name]
 
-        assert result is True
-        mock_parent.mkdir.assert_called_once_with(parents=True, exist_ok=True)
-        mock_path.write_text.assert_called_once()
-
-        # Verify the JSON was properly formatted
-        call_args = mock_path.write_text.call_args
-        written_json = call_args[0][0]
-        assert json.loads(written_json) == test_settings
-        assert call_args[1] == {"encoding": "utf-8"}
-
-    def test_save_settings_creates_parent_directory(self, monkeypatch):
-        """Test that save_settings creates parent directory if it doesn't exist."""
-        test_settings = {"model": "base"}
-
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
-
-        save_settings(test_settings)
-
-        # Verify mkdir was called with correct parameters
-        mock_parent.mkdir.assert_called_once_with(parents=True, exist_ok=True)
-
-    def test_save_settings_formats_json_with_indent(self, monkeypatch):
-        """Test that save_settings formats JSON with 2-space indentation."""
+    def test_save_settings_formats_json_with_indent(self, settings_file):
         test_settings = {"model": "base", "nested": {"key": "value"}}
 
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
-
         save_settings(test_settings)
 
-        # Verify JSON formatting
-        call_args = mock_path.write_text.call_args
-        written_json = call_args[0][0]
-        expected_json = json.dumps(test_settings, indent=2)
-        assert written_json == expected_json
+        assert settings_file.read_text(encoding="utf-8") == json.dumps(test_settings, indent=2)
 
-    @patch("whisper_dictate.settings_store._store_secure_settings")
-    def test_save_settings_handles_write_error(self, mock_store, monkeypatch, caplog):
-        """Test that save_settings returns False on write error."""
-        test_settings = {"model": "base"}
+    def test_save_settings_replaces_existing_file(self, settings_file):
+        save_settings({"model": "base"})
+        save_settings({"model": "small"})
 
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        mock_path.write_text.side_effect = OSError("Permission denied")
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+        assert json.loads(settings_file.read_text(encoding="utf-8")) == {"model": "small"}
+        assert not settings_file.with_suffix(".json.tmp").exists()
 
-        result = save_settings(test_settings)
+    def test_save_settings_failed_swap_keeps_old_file(self, settings_file, caplog):
+        """A save that dies before the swap leaves the previous settings readable."""
+        save_settings({"model": "base"})
 
-        assert result is False
-        # Verify error was logged
+        with patch(
+            "whisper_dictate.settings_store.os.replace", side_effect=OSError("Permission denied")
+        ):
+            assert save_settings({"model": "small"}) is False
+
+        assert json.loads(settings_file.read_text(encoding="utf-8")) == {"model": "base"}
         assert "Could not save settings:" in caplog.text
         assert "Permission denied" in caplog.text
 
-    @patch("whisper_dictate.settings_store._store_secure_settings")
-    def test_save_settings_handles_mkdir_error(self, mock_store, monkeypatch, caplog):
-        """Test that save_settings returns False when directory creation fails."""
-        test_settings = {"model": "base"}
+    def test_save_settings_handles_mkdir_error(self, tmp_path, monkeypatch, caplog):
+        blocker = tmp_path / "not_a_dir"
+        blocker.write_text("", encoding="utf-8")
+        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", blocker / "s.json")
 
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_parent.mkdir.side_effect = OSError("Cannot create directory")
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
-
-        result = save_settings(test_settings)
-
-        assert result is False
-        # Verify error was logged
+        assert save_settings({"model": "base"}) is False
         assert "Could not save settings:" in caplog.text
-        assert "Cannot create directory" in caplog.text
 
-    def test_save_settings_with_empty_dict(self, monkeypatch):
-        """Test saving empty settings dictionary."""
-        test_settings = {}
-
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
-
-        result = save_settings(test_settings)
-
-        assert result is True
-        call_args = mock_path.write_text.call_args
-        written_json = call_args[0][0]
-        assert json.loads(written_json) == {}
+    def test_save_settings_with_empty_dict(self, settings_file):
+        assert save_settings({}) is True
+        assert json.loads(settings_file.read_text(encoding="utf-8")) == {}
 
     @patch("whisper_dictate.settings_store._store_secure_settings")
-    def test_save_settings_stores_secure_settings(self, mock_store, monkeypatch):
-        """Test that save_settings calls secure storage for API keys."""
+    def test_save_settings_stores_secure_settings(self, mock_store, settings_file):
         test_settings = {"model": "base", "llm_key": "my_secret_key"}
-
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
 
         save_settings(test_settings)
 
         mock_store.assert_called_once_with(test_settings)
 
-    def test_save_settings_excludes_secure_keys_from_json(self, monkeypatch):
-        """Test that API keys are not written to JSON file."""
-        test_settings = {
-            "model": "base",
-            "llm_key": "my_secret_key",
-            "llm_endpoint": "http://localhost:1234",
-        }
+    @patch("whisper_dictate.settings_store._store_secure_settings")
+    def test_save_settings_excludes_secure_keys_from_json(self, mock_store, settings_file):
+        save_settings(
+            {"model": "base", "llm_key": "my_secret_key", "llm_endpoint": "http://localhost:1234"}
+        )
 
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
+        saved_data = json.loads(settings_file.read_text(encoding="utf-8"))
+        assert saved_data == {"model": "base", "llm_endpoint": "http://localhost:1234"}
+        assert "my_secret_key" not in settings_file.read_text(encoding="utf-8")
 
-        # Mock the credentials module to prevent actual keyring calls
-        with patch("whisper_dictate.settings_store._store_secure_settings"):
-            save_settings(test_settings)
 
-        # Verify written JSON doesn't contain llm_key
-        call_args = mock_path.write_text.call_args
-        written_json = call_args[0][0]
-        saved_data = json.loads(written_json)
+class TestCorruptSettingsFile:
+    """An unreadable file is kept as .bak before defaults take its place."""
 
-        assert "llm_key" not in saved_data
-        assert "model" in saved_data
-        assert "llm_endpoint" in saved_data
+    def test_corrupt_file_is_backed_up(self, settings_file, caplog):
+        original = b'x{"model": "large-v3", "hotkey": "ctrl+win+g"}'
+        settings_file.parent.mkdir(parents=True)
+        settings_file.write_bytes(original)
+        backup = settings_file.with_suffix(".json.bak")
+
+        assert load_settings() == get_expected_defaults()
+        assert settings_store.last_load_error
+        assert backup.read_bytes() == original
+        assert str(backup) in caplog.text
+
+        # The save that follows overwrites the settings, never the backup.
+        assert save_settings({"model": "base"}) is True
+        assert backup.read_bytes() == original
+
+    def test_undecodable_file_is_backed_up(self, settings_file):
+        original = b"\xff\xfe\x00 not utf-8"
+        settings_file.parent.mkdir(parents=True)
+        settings_file.write_bytes(original)
+
+        assert load_settings() == get_expected_defaults()
+        assert settings_file.with_suffix(".json.bak").read_bytes() == original
+
+    def test_good_load_clears_the_error(self, settings_file):
+        settings_file.parent.mkdir(parents=True)
+        settings_file.write_text("{broken", encoding="utf-8")
+        load_settings()
+        settings_file.write_text('{"model": "base"}', encoding="utf-8")
+
+        assert load_settings()["model"] == "base"
+        assert settings_store.last_load_error is None
 
 
 class TestClearedSecureSetting:
     """A blanked API key leaves the credential manager; a partial save does not touch it."""
 
     @pytest.fixture
-    def creds(self, monkeypatch):
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", MagicMock(spec=Path))
+    def creds(self, settings_file):
         with patch.multiple(
             "whisper_dictate.settings_store.credentials",
             store_credential=MagicMock(),
@@ -374,48 +341,9 @@ class TestSettingsFileConstant:
 class TestAutoStartupSettings:
     """Tests for auto-startup settings."""
 
-    def test_save_settings_includes_auto_load_model(self, monkeypatch):
-        """Test that auto_load_model setting is saved."""
-        test_settings = {
-            "model": "base",
-            "auto_load_model": True,
-            "auto_register_hotkey": False,
-        }
+    def test_save_settings_includes_auto_startup_flags(self, settings_file):
+        save_settings({"model": "base", "auto_load_model": True, "auto_register_hotkey": False})
 
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
-
-        with patch("whisper_dictate.settings_store._store_secure_settings"):
-            save_settings(test_settings)
-
-        call_args = mock_path.write_text.call_args
-        written_json = call_args[0][0]
-        saved_data = json.loads(written_json)
-
-        assert "auto_load_model" in saved_data
+        saved_data = json.loads(settings_file.read_text(encoding="utf-8"))
         assert saved_data["auto_load_model"] is True
-
-    def test_save_settings_includes_auto_register_hotkey(self, monkeypatch):
-        """Test that auto_register_hotkey setting is saved."""
-        test_settings = {
-            "model": "base",
-            "auto_load_model": False,
-            "auto_register_hotkey": True,
-        }
-
-        mock_path = MagicMock(spec=Path)
-        mock_parent = MagicMock()
-        mock_path.parent = mock_parent
-        monkeypatch.setattr("whisper_dictate.settings_store.SETTINGS_FILE", mock_path)
-
-        with patch("whisper_dictate.settings_store._store_secure_settings"):
-            save_settings(test_settings)
-
-        call_args = mock_path.write_text.call_args
-        written_json = call_args[0][0]
-        saved_data = json.loads(written_json)
-
-        assert "auto_register_hotkey" in saved_data
-        assert saved_data["auto_register_hotkey"] is True
+        assert saved_data["auto_register_hotkey"] is False
