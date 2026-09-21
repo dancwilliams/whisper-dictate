@@ -1003,16 +1003,14 @@ class App(Tk):
                     self._record_recent_process(entry, None)
                     continue
 
+                # Older files carry window titles. Drop them here and the next
+                # save takes them off the disk.
                 if isinstance(entry, dict):
-                    process = entry.get("process_name")
-                    window_title = entry.get("window_title")
-                    self._record_recent_process(process, window_title)
+                    self._record_recent_process(entry.get("process_name"), None)
                     continue
 
                 if isinstance(entry, (list, tuple)) and len(entry) >= 1:
-                    process = entry[0]
-                    window_title = entry[1] if len(entry) > 1 else None
-                    self._record_recent_process(process, window_title)
+                    self._record_recent_process(entry[0], None)
 
         def set_if_present(key, var, cast=None):
             if key not in saved:
@@ -1123,14 +1121,11 @@ class App(Tk):
             "auto_load_model": bool(self.var_auto_load_model.get()),
             "auto_register_hotkey": bool(self.var_auto_register_hotkey.get()),
             "app_prompts": self.app_prompts,
-            "recent_processes": [
-                {
-                    "process_name": entry.get("process_name", ""),
-                    "window_title": entry.get("window_title"),
-                }
-                for entry in self.recent_processes
-                if entry.get("process_name")
-            ],
+            # Process names only: a window title can be a document or a subject
+            # line, and the Automation window promises those are never stored.
+            "recent_processes": list(
+                dict.fromkeys(entry["process_name"] for entry in self.recent_processes)
+            ),
             # Advanced transcription settings
             "vad_enabled": bool(self.var_vad_enabled.get()),
             "vad_threshold": float(self.var_vad_threshold.get()),

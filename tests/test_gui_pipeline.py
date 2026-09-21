@@ -259,6 +259,35 @@ class TestRecentProcesses:
         assert len(app.recent_processes) == gui.App.RECENT_PROCESSES_MAX
         assert app.recent_processes[0]["process_name"] == f"p{gui.App.RECENT_PROCESSES_MAX + 4}.exe"
 
+    def test_save_writes_process_names_without_titles(self, make_app, mocker):
+        store = mocker.patch.object(gui, "settings_store")
+        save_only = dict.fromkeys(
+            (
+                "var_model",
+                "var_idle_ttl_minutes",
+                "var_device",
+                "var_compute",
+                "var_input",
+                "var_hotkey",
+                "var_s1_styling",
+                "var_s1_structure",
+                "var_s1_context",
+                "var_auto_load_model",
+                "var_auto_register_hotkey",
+            ),
+            "0",
+        )
+        app = make_app(**save_only)
+        app.indicator.get_position.return_value = None
+        app._record_recent_process("a.exe", "Quarterly results - Word")
+        app._record_recent_process("b.exe", "two")
+        app._record_recent_process("a.exe", "other title")
+        app._save_settings()
+
+        saved = store.save_settings.call_args.args[0]
+        assert saved["recent_processes"] == ["a.exe", "b.exe"]
+        assert "window_title" not in repr(saved)
+
 
 class TestOnClose:
     @pytest.mark.xfail(strict=True, reason="B2, fixed in phase 4")
