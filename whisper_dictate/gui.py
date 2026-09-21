@@ -435,7 +435,7 @@ class App(Tk):
                 row=5, column=0, sticky="we", pady=(12, 8)
             )
             ttk.Label(frame, text="History", font=("Segoe UI", 9, "bold")).grid(
-                row=11, column=0, sticky="w"
+                row=6, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame,
@@ -473,7 +473,7 @@ class App(Tk):
                 row=10, column=0, sticky="we", pady=(12, 8)
             )
             ttk.Label(frame, text="Startup", font=("Segoe UI", 9, "bold")).grid(
-                row=6, column=0, sticky="w"
+                row=11, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame, text="Auto-load model on startup", variable=self.var_auto_load_model
