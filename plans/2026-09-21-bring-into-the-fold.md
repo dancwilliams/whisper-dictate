@@ -328,12 +328,12 @@ def _num(self, var, default: float) -> float:
 - [x] `make check` exits 0 (run as its four commands)
 
 #### Manual Verification:
-- [ ] Settings → Automation: clear "Paste delay" and leave it blank. Copy a sentence to the clipboard, dictate into Notepad: the dictation pastes, and a moment later Ctrl+V pastes the original sentence
-- [ ] With that field still blank, change the hotkey, then Quit from the pill. Relaunch: the new hotkey is there, paste delay is back to 0.15
-- [ ] Change a per-app prompt, close the dialog, kill the process from Task Manager. Relaunch: the prompt is there
-- [ ] Quit. Put a stray `x` at the top of the settings JSON. Launch: status shows the unreadable-settings warning, a `.json.bak` sits beside the file with the `x` in it. Quit and relaunch: still running on defaults, `.bak` unchanged
-- [ ] Open Edit → Prompt (modal), press the hotkey and dictate while it is open: the app does not hang
-- [ ] Ten dictations in a row into Notepad, alternating hold and tap-lock: all paste, none hangs
+- [x] Settings → Automation: clear "Paste delay" and leave it blank. Copy a sentence to the clipboard, dictate into Notepad: the dictation pastes, and a moment later Ctrl+V pastes the original sentence
+- [x] With that field still blank, change the hotkey, then Quit from the pill. Relaunch: the new hotkey is there, paste delay is back to 0.15
+- [x] Change a per-app prompt, close the dialog, kill the process from Task Manager. Relaunch: the prompt is there
+- [x] Quit. Put a stray `x` at the top of the settings JSON. Launch: status shows the unreadable-settings warning, a `.json.bak` sits beside the file with the `x` in it. Quit and relaunch: still running on defaults, `.bak` unchanged
+- [x] Open Edit → Prompt (modal), press the hotkey and dictate while it is open: the app does not hang
+- [x] Ten dictations in a row into Notepad, alternating hold and tap-lock: all paste, none hangs
 
 **Implementation Note**: pause here for Dan's confirmation before Phase 5.
 
