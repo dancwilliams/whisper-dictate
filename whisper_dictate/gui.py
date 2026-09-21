@@ -6,7 +6,20 @@ import time
 import winsound
 from collections import deque
 from collections.abc import Callable
-from tkinter import END, BooleanVar, DoubleVar, Menu, StringVar, Text, Tk, Toplevel, messagebox, ttk
+from tkinter import (
+    END,
+    BooleanVar,
+    DoubleVar,
+    Menu,
+    StringVar,
+    TclError,
+    Text,
+    Tk,
+    Toplevel,
+    messagebox,
+    ttk,
+)
+from typing import Any
 
 import sounddevice as sd
 
@@ -130,6 +143,11 @@ class App(Tk):
         self._build_ui()
         self._setup_status_indicator()
         self._auto_startup()
+        # No dialog: the app may be starting hidden at login.
+        if settings_store.last_load_error:
+            self._set_status(
+                "warning", "Settings file was unreadable; using defaults. Backup kept."
+            )
 
         # Launched at login, the app should start out of the way. Only when it
         # is set up to run by itself: otherwise the user has nothing to click.
@@ -273,6 +291,8 @@ class App(Tk):
                 except (ValueError, KeyError):
                     pass
             self._speech_window_traces = []
+        # Quit is not the only way out: a kill or a crash must not cost the edit.
+        self._save_settings()
 
     def _open_speech_settings(self) -> None:
         """Open speech recognition settings window."""
@@ -1091,14 +1111,23 @@ class App(Tk):
             if isinstance(x, int) and isinstance(y, int):
                 self._indicator_position = (x, y)
 
+    def _num(self, var, default: float) -> float:
+        """A blank or half-typed Spinbox raises TclError; fall back, do not crash."""
+        try:
+            return float(var.get())
+        except (TclError, ValueError):
+            return default
+
     def _save_settings(self) -> None:
         """Persist current settings to disk."""
         settings = {
             "model": self.var_model.get().strip(),
             "asr_backend": self.var_asr_backend.get().strip(),
-            "idle_ttl_minutes": float(self.var_idle_ttl_minutes.get()),
+            "idle_ttl_minutes": self._num(self.var_idle_ttl_minutes, DEFAULT_IDLE_TTL_MINUTES),
             "history_enable": bool(self.var_history_enable.get()),
-            "history_audio_days": float(self.var_history_audio_days.get()),
+            "history_audio_days": self._num(
+                self.var_history_audio_days, DEFAULT_HISTORY_AUDIO_DAYS
+            ),
             "device": self.var_device.get().strip(),
             "compute": config.normalize_compute_type(
                 self.var_device.get().strip(), self.var_compute.get().strip()
@@ -1106,8 +1135,8 @@ class App(Tk):
             "input": self.var_input.get().strip(),
             "hotkey": self.var_hotkey.get().strip(),
             "auto_paste": bool(self.var_auto_paste.get()),
-            "paste_delay": float(self.var_paste_delay.get()),
-            "restore_delay": float(self.var_restore_delay.get()),
+            "paste_delay": self._num(self.var_paste_delay, 0.15),
+            "restore_delay": self._num(self.var_restore_delay, 0.6),
             "cleanup_backend": self.var_cleanup_backend.get().strip(),
             "s1_styling": self.var_s1_styling.get().strip(),
             "s1_structure": self.var_s1_structure.get().strip(),
@@ -1115,7 +1144,7 @@ class App(Tk):
             "llm_endpoint": self.var_llm_endpoint.get().strip(),
             "llm_model": self.var_llm_model.get().strip(),
             "llm_key": self.var_llm_key.get(),
-            "llm_temp": float(self.var_llm_temp.get()),
+            "llm_temp": self._num(self.var_llm_temp, DEFAULT_LLM_TEMP),
             "llm_debug": bool(self.var_llm_debug.get()),
             "glossary_enable": bool(self.var_glossary_enable.get()),
             "auto_load_model": bool(self.var_auto_load_model.get()),
@@ -1128,16 +1157,16 @@ class App(Tk):
             ),
             # Advanced transcription settings
             "vad_enabled": bool(self.var_vad_enabled.get()),
-            "vad_threshold": float(self.var_vad_threshold.get()),
-            "vad_min_speech_ms": float(self.var_vad_min_speech_ms.get()),
-            "vad_min_silence_ms": float(self.var_vad_min_silence_ms.get()),
-            "vad_speech_pad_ms": float(self.var_vad_speech_pad_ms.get()),
-            "compression_ratio_threshold": float(self.var_compression_ratio_threshold.get()),
-            "log_prob_threshold": float(self.var_log_prob_threshold.get()),
-            "no_speech_threshold": float(self.var_no_speech_threshold.get()),
+            "vad_threshold": self._num(self.var_vad_threshold, 0.5),
+            "vad_min_speech_ms": self._num(self.var_vad_min_speech_ms, 250),
+            "vad_min_silence_ms": self._num(self.var_vad_min_silence_ms, 500),
+            "vad_speech_pad_ms": self._num(self.var_vad_speech_pad_ms, 400),
+            "compression_ratio_threshold": self._num(self.var_compression_ratio_threshold, 2.4),
+            "log_prob_threshold": self._num(self.var_log_prob_threshold, -1.0),
+            "no_speech_threshold": self._num(self.var_no_speech_threshold, 0.6),
             "word_timestamps": bool(self.var_word_timestamps.get()),
-            "temperature": float(self.var_temperature.get()),
-            "beam_size": int(self.var_beam_size.get()),
+            "temperature": self._num(self.var_temperature, 0.0),
+            "beam_size": int(self._num(self.var_beam_size, 5)),
             "initial_prompt": self.var_initial_prompt.get().strip(),
         }
 
@@ -1153,13 +1182,15 @@ class App(Tk):
         """Handle window close event by saving settings then destroying."""
         try:
             self._save_settings()
-        except (OSError, UnicodeEncodeError, ValueError) as e:
+            # Only a save that happened counts; main() retries the rest.
+            self._settings_saved = True
+        except (OSError, UnicodeEncodeError, ValueError, TclError) as e:
             # OSError: File write errors
             # UnicodeEncodeError: Invalid character encoding
             # ValueError: Invalid settings data
+            # TclError: a Tk variable that would not read
             logger.error(f"Failed to save settings on close: {e}", exc_info=True)
         finally:
-            self._settings_saved = True
             self.destroy()
 
     def _format_recent_processes_for_dialog(self) -> list[dict[str, str | None]]:
@@ -1213,6 +1244,7 @@ class App(Tk):
         self.wait_window(dialog)
         if dialog.result is not None:
             self.app_prompts = dialog.result
+            self._save_settings()
 
     def _get_input_device_names(self) -> list[str]:
         """Get list of available audio input devices for dropdown.
@@ -1296,7 +1328,7 @@ class App(Tk):
 
     def _apply_idle_ttl(self) -> None:
         """Push the TTL setting onto the Resident. 0 minutes means never unload."""
-        ttl = max(0.0, float(self.var_idle_ttl_minutes.get())) * 60.0
+        ttl = max(0.0, self._num(self.var_idle_ttl_minutes, DEFAULT_IDLE_TTL_MINUTES)) * 60.0
         self.asr.ttl = ttl
         self.s1.ttl = ttl
         self._capture_asr_config()
@@ -1467,10 +1499,53 @@ class App(Tk):
         audio.stop_recording()
         self._set_status("transcribing", "Transcribing...")
         self.btn_toggle.config(text="Start recording")
-        threading.Thread(target=self._transcribe_and_clean, daemon=True).start()
+        # Settings are read here, on the Tk thread; the worker gets the copy.
+        cfg = self._capture_dictation_config()
+        threading.Thread(target=self._transcribe_and_clean, args=(cfg,), daemon=True).start()
 
-    def _transcribe_and_clean(self) -> None:
-        """Transcribe audio and optionally clean with LLM."""
+    def _capture_dictation_config(self) -> dict[str, Any]:
+        """Copy every setting a dictation uses out of Tk. Main thread only."""
+        return {
+            "vad_enabled": bool(self.var_vad_enabled.get()),
+            "vad_threshold": self._num(self.var_vad_threshold, 0.5),
+            "vad_min_speech_ms": int(self._num(self.var_vad_min_speech_ms, 250)),
+            "vad_min_silence_ms": int(self._num(self.var_vad_min_silence_ms, 500)),
+            "vad_speech_pad_ms": int(self._num(self.var_vad_speech_pad_ms, 400)),
+            "beam_size": int(self._num(self.var_beam_size, 5)),
+            "compression_ratio_threshold": self._num(self.var_compression_ratio_threshold, 2.4),
+            "log_prob_threshold": self._num(self.var_log_prob_threshold, -1.0),
+            "no_speech_threshold": self._num(self.var_no_speech_threshold, 0.6),
+            "word_timestamps": bool(self.var_word_timestamps.get()),
+            "temperature": self._num(self.var_temperature, 0.0),
+            "initial_prompt": self.var_initial_prompt.get().strip() or None,
+            "glossary_enable": bool(self.var_glossary_enable.get()),
+            "cleanup_backend": self.var_cleanup_backend.get().strip(),
+            "llm_endpoint": self.var_llm_endpoint.get().strip(),
+            "llm_model": self.var_llm_model.get().strip(),
+            "llm_key": self.var_llm_key.get().strip() or None,
+            "llm_temp": self._num(self.var_llm_temp, DEFAULT_LLM_TEMP),
+            "llm_debug": bool(self.var_llm_debug.get()),
+            "history_enable": bool(self.var_history_enable.get()),
+            "history_audio_days": int(
+                self._num(self.var_history_audio_days, DEFAULT_HISTORY_AUDIO_DAYS)
+            ),
+            "asr_backend": self.var_asr_backend.get().strip(),
+            "auto_paste": bool(self.var_auto_paste.get()),
+            "paste_delay": self._num(self.var_paste_delay, 0.15),
+            "restore_delay": self._num(self.var_restore_delay, 0.6),
+        }
+
+    def _append_transcript(self, text: str) -> None:
+        """Add a line to the transcript box. Main thread only."""
+        self.txt_out.insert(END, text)
+        self.txt_out.see(END)
+
+    def _transcribe_and_clean(self, cfg: dict[str, Any]) -> None:
+        """Transcribe audio and optionally clean with LLM.
+
+        Runs on a worker thread: settings come from cfg, and anything that
+        touches a widget goes through after().
+        """
         audio_data = audio.get_audio_buffer()
         if audio_data is None:
             self._set_status("warning", "No audio captured")
@@ -1480,6 +1555,8 @@ class App(Tk):
         if active_context and active_context.process_name:
             self._record_recent_process(active_context.process_name, active_context.window_title)
         prompt_context = app_context.format_context_for_prompt(active_context)
+        # ponytail: read without a lock; safe while dialogs replace these objects
+        # (app_prompts, glossary_manager, prompt_content) rather than mutate them
         app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
         was_cold = not self.asr.is_loaded()
@@ -1495,12 +1572,12 @@ class App(Tk):
         try:
             # Build VAD parameters if VAD is enabled
             vad_params = None
-            if self.var_vad_enabled.get():
+            if cfg["vad_enabled"]:
                 vad_params = {
-                    "threshold": self.var_vad_threshold.get(),
-                    "min_speech_duration_ms": int(self.var_vad_min_speech_ms.get()),
-                    "min_silence_duration_ms": int(self.var_vad_min_silence_ms.get()),
-                    "speech_pad_ms": int(self.var_vad_speech_pad_ms.get()),
+                    "threshold": cfg["vad_threshold"],
+                    "min_speech_duration_ms": cfg["vad_min_speech_ms"],
+                    "min_silence_duration_ms": cfg["vad_min_silence_ms"],
+                    "speech_pad_ms": cfg["vad_speech_pad_ms"],
                 }
 
             if not self.asr.is_loaded():
@@ -1509,20 +1586,20 @@ class App(Tk):
             text = backend.transcribe(
                 audio_data,
                 hotwords=hotwords,
-                beam_size=int(self.var_beam_size.get()),
-                vad_filter=self.var_vad_enabled.get(),
+                beam_size=cfg["beam_size"],
+                vad_filter=cfg["vad_enabled"],
                 vad_parameters=vad_params,
-                compression_ratio_threshold=self.var_compression_ratio_threshold.get(),
-                log_prob_threshold=self.var_log_prob_threshold.get(),
-                no_speech_threshold=self.var_no_speech_threshold.get(),
-                word_timestamps=self.var_word_timestamps.get(),
-                temperature=self.var_temperature.get(),
-                initial_prompt=self.var_initial_prompt.get().strip() or None,
+                compression_ratio_threshold=cfg["compression_ratio_threshold"],
+                log_prob_threshold=cfg["log_prob_threshold"],
+                no_speech_threshold=cfg["no_speech_threshold"],
+                word_timestamps=cfg["word_timestamps"],
+                temperature=cfg["temperature"],
+                initial_prompt=cfg["initial_prompt"],
             )
         except (transcription.TranscriptionError, OSError, RuntimeError, ValueError) as e:
             self._set_status("error", "Transcription failed")
             logger.error(f"Transcription failed: {e}", exc_info=True)
-            messagebox.showerror("Transcribe", str(e))
+            self.after(0, messagebox.showerror, "Transcribe", str(e))
             return
 
         asr_ms = int((time.monotonic() - started) * 1000)
@@ -1532,7 +1609,7 @@ class App(Tk):
             return
 
         self._refresh_glossary_cache()
-        glossary_enabled = bool(self.var_glossary_enable.get() and self.glossary_manager.rules)
+        glossary_enabled = bool(cfg["glossary_enable"] and self.glossary_manager.rules)
 
         normalized_text = glossary.apply_glossary(
             text, self.glossary_manager if glossary_enabled else None
@@ -1541,26 +1618,24 @@ class App(Tk):
 
         cleanup_started = time.monotonic()
         cleaned_text: str | None = None
-        backend = self.var_cleanup_backend.get().strip()
+        backend = cfg["cleanup_backend"]
         if backend == "s1":
             cleaned_text = self._clean_with_s1(normalized_text, active_context)
             final_text = cleaned_text or final_text
-        elif backend == "endpoint" and (
-            self.var_llm_endpoint.get().strip() and self.var_llm_model.get().strip()
-        ):
+        elif backend == "endpoint" and cfg["llm_endpoint"] and cfg["llm_model"]:
             self._set_status("processing", "Cleaning with LLM...")
             try:
                 cleaned = llm_cleanup.clean_with_llm(
                     raw_text=normalized_text,
-                    endpoint=self.var_llm_endpoint.get().strip(),
-                    model=self.var_llm_model.get().strip(),
-                    api_key=self.var_llm_key.get().strip() or None,
+                    endpoint=cfg["llm_endpoint"],
+                    model=cfg["llm_model"],
+                    api_key=cfg["llm_key"],
                     prompt=self.prompt_content or DEFAULT_LLM_PROMPT,
                     glossary=self.glossary_manager if glossary_enabled else None,
-                    temperature=float(self.var_llm_temp.get()),
+                    temperature=cfg["llm_temp"],
                     app_prompt=app_prompt,
                     prompt_context=prompt_context,
-                    debug_logging=bool(self.var_llm_debug.get()),
+                    debug_logging=cfg["llm_debug"],
                 )
                 if cleaned:
                     cleaned_text = cleaned
@@ -1577,27 +1652,26 @@ class App(Tk):
         if glossary_enabled:
             final_text = glossary.apply_glossary(final_text, self.glossary_manager)
 
-        if self.var_history_enable.get():
+        if cfg["history_enable"]:
             history.record(
                 raw=text,
                 cleaned=cleaned_text,
                 final=final_text,
                 process_name=active_context.process_name if active_context else None,
-                asr_backend=self.var_asr_backend.get().strip(),
+                asr_backend=cfg["asr_backend"],
                 cleanup_backend=backend,
                 asr_ms=asr_ms,
                 cleanup_ms=cleanup_ms,
                 cold=was_cold,
                 audio=audio_data,
-                audio_days=int(self.var_history_audio_days.get()),
+                audio_days=cfg["history_audio_days"],
             )
 
         # Display and copy result
         ts = time.strftime("%H:%M:%S")
-        self.txt_out.insert(END, f"[{ts}] {final_text}\n")
-        self.txt_out.see(END)
+        self.after(0, self._append_transcript, f"[{ts}] {final_text}\n")
 
-        self._deliver(final_text)
+        self._deliver(final_text, cfg)
 
         if self._status_state not in {"error", "warning"}:
             self._set_status("ready", "Ready")
@@ -1633,7 +1707,7 @@ class App(Tk):
             cleaned: str | None = cleaner.clean(text, **self._s1_style_for(context))
         except (OSError, RuntimeError, ValueError, ImportError) as e:
             # No cleanup model is a degraded dictation, not a lost one.
-            self.var_cleanup_backend.set("off")
+            self.after(0, self.var_cleanup_backend.set, "off")
             self._set_status("warning", "Cleanup unavailable; using raw text")
             logger.warning(f"S1 cleanup failed, backend off for this session: {e}")
             return None
@@ -1647,7 +1721,7 @@ class App(Tk):
         self._set_status("ready", "Cleaned")
         return cleaned
 
-    def _deliver(self, text: str) -> None:
+    def _deliver(self, text: str, cfg: dict[str, Any]) -> None:
         """Paste the dictation and give the clipboard back.
 
         The clipboard is borrowed, not taken: whatever was on it - text, HTML,
@@ -1669,26 +1743,27 @@ class App(Tk):
             logger.error(f"Clipboard write failed: {e}", exc_info=True)
             return
 
-        if self.var_auto_paste.get():
-            self._wait_for_modifiers_up()
-            time.sleep(float(self.var_paste_delay.get()))
-            # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
-            # dictation apps use.
-            if not clipboard.send_paste():
-                self._set_status("error", "Auto-paste failed")
-                logger.error("SendInput refused the paste keystroke")
-            elif self._status_state not in {"error", "warning"}:
-                # A cleanup warning outranks the news that the paste landed.
-                self._set_status("ready", "Pasted into active window")
-
-        if saved is None:
-            return
-        # Give the target app time to read our text before taking it back.
-        time.sleep(float(self.var_restore_delay.get()))
+        # From here the clipboard holds our text: whatever happens, give theirs back.
         try:
-            clipboard.restore(saved)
-        except clipboard.ClipboardError as e:
-            logger.warning(f"Could not restore the clipboard: {e}")
+            if cfg["auto_paste"]:
+                self._wait_for_modifiers_up()
+                time.sleep(cfg["paste_delay"])
+                # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
+                # dictation apps use.
+                if not clipboard.send_paste():
+                    self._set_status("error", "Auto-paste failed")
+                    logger.error("SendInput refused the paste keystroke")
+                elif self._status_state not in {"error", "warning"}:
+                    # A cleanup warning outranks the news that the paste landed.
+                    self._set_status("ready", "Pasted into active window")
+        finally:
+            if saved is not None:
+                # Give the target app time to read our text before taking it back.
+                time.sleep(cfg["restore_delay"])
+                try:
+                    clipboard.restore(saved)
+                except clipboard.ClipboardError as e:
+                    logger.warning(f"Could not restore the clipboard: {e}")
 
     def _wait_for_modifiers_up(self, timeout: float = MODIFIER_WAIT_SECONDS) -> None:
         """Block until every modifier key is released.
@@ -1748,8 +1823,13 @@ def main() -> None:
         app.mainloop()
     finally:
         if hasattr(app, "_save_settings") and not getattr(app, "_settings_saved", False):
-            app._save_settings()
-            app._settings_saved = True
+            try:
+                app._save_settings()
+                app._settings_saved = True
+            except TclError as e:
+                # Tk variables outlive destroy(), so this normally works. If one
+                # will not read, the hook below still has to come out.
+                logger.error(f"Could not save settings on exit: {e}")
         # Cleanup
         if hasattr(app, "hotkey_manager") and app.hotkey_manager:
             app.hotkey_manager.unregister()
