@@ -349,10 +349,10 @@ The `print(` criterion also caught four prints this section does not name, in `g
 - [x] The four check commands exit 0; CI green
 
 #### Manual Verification:
-- [ ] Copy a sentence. With endpoint cleanup on, dictate a long sentence and straight after it a two-word one, so they finish close together. Both paste, in order, and Ctrl+V afterwards pastes the original sentence
-- [ ] Point the endpoint at a port nothing listens on, dictate: the raw text pastes within a couple of seconds. (A hung endpoint is hard to stage; the unit test carries that case)
-- [ ] Dictate ten short phrases releasing the key the instant the last word ends: no clipped final word
-- [ ] Ten dictations, hold and tap-lock alternating: all paste. Check the log for "held the hook thread" and tell the implementer what it shows
+- [x] Copy a sentence. With endpoint cleanup on, dictate a long sentence and straight after it a two-word one, so they finish close together. Both paste, in order, and Ctrl+V afterwards pastes the original sentence
+- [x] Point the endpoint at a port nothing listens on, dictate: the raw text pastes within a couple of seconds. (A hung endpoint is hard to stage; the unit test carries that case)
+- [x] Dictate ten short phrases releasing the key the instant the last word ends: no clipped final word
+- [x] Ten dictations, hold and tap-lock alternating: all paste. Check the log for "held the hook thread" and tell the implementer what it shows
 
 **Implementation Note**: pause here for Dan's confirmation before Phase 4.
 
