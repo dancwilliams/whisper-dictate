@@ -249,7 +249,7 @@ Keep the combo binding at `:357`. It releases at once; the close path then finds
 - [x] The four new `TestResident` tests fail on `a91c9e9` and pass after step 2 (say so in the PR)
 - [x] `uv run pytest tests/test_asr.py tests/test_gui_pipeline.py -v` passes
 - [x] `git grep -n "_generation" whisper_dictate/asr.py` shows the counter read in `_load` and bumped in `release`
-- [ ] The four check commands exit 0; CI green
+- [x] The four check commands exit 0; CI green
 
 #### Manual Verification:
 - [ ] Load `small`. Settings → Speech recognition: pick `large-v3`, close. The status reads "Recognizer: Whisper large-v3". Dictate: the log shows "Loading Whisper large-v3" and the dictation pastes
