@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,9 @@ SETTINGS_FILE = Path.home() / ".whisper_dictate/whisper_dictate_settings.json"
 
 # Settings keys that should be stored securely
 SECURE_KEYS = {"llm_key"}
+
+# Set by load_settings when the file was there but unreadable, so the GUI can say so.
+last_load_error: str | None = None
 
 
 def load_settings() -> dict[str, Any]:
@@ -37,6 +41,8 @@ def load_settings() -> dict[str, Any]:
         "initial_prompt": "",
     }
 
+    global last_load_error
+    last_load_error = None
     try:
         if SETTINGS_FILE.is_file():
             settings: dict[str, Any] = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
@@ -50,10 +56,16 @@ def load_settings() -> dict[str, Any]:
             _migrate_secure_settings(settings)
 
             return settings
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:  # pragma: no cover
-        # OSError: File access errors
-        # UnicodeDecodeError: Invalid UTF-8 encoding
-        # JSONDecodeError: Invalid JSON format
+    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        # The next save overwrites this file with defaults. Keep what was there.
+        backup = SETTINGS_FILE.with_suffix(".json.bak")
+        try:
+            backup.write_bytes(SETTINGS_FILE.read_bytes())
+        except OSError as backup_error:
+            logger.error(f"Could not back up unreadable settings: {backup_error}")
+        last_load_error = str(e)
+        logger.error(f"Could not read saved settings: {e}. Copy kept at {backup}")
+    except OSError as e:  # pragma: no cover
         logger.error(f"Could not read saved settings: {e}")
     return defaults
 
@@ -72,7 +84,11 @@ def save_settings(settings: dict[str, Any]) -> bool:
         settings_to_save = {k: v for k, v in settings.items() if k not in SECURE_KEYS}
 
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        SETTINGS_FILE.write_text(json.dumps(settings_to_save, indent=2), encoding="utf-8")
+        # Write beside the file and swap it in: a crash mid-write leaves the old
+        # settings, not half a file.
+        tmp = SETTINGS_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(settings_to_save, indent=2), encoding="utf-8")
+        os.replace(tmp, SETTINGS_FILE)
         return True
     except (OSError, UnicodeEncodeError, TypeError, ValueError) as e:  # pragma: no cover
         # OSError: File/directory write errors

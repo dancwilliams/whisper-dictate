@@ -255,10 +255,10 @@ Branch: `fix/small-bugs`. B1, B3, B5, B7. Independent of each other; one commit 
 - [x] `make check` exits 0 (run as its four commands)
 
 #### Manual Verification:
-- [ ] Settings → Automation: "History" sits above the history controls, "Startup" above the startup controls
-- [ ] With Notepad's clipboard held by another app (or the endpoint unreachable with cleanup on), the pill stays amber/red after the dictation instead of going green
-- [ ] Enter an API key, quit, relaunch: key is there. Blank it, quit, relaunch: field is empty, and `cmdkey /list` (or Credential Manager) no longer shows the entry
-- [ ] Dictate into two apps, quit, open `%USERPROFILE%\.whisper_dictate\whisper_dictate_settings.json`: `recent_processes` is a list of process names with no titles
+- [x] Settings → Automation: "History" sits above the history controls, "Startup" above the startup controls
+- [x] With Notepad's clipboard held by another app (or the endpoint unreachable with cleanup on), the pill stays amber/red after the dictation instead of going green
+- [x] Enter an API key, quit, relaunch: key is there. Blank it, quit, relaunch: field is empty, and `cmdkey /list` (or Credential Manager) no longer shows the entry
+- [x] Dictate into two apps, quit, open `%USERPROFILE%\.whisper_dictate\whisper_dictate_settings.json`: `recent_processes` is a list of process names with no titles
 
 **Implementation Note**: pause here for Dan's confirmation before Phase 4.
 
@@ -322,18 +322,18 @@ def _num(self, var, default: float) -> float:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest` passes with no `xfail` left in `tests/test_gui_pipeline.py` (`git grep -n xfail tests/test_gui_pipeline.py` returns nothing)
-- [ ] A test asserts the worker path reads no Tk variable: build the app with every `var_*` as a `MagicMock` whose `.get` raises, call `_transcribe_and_clean(cfg)`, and it completes
-- [ ] `git grep -nE "self\.var_\w+\.(get|set)\(" whisper_dictate/gui.py` shows no hit inside `_transcribe_and_clean`, `_clean_with_s1` or `_deliver`
-- [ ] `make check` exits 0
+- [x] `uv run pytest` passes with no `xfail` left in `tests/test_gui_pipeline.py` (`git grep -n xfail tests/test_gui_pipeline.py` returns nothing) — 369 passed, 1 skipped
+- [x] A test asserts the worker path reads no Tk variable: build the app with every `var_*` as a `MagicMock` whose `.get` raises, call `_transcribe_and_clean(cfg)`, and it completes
+- [x] `git grep -nE "self\.var_\w+\.(get|set)\(" whisper_dictate/gui.py` shows no hit inside `_transcribe_and_clean`, `_clean_with_s1` or `_deliver`
+- [x] `make check` exits 0 (run as its four commands)
 
 #### Manual Verification:
-- [ ] Settings → Automation: clear "Paste delay" and leave it blank. Copy a sentence to the clipboard, dictate into Notepad: the dictation pastes, and a moment later Ctrl+V pastes the original sentence
-- [ ] With that field still blank, change the hotkey, then Quit from the pill. Relaunch: the new hotkey is there, paste delay is back to 0.15
-- [ ] Change a per-app prompt, close the dialog, kill the process from Task Manager. Relaunch: the prompt is there
-- [ ] Quit. Put a stray `x` at the top of the settings JSON. Launch: status shows the unreadable-settings warning, a `.json.bak` sits beside the file with the `x` in it. Quit and relaunch: still running on defaults, `.bak` unchanged
-- [ ] Open Edit → Prompt (modal), press the hotkey and dictate while it is open: the app does not hang
-- [ ] Ten dictations in a row into Notepad, alternating hold and tap-lock: all paste, none hangs
+- [x] Settings → Automation: clear "Paste delay" and leave it blank. Copy a sentence to the clipboard, dictate into Notepad: the dictation pastes, and a moment later Ctrl+V pastes the original sentence
+- [x] With that field still blank, change the hotkey, then Quit from the pill. Relaunch: the new hotkey is there, paste delay is back to 0.15
+- [x] Change a per-app prompt, close the dialog, kill the process from Task Manager. Relaunch: the prompt is there
+- [x] Quit. Put a stray `x` at the top of the settings JSON. Launch: status shows the unreadable-settings warning, a `.json.bak` sits beside the file with the `x` in it. Quit and relaunch: still running on defaults, `.bak` unchanged
+- [x] Open Edit → Prompt (modal), press the hotkey and dictate while it is open: the app does not hang
+- [x] Ten dictations in a row into Notepad, alternating hold and tap-lock: all paste, none hangs
 
 **Implementation Note**: pause here for Dan's confirmation before Phase 5.
 

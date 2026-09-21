@@ -4,7 +4,6 @@ The app is built with App.__new__, so no Tk interpreter and no display: every
 Tk variable and widget the method under test touches is a MagicMock.
 """
 
-import contextlib
 import time
 from collections import deque
 from tkinter import TclError
@@ -45,6 +44,24 @@ VAR_DEFAULTS = {
     "var_restore_delay": 0.6,
 }
 
+# Variables only _save_settings reads.
+SAVE_ONLY = dict.fromkeys(
+    (
+        "var_model",
+        "var_idle_ttl_minutes",
+        "var_device",
+        "var_compute",
+        "var_input",
+        "var_hotkey",
+        "var_s1_styling",
+        "var_s1_structure",
+        "var_s1_context",
+        "var_auto_load_model",
+        "var_auto_register_hotkey",
+    ),
+    "0",
+)
+
 
 @pytest.fixture
 def mods(mocker):
@@ -81,7 +98,8 @@ def make_app(mods):
             setattr(app, name, var)
         for widget in ("txt_out", "btn_toggle", "lbl_status", "indicator", "hotkey_manager"):
             setattr(app, widget, MagicMock())
-        app.after = MagicMock()
+        # The worker hands widget work to after(); run it on the spot.
+        app.after = MagicMock(side_effect=lambda _ms, fn, *args: fn(*args))
         app.asr = MagicMock()
         app.asr.get.return_value.transcribe.return_value = "hello world"
         app.s1 = MagicMock()
@@ -98,6 +116,11 @@ def make_app(mods):
     return _make
 
 
+def run(app) -> None:
+    """One dictation, the way _stop_and_transcribe starts it."""
+    app._transcribe_and_clean(app._capture_dictation_config())
+
+
 def states(app) -> list[str]:
     return [call.args[0] for call in app.indicator.update.call_args_list]
 
@@ -109,7 +132,7 @@ def messages(app) -> list[str]:
 class TestDeliver:
     def test_happy_path_order(self, make_app, mods):
         app = make_app()
-        app._deliver("hi")
+        app._deliver("hi", app._capture_dictation_config())
 
         assert [c[0] for c in mods.clipboard.mock_calls] == [
             "snapshot",
@@ -123,7 +146,7 @@ class TestDeliver:
     def test_set_text_fails(self, make_app, mods):
         mods.clipboard.set_text.side_effect = clipboard.ClipboardError("locked")
         app = make_app()
-        app._deliver("hi")
+        app._deliver("hi", app._capture_dictation_config())
 
         assert states(app)[-1] == "error"
         mods.clipboard.send_paste.assert_not_called()
@@ -133,7 +156,7 @@ class TestDeliver:
     def test_snapshot_fails(self, make_app, mods):
         mods.clipboard.snapshot.side_effect = clipboard.ClipboardError("locked")
         app = make_app()
-        app._deliver("hi")
+        app._deliver("hi", app._capture_dictation_config())
 
         mods.clipboard.set_text.assert_called_once_with("hi")
         mods.clipboard.send_paste.assert_called_once()
@@ -142,17 +165,26 @@ class TestDeliver:
     def test_paste_refused_still_restores(self, make_app, mods):
         mods.clipboard.send_paste.return_value = False
         app = make_app()
-        app._deliver("hi")
+        app._deliver("hi", app._capture_dictation_config())
 
         assert states(app)[-1] == "error"
         mods.clipboard.restore.assert_called_once_with("SAVED")
 
-    @pytest.mark.xfail(strict=True, reason="B2, fixed in phase 4")
     def test_blank_delay_field_still_restores(self, make_app, mods):
         app = make_app()
         app.var_paste_delay.get.side_effect = TclError('expected floating-point number but got ""')
-        with contextlib.suppress(TclError):
-            app._deliver("hi")
+        cfg = app._capture_dictation_config()
+        app._deliver("hi", cfg)
+
+        assert cfg["paste_delay"] == 0.15
+        mods.clipboard.send_paste.assert_called_once()
+        mods.clipboard.restore.assert_called_once_with("SAVED")
+
+    def test_paste_raising_still_restores(self, make_app, mods):
+        mods.clipboard.send_paste.side_effect = OSError("SendInput blew up")
+        app = make_app()
+        with pytest.raises(OSError):
+            app._deliver("hi", app._capture_dictation_config())
 
         mods.clipboard.restore.assert_called_once_with("SAVED")
 
@@ -161,7 +193,7 @@ class TestTranscribeAndClean:
     def test_no_audio(self, make_app, mods):
         mods.audio.get_audio_buffer.return_value = None
         app = make_app()
-        app._transcribe_and_clean()
+        run(app)
 
         assert states(app) == ["warning"]
         mods.clipboard.set_text.assert_not_called()
@@ -169,14 +201,14 @@ class TestTranscribeAndClean:
     def test_empty_transcript(self, make_app, mods):
         app = make_app()
         app.asr.get.return_value.transcribe.return_value = ""
-        app._transcribe_and_clean()
+        run(app)
 
         assert states(app)[-1] == "warning"
         mods.clipboard.set_text.assert_not_called()
 
     def test_happy_path_delivers_transcript(self, make_app, mods):
         app = make_app()
-        app._transcribe_and_clean()
+        run(app)
 
         mods.clipboard.set_text.assert_called_once_with("hello world")
         assert "hello world" in app.txt_out.insert.call_args.args[1]
@@ -185,7 +217,7 @@ class TestTranscribeAndClean:
     def test_endpoint_failure_delivers_raw_text(self, make_app, mods):
         mods.llm_cleanup.clean_with_llm.side_effect = llm_cleanup.LLMCleanupError("down")
         app = make_app(var_cleanup_backend="endpoint")
-        app._transcribe_and_clean()
+        run(app)
 
         assert "warning" in states(app)
         mods.clipboard.set_text.assert_called_once_with("hello world")
@@ -193,14 +225,36 @@ class TestTranscribeAndClean:
     def test_endpoint_failure_warning_survives(self, make_app, mods):
         mods.llm_cleanup.clean_with_llm.side_effect = llm_cleanup.LLMCleanupError("down")
         app = make_app(var_cleanup_backend="endpoint")
-        app._transcribe_and_clean()
+        run(app)
 
         assert states(app)[-1] == "warning"
+
+    def test_worker_reads_no_tk_variable(self, make_app, mods):
+        app = make_app(var_cleanup_backend="endpoint", var_history_enable=True)
+        mods.llm_cleanup.clean_with_llm.return_value = "Hello, world."
+        cfg = app._capture_dictation_config()
+        for name in VAR_DEFAULTS:
+            var = getattr(app, name)
+            var.get.side_effect = TclError("read from the worker thread")
+            var.set.side_effect = TclError("written from the worker thread")
+        app._transcribe_and_clean(cfg)
+
+        mods.clipboard.set_text.assert_called_once_with("Hello, world.")
+        mods.history.record.assert_called_once()
+        mods.clipboard.restore.assert_called_once_with("SAVED")
+
+    def test_s1_failure_turns_cleanup_off_through_after(self, make_app, mods):
+        app = make_app(var_cleanup_backend="s1")
+        app.s1.get.side_effect = RuntimeError("no model")
+        run(app)
+
+        app.after.assert_any_call(0, app.var_cleanup_backend.set, "off")
+        mods.clipboard.set_text.assert_called_once_with("hello world")
 
     def test_transcription_error(self, make_app, mods):
         app = make_app()
         app.asr.get.return_value.transcribe.side_effect = RuntimeError("boom")
-        app._transcribe_and_clean()
+        run(app)
 
         assert states(app)[-1] == "error"
         mods.messagebox.showerror.assert_called_once()
@@ -261,23 +315,7 @@ class TestRecentProcesses:
 
     def test_save_writes_process_names_without_titles(self, make_app, mocker):
         store = mocker.patch.object(gui, "settings_store")
-        save_only = dict.fromkeys(
-            (
-                "var_model",
-                "var_idle_ttl_minutes",
-                "var_device",
-                "var_compute",
-                "var_input",
-                "var_hotkey",
-                "var_s1_styling",
-                "var_s1_structure",
-                "var_s1_context",
-                "var_auto_load_model",
-                "var_auto_register_hotkey",
-            ),
-            "0",
-        )
-        app = make_app(**save_only)
+        app = make_app(**SAVE_ONLY)
         app.indicator.get_position.return_value = None
         app._record_recent_process("a.exe", "Quarterly results - Word")
         app._record_recent_process("b.exe", "two")
@@ -290,13 +328,31 @@ class TestRecentProcesses:
 
 
 class TestOnClose:
-    @pytest.mark.xfail(strict=True, reason="B2, fixed in phase 4")
     def test_failed_save_is_not_marked_saved(self, make_app):
         app = make_app()
         app._save_settings = MagicMock(side_effect=TclError("blank field"))
         app.destroy = MagicMock()
-        with contextlib.suppress(TclError):
-            app._on_close()
+        app._on_close()
 
         assert app._settings_saved is False
         app.destroy.assert_called_once()
+
+    def test_good_save_is_marked_saved(self, make_app):
+        app = make_app()
+        app._save_settings = MagicMock()
+        app.destroy = MagicMock()
+        app._on_close()
+
+        assert app._settings_saved is True
+        app.destroy.assert_called_once()
+
+    def test_blank_numeric_field_saves_its_default(self, make_app, mocker):
+        store = mocker.patch.object(gui, "settings_store")
+        app = make_app(**SAVE_ONLY)
+        app.indicator.get_position.return_value = None
+        app.var_paste_delay.get.side_effect = TclError('expected floating-point number but got ""')
+        app._save_settings()
+
+        saved = store.save_settings.call_args.args[0]
+        assert saved["paste_delay"] == 0.15
+        assert saved["restore_delay"] == 0.6
