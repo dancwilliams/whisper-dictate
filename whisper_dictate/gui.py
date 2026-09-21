@@ -87,8 +87,6 @@ BEEP_HZ, BEEP_MS = 880, 60
 # holding the keys is the user's business, and a paste under them does nothing.
 MODIFIER_WAIT_SECONDS = 5.0
 
-# Note: Audio recorder thread is now managed internally by AudioRecorder class
-
 
 class App(Tk):
     """Main application window."""
@@ -125,6 +123,7 @@ class App(Tk):
         self._asr_config: tuple[str, str, str, str] = ("", "", "", "")
         self.asr = asr.Resident(self._build_backend, ttl=0.0)
         self.s1 = asr.Resident(s1.S1Cleaner, ttl=0.0)
+        self.recorder = audio.AudioRecorder()
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self._press_at = 0.0
         self._status_state = "ready"
@@ -870,7 +869,7 @@ class App(Tk):
 
         # Open and close one input stream now so the first press is not a cold open.
         device_id = self._parse_input_device_id(self.var_input.get().strip())
-        threading.Thread(target=audio.prewarm, args=(device_id,), daemon=True).start()
+        threading.Thread(target=self.recorder.prewarm, args=(device_id,), daemon=True).start()
 
         self._apply_idle_ttl()
         if not self.var_auto_load_model.get():
@@ -1325,7 +1324,7 @@ class App(Tk):
         if self.var_cleanup_backend.get().strip() == "s1":
             self._capture_s1_style()
             self.s1.warm()
-        if audio.is_recording():
+        if self.recorder.is_recording():
             self._stop_and_transcribe()
             return
         self._press_at = time.monotonic()
@@ -1333,7 +1332,7 @@ class App(Tk):
 
     def _on_hotkey_release(self) -> None:
         """Chord came up: transcribe, unless it was a tap, which locks recording on."""
-        if not audio.is_recording():
+        if not self.recorder.is_recording():
             return
         if time.monotonic() - self._press_at < TAP_SECONDS:
             self._set_status("listening", "Recording (locked) - press again to stop")
@@ -1342,16 +1341,16 @@ class App(Tk):
 
     def _on_hotkey_cancel(self) -> None:
         """Another key joined the chord: throw the audio away."""
-        if not audio.is_recording():
+        if not self.recorder.is_recording():
             return
-        audio.stop_recording()
-        audio.get_audio_buffer()  # discard
+        self.recorder.stop()
+        self.recorder.get_buffer()  # discard
         self.btn_toggle.config(text="Start recording")
         self._set_status("ready", "Cancelled")
 
     def _toggle_record(self) -> None:
         """Toggle recording on/off (the button; the hotkey uses press/release)."""
-        if audio.is_recording():
+        if self.recorder.is_recording():
             self._stop_and_transcribe()
         else:
             self._start_recording()
@@ -1362,7 +1361,7 @@ class App(Tk):
         device_id = self._parse_input_device_id(inp)
 
         try:
-            audio.start_recording(device_id, on_first_audio=self._on_first_audio)
+            self.recorder.start(device_id, on_first_audio=self._on_first_audio)
         except (sd.PortAudioError, RuntimeError, ValueError) as e:
             # PortAudioError: PortAudio device errors
             # RuntimeError: sounddevice initialization errors
@@ -1383,7 +1382,7 @@ class App(Tk):
 
     def _stop_and_transcribe(self) -> None:
         """Close the microphone and hand the buffer to the pipeline."""
-        audio.stop_recording()
+        self.recorder.stop()
         self._set_status("transcribing", "Transcribing...")
         self.btn_toggle.config(text="Start recording")
         # Settings are read here, on the Tk thread; the worker gets the copy.
@@ -1433,7 +1432,7 @@ class App(Tk):
         Runs on a worker thread: settings come from cfg, and anything that
         touches a widget goes through after().
         """
-        audio_data = audio.get_audio_buffer()
+        audio_data = self.recorder.get_buffer()
         if audio_data is None:
             self._set_status("warning", "No audio captured")
             return
@@ -1720,7 +1719,7 @@ def main() -> None:
         # Cleanup
         if hasattr(app, "hotkey_manager") and app.hotkey_manager:
             app.hotkey_manager.unregister()
-        audio.stop_recording()
+        app.recorder.stop()
 
 
 if __name__ == "__main__":

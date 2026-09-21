@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from whisper_dictate import audio
 from whisper_dictate.audio import AudioRecorder
 
 
@@ -162,51 +161,3 @@ class TestAudioRecorder:
         recorder.stop()  # Should not raise
 
         assert recorder.is_recording() is False
-
-
-class TestBackwardCompatibility:
-    """Test backward compatibility functions."""
-
-    def test_is_recording_initial(self):
-        """Test initial recording state via compat function."""
-        # Get a fresh recorder instance
-        recorder = audio.get_default_recorder()
-        recorder.stop()  # Ensure clean state
-        assert audio.is_recording() is False
-
-    def test_get_audio_buffer_empty(self):
-        """Test getting audio buffer when empty via compat function."""
-        recorder = audio.get_default_recorder()
-        recorder.stop()  # Ensure clean state
-        _ = recorder.get_buffer()  # Clear any existing data
-
-        result = audio.get_audio_buffer()
-        assert result is None
-
-    @patch("whisper_dictate.audio.sd.InputStream")
-    def test_start_recording_compat(self, mock_stream_class):
-        """Test starting audio recording via compat function."""
-        mock_stream = MagicMock()
-        mock_stream_class.return_value = mock_stream
-
-        audio.start_recording()
-
-        assert audio.is_recording() is True
-        mock_stream.start.assert_called_once()
-
-    @patch("whisper_dictate.audio.sd.InputStream")
-    def test_stop_recording_compat(self, mock_stream_class):
-        """Test stopping audio recording via compat function."""
-        mock_stream = MagicMock()
-        mock_stream_class.return_value = mock_stream
-
-        audio.start_recording()
-        audio.stop_recording()
-
-        assert audio.is_recording() is False
-        mock_stream.stop.assert_called_once()
-
-    def test_recorder_loop_compat(self):
-        """Test that recorder_loop exists for backward compatibility."""
-        # This function should exist but do nothing
-        audio.recorder_loop()  # Should not raise

@@ -200,9 +200,9 @@ sequenceDiagram
 
 ## Key Design Patterns
 
-### Singleton Pattern
-- **AudioRecorder**: Global instance via `get_default_recorder()` for backward compatibility
-- **Whisper Model**: Cached in `transcription.py` to avoid reloading
+### Single Instances
+- **AudioRecorder**: One instance, held by `App` as `self.recorder`
+- **Recognizer and cleanup model**: Held by `asr.Resident`, which loads on demand and unloads after the idle TTL
 
 ### Observer Pattern
 - **Hotkeys**: Windows message loop posts events to GUI thread

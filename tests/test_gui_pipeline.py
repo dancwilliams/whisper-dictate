@@ -67,7 +67,7 @@ SAVE_ONLY = dict.fromkeys(
 def mods(mocker):
     """The modules the pipeline reaches out through, mocked."""
     m = MagicMock()
-    for name in ("audio", "clipboard", "app_context", "history", "llm_cleanup", "glossary"):
+    for name in ("clipboard", "app_context", "history", "llm_cleanup", "glossary"):
         mocker.patch.object(gui, name, getattr(m, name))
     m.messagebox = mocker.patch.object(gui, "messagebox")
     mocker.patch.object(gui.time, "sleep")
@@ -75,7 +75,6 @@ def mods(mocker):
     m.clipboard.ClipboardError = clipboard.ClipboardError
     m.llm_cleanup.LLMCleanupError = llm_cleanup.LLMCleanupError
 
-    m.audio.get_audio_buffer.return_value = AUDIO
     m.app_context.get_active_context.return_value = None
     m.glossary.hotwords_for_app.return_value = ""
     m.glossary.apply_glossary.side_effect = lambda text, _manager: text
@@ -103,6 +102,8 @@ def make_app(mods):
         app.asr = MagicMock()
         app.asr.get.return_value.transcribe.return_value = "hello world"
         app.s1 = MagicMock()
+        app.recorder = MagicMock()
+        app.recorder.get_buffer.return_value = AUDIO
         app.recent_processes = deque(maxlen=gui.App.RECENT_PROCESSES_MAX)
         app.app_prompts = {}
         app.hotwords_by_app = {}
@@ -191,8 +192,8 @@ class TestDeliver:
 
 class TestTranscribeAndClean:
     def test_no_audio(self, make_app, mods):
-        mods.audio.get_audio_buffer.return_value = None
         app = make_app()
+        app.recorder.get_buffer.return_value = None
         run(app)
 
         assert states(app) == ["warning"]
@@ -263,19 +264,19 @@ class TestTranscribeAndClean:
 
 class TestHotkey:
     def test_tap_locks_recording(self, make_app, mods):
-        mods.audio.is_recording.return_value = True
         app = make_app()
+        app.recorder.is_recording.return_value = True
         app._stop_and_transcribe = MagicMock()
         app._press_at = time.monotonic()
         app._on_hotkey_release()
 
         app._stop_and_transcribe.assert_not_called()
-        mods.audio.stop_recording.assert_not_called()
+        app.recorder.stop.assert_not_called()
         assert "locked" in messages(app)[-1]
 
     def test_hold_transcribes_on_release(self, make_app, mods):
-        mods.audio.is_recording.return_value = True
         app = make_app()
+        app.recorder.is_recording.return_value = True
         app._stop_and_transcribe = MagicMock()
         app._press_at = time.monotonic() - gui.TAP_SECONDS - 1
         app._on_hotkey_release()
@@ -283,12 +284,12 @@ class TestHotkey:
         app._stop_and_transcribe.assert_called_once()
 
     def test_cancel_discards_buffer(self, make_app, mods):
-        mods.audio.is_recording.return_value = True
         app = make_app()
+        app.recorder.is_recording.return_value = True
         app._on_hotkey_cancel()
 
-        mods.audio.stop_recording.assert_called_once()
-        mods.audio.get_audio_buffer.assert_called_once()
+        app.recorder.stop.assert_called_once()
+        app.recorder.get_buffer.assert_called_once()
         assert messages(app)[-1] == "Cancelled"
         mods.clipboard.set_text.assert_not_called()
 
