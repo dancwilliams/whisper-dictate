@@ -405,9 +405,9 @@ updates:
 - [x] `make check` exits 0 (run as its four commands); CI green (PR #66, five checks)
 
 #### Manual Verification:
-- [ ] `dist/whisper-dictate-gui.exe` (one-file build) launches and shows its icon — built 2026-09-21, PyInstaller exit 0
+- [x] `dist/whisper-dictate-gui.exe` (one-file build) launches and shows its icon — built 2026-09-21, PyInstaller exit 0
 - [ ] A week after merge, one grouped Dependabot PR has appeared (or `gh api repos/dancwilliams/whisper-dictate/dependabot/alerts` responds, showing the ecosystem is recognised)
-- [ ] Dan reads the new README paragraph and agrees it is what he wants users told
+- [x] Dan reads the new README paragraph and agrees it is what he wants users told
 
 ---
 
