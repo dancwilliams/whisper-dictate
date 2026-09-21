@@ -2,8 +2,12 @@
 
 import logging
 import time
+from typing import TYPE_CHECKING
 
 from whisper_dictate.glossary import GlossaryManager
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
 
 try:
     from openai import OpenAI
@@ -102,7 +106,7 @@ def clean_with_llm(
             f"{system_prompt}\n\nContext about the active application:\n{prompt_context}"
         )
 
-    messages = [
+    messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": raw_text},
     ]

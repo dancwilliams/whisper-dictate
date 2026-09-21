@@ -1631,7 +1631,7 @@ class App(Tk):
         started = time.monotonic()
         try:
             cleaner = self.s1.get()
-            cleaned = cleaner.clean(text, **self._s1_style_for(context))
+            cleaned: str | None = cleaner.clean(text, **self._s1_style_for(context))
         except (OSError, RuntimeError, ValueError, ImportError) as e:
             # No cleanup model is a degraded dictation, not a lost one.
             self.var_cleanup_backend.set("off")

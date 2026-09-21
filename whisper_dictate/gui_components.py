@@ -8,12 +8,12 @@ from tkinter import END, Canvas, Menu, TclError, Text, Tk, Toplevel, ttk
 class PromptDialog(Toplevel):
     """Dialog for editing the LLM cleanup prompt."""
 
-    def __init__(self, parent: Tk, prompt: str):
+    def __init__(self, parent: Tk | Toplevel, prompt: str):
         super().__init__(parent)
         self.title("Edit Cleanup Prompt")
         self.transient(parent)
         self.grab_set()
-        self.result = None
+        self.result: str | None = None
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)

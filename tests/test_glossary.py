@@ -228,6 +228,17 @@ missing_replacement,
         assert len(manager.rules) == 1
         assert manager.rules[0].trigger == "alpha"
 
+    def test_import_csv_unknown_match_type_is_a_phrase(self) -> None:
+        """A match type the app does not know must not reach GlossaryRule as-is."""
+        csv_text = """trigger,replacement,match_type
+alpha,first,regex
+beta,second,bogus"""
+
+        manager = GlossaryManager([])
+        manager.import_csv(csv_text)
+
+        assert [rule.match_type for rule in manager.rules] == ["regex", "phrase"]
+
     def test_import_csv_handles_missing_columns(self) -> None:
         """Test that CSV import uses defaults for missing columns."""
         csv_text = """trigger,replacement

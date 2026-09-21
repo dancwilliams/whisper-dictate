@@ -9,9 +9,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast, get_args
 
 MatchType = Literal["word", "phrase", "regex", "phonetic"]
+
+
+def as_match_type(value: object) -> MatchType:
+    """Narrow text from a CSV cell or a combobox; anything unknown is a phrase."""
+    return cast(MatchType, value) if value in get_args(MatchType) else "phrase"
+
 
 # Tokens for phonetic matching. Internal dots and apostrophes keep hostnames and
 # contractions whole; trailing punctuation is never part of a word.
@@ -237,7 +243,7 @@ class GlossaryManager:
             rule = GlossaryRule(
                 trigger=trigger,
                 replacement=replacement,
-                match_type=row.get("match_type") or "phrase",
+                match_type=as_match_type(row.get("match_type")),
                 case_sensitive=str(row.get("case_sensitive", "")).lower() == "true",
                 word_boundary=str(row.get("word_boundary", "true")).lower() != "false",
             )

@@ -9,6 +9,7 @@ from tkinter import BooleanVar, StringVar, Toplevel, filedialog, messagebox, ttk
 from whisper_dictate.glossary import (
     GlossaryManager,
     GlossaryRule,
+    as_match_type,
     phonetic_code,
     phonetic_rejection,
 )
@@ -17,7 +18,7 @@ from whisper_dictate.glossary import (
 class GlossaryDialog(Toplevel):
     """Manage glossary rules with add/edit/delete support."""
 
-    def __init__(self, parent: tk.Tk, manager: GlossaryManager):
+    def __init__(self, parent: tk.Tk | Toplevel, manager: GlossaryManager):
         super().__init__(parent)
         self.title("Glossary / Custom Dictionary")
         self.transient(parent)
@@ -188,7 +189,7 @@ class GlossaryDialog(Toplevel):
 class GlossaryRuleDialog(Toplevel):
     """Add or edit a single glossary rule."""
 
-    def __init__(self, parent: tk.Tk, rule: GlossaryRule | None = None):
+    def __init__(self, parent: tk.Tk | Toplevel, rule: GlossaryRule | None = None):
         super().__init__(parent)
         self.title("Glossary Rule")
         self.transient(parent)
@@ -291,7 +292,7 @@ class GlossaryRuleDialog(Toplevel):
         self.result = GlossaryRule(
             trigger=trigger,
             replacement=replacement,
-            match_type=self.var_match_type.get() or "phrase",
+            match_type=as_match_type(self.var_match_type.get()),
             case_sensitive=bool(self.var_case_sensitive.get()),
             word_boundary=bool(self.var_word_boundary.get()),
             description=self.var_description.get().strip() or None,

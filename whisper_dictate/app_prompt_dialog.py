@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import tkinter as tk
+from collections.abc import Sequence
 from tkinter import StringVar, Toplevel, messagebox, ttk
 
 from whisper_dictate import app_prompts, s1
@@ -14,7 +15,7 @@ class AppPromptDialog(Toplevel):
 
     def __init__(
         self,
-        parent: tk.Tk,
+        parent: tk.Tk | Toplevel,
         rules: app_prompts.AppPromptMap,
         recent_processes: list[dict[str, str | None]] | None = None,
     ):
@@ -63,7 +64,7 @@ class AppPromptDialog(Toplevel):
         recent_frame.grid(row=0, column=1, sticky="nsw", padx=(12, 0))
         self.lst_recent = tk.Listbox(recent_frame, height=8, width=18, exportselection=False)
         for entry in self._recent_entries:
-            label = entry["process_name"]
+            label = entry["process_name"] or ""
             if entry.get("window_title"):
                 label = f"{label} — {entry['window_title']}"
             self.lst_recent.insert("end", label)
@@ -136,7 +137,9 @@ class AppPromptDialog(Toplevel):
         except IndexError:
             return None
 
-    def _prepare_recent_entries(self, recent_processes: list[str | dict[str, str | None]]) -> None:
+    def _prepare_recent_entries(
+        self, recent_processes: Sequence[str | dict[str, str | None]]
+    ) -> None:
         for entry in recent_processes:
             if isinstance(entry, str):
                 process_name = entry.strip()
@@ -159,7 +162,7 @@ class AppPromptDialog(Toplevel):
     # ------------------------------------------------------------------
     def _on_add(self, process_name: str | None = None, window_title: str | None = None) -> None:
         window_regex = f"^{re.escape(window_title)}$" if window_title else None
-        initial = {
+        initial: dict[str, str] | None = {
             key: value
             for key, value in {
                 "process_name": process_name,
@@ -217,7 +220,7 @@ class AppPromptDialog(Toplevel):
 class AppPromptEntryDialog(Toplevel):
     """Add or edit a single app prompt entry."""
 
-    def __init__(self, parent: tk.Tk, entry: dict[str, str] | None = None):
+    def __init__(self, parent: tk.Tk | Toplevel, entry: dict[str, str] | None = None):
         super().__init__(parent)
         self.title("App prompt")
         self.transient(parent)
