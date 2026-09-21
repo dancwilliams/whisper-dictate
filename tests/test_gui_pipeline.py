@@ -49,7 +49,6 @@ VAR_DEFAULTS = {
     "var_compression_ratio_threshold": 2.4,
     "var_log_prob_threshold": -1.0,
     "var_no_speech_threshold": 0.6,
-    "var_word_timestamps": False,
     "var_temperature": 0.0,
     "var_beam_size": 5,
     "var_initial_prompt": "",

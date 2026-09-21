@@ -171,19 +171,6 @@ class TestTranscription:
         call_kwargs = mock_model.transcribe.call_args.kwargs
         assert call_kwargs["temperature"] == 0.5
 
-    def test_transcribe_audio_with_word_timestamps(self):
-        """Test transcription with word timestamps enabled."""
-        mock_model = MagicMock()
-        mock_segment = MagicMock()
-        mock_segment.text = "Test"
-        mock_model.transcribe.return_value = ([mock_segment], {})
-
-        result = transcribe_audio(mock_model, b"audio", word_timestamps=True)
-
-        assert result == "Test"
-        call_kwargs = mock_model.transcribe.call_args.kwargs
-        assert call_kwargs["word_timestamps"] is True
-
     def test_transcribe_audio_with_beam_size(self):
         """Test transcription with custom beam size."""
         mock_model = MagicMock()

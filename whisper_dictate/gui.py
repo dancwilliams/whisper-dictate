@@ -123,7 +123,6 @@ SETTINGS: tuple[tuple[str, str, type], ...] = (
     ("compression_ratio_threshold", "var_compression_ratio_threshold", float),
     ("log_prob_threshold", "var_log_prob_threshold", float),
     ("no_speech_threshold", "var_no_speech_threshold", float),
-    ("word_timestamps", "var_word_timestamps", bool),
     ("temperature", "var_temperature", float),
     ("beam_size", "var_beam_size", int),
     ("initial_prompt", "var_initial_prompt", str),
@@ -263,7 +262,6 @@ class App(Tk):
         self.var_compression_ratio_threshold = DoubleVar(value=2.4)
         self.var_log_prob_threshold = DoubleVar(value=-1.0)
         self.var_no_speech_threshold = DoubleVar(value=0.6)
-        self.var_word_timestamps = BooleanVar(value=False)
         self.var_temperature = DoubleVar(value=0.0)
         self.var_beam_size = DoubleVar(value=5)
         self.var_initial_prompt = StringVar(value="")
@@ -614,10 +612,6 @@ class App(Tk):
                 ("Beam size (1-10)", self.var_beam_size, 1, 10, 1),
                 ("Temperature (0.0-1.5)", self.var_temperature, 0.0, 1.5, 0.1),
             )
-
-            ttk.Checkbutton(
-                frame, text="Enable word timestamps", variable=self.var_word_timestamps
-            ).grid(row=next(rows), column=0, columnspan=2, sticky="w")
 
             # Initial prompt
             row = next(rows)
@@ -1409,7 +1403,6 @@ class App(Tk):
                 compression_ratio_threshold=cfg["compression_ratio_threshold"],
                 log_prob_threshold=cfg["log_prob_threshold"],
                 no_speech_threshold=cfg["no_speech_threshold"],
-                word_timestamps=cfg["word_timestamps"],
                 temperature=cfg["temperature"],
                 initial_prompt=cfg["initial_prompt"],
             )

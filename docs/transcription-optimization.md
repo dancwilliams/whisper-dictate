@@ -79,5 +79,4 @@ Improve accuracy for specific domains:
 
 **Slow transcription**:
 - Use smaller model (small or medium)
-- Disable word_timestamps
 - Reduce beam_size to 1 (less accurate)
