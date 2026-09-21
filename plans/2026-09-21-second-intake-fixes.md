@@ -252,9 +252,9 @@ Keep the combo binding at `:357`. It releases at once; the close path then finds
 - [x] The four check commands exit 0; CI green
 
 #### Manual Verification:
-- [ ] Load `small`. Settings → Speech recognition: pick `large-v3`, close. The status reads "Recognizer: Whisper large-v3". Dictate: the log shows "Loading Whisper large-v3" and the dictation pastes
-- [ ] Turn on auto-load, relaunch, and inside the load switch the recognizer to Cohere (or back). After the load settles, dictate: the log shows the recognizer chosen last, not the one that was loading
-- [ ] Set idle TTL to 0.1 minutes. Dictate, wait ten seconds, dictate again, five times: every dictation pastes, the pill never sticks
+- [x] Load `small`. Settings → Speech recognition: pick `large-v3`, close. The status reads "Recognizer: Whisper large-v3". Dictate: the log shows "Loading Whisper large-v3" and the dictation pastes
+- [x] Turn on auto-load, relaunch, and inside the load switch the recognizer to Cohere (or back). After the load settles, dictate: the log shows the recognizer chosen last, not the one that was loading
+- [x] Set idle TTL to 0.1 minutes. Dictate, wait ten seconds, dictate again, five times: every dictation pastes, the pill never sticks
 
 **Implementation Note**: pause here for Dan's confirmation before Phase 3.
 
