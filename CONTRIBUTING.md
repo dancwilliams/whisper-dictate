@@ -151,6 +151,15 @@ def process_text(text: str, max_length: int = 100) -> str:
 
 ## Testing
 
+`make` is optional. On Windows, `winget install ezwinports.make` provides it. Without it, run what the targets run:
+
+```powershell
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy whisper_dictate
+uv run pytest
+```
+
 ### Running Tests
 
 ```powershell
