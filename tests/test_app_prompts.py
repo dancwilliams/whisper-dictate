@@ -9,7 +9,7 @@ from whisper_dictate.app_context import ActiveContext
 
 
 def _make_context(process: str | None, window: str | None) -> ActiveContext:
-    return ActiveContext(window_title=window, process_name=process, cursor_position=None)
+    return ActiveContext(window_title=window, process_name=process)
 
 
 def test_resolve_app_prompt_prefers_window_specific_rule():
@@ -410,7 +410,6 @@ class TestResolveAppPromptWithSafeRegex:
         context = app_context.ActiveContext(
             process_name="notepad.exe",
             window_title="a" * 25 + "X",  # Input that triggers catastrophic backtracking
-            cursor_position=None,
         )
 
         # Should return None quickly (pattern blocked), not hang
@@ -429,9 +428,7 @@ class TestResolveAppPromptWithSafeRegex:
             ]
         }
 
-        context = app_context.ActiveContext(
-            process_name="notepad.exe", window_title="test", cursor_position=None
-        )
+        context = app_context.ActiveContext(process_name="notepad.exe", window_title="test")
 
         # Should return None (pattern validation fails)
         result = app_prompts.resolve_app_prompt(rules, context)
@@ -442,7 +439,7 @@ class TestPerAppStyle:
     """The S1-mini control line, resolved per application."""
 
     def _context(self, process, title=None):
-        return ActiveContext(process_name=process, window_title=title, cursor_position=None)
+        return ActiveContext(process_name=process, window_title=title)
 
     def test_style_keys_survive_normalize(self):
         rules = app_prompts.normalize_app_prompts(

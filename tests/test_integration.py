@@ -107,7 +107,6 @@ class TestAppContextToLLMPipeline:
         context = app_context.ActiveContext(
             window_title="Document1.txt - Notepad",
             process_name="notepad.exe",
-            cursor_position=(100, 200),
         )
 
         # Format it for prompt
@@ -162,7 +161,6 @@ class TestAppPromptResolutionPipeline:
         context = app_context.ActiveContext(
             window_title="main.py - Visual Studio Code",
             process_name="vscode.exe",
-            cursor_position=None,
         )
 
         # Resolve the app prompt
@@ -216,7 +214,6 @@ class TestAppPromptResolutionPipeline:
         context = app_context.ActiveContext(
             window_title="Gmail - Google Chrome",
             process_name="chrome.exe",
-            cursor_position=None,
         )
 
         resolved = app_prompts.resolve_app_prompt(
@@ -231,7 +228,6 @@ class TestAppPromptResolutionPipeline:
         context2 = app_context.ActiveContext(
             window_title="Stack Overflow - Google Chrome",
             process_name="chrome.exe",
-            cursor_position=None,
         )
 
         resolved2 = app_prompts.resolve_app_prompt(
@@ -327,7 +323,6 @@ class TestEndToEndWorkflow:
         context = app_context.ActiveContext(
             window_title="README.md - VSCode",
             process_name="vscode.exe",
-            cursor_position=(500, 300),
         )
 
         app_prompt_map = {
@@ -429,9 +424,7 @@ class TestS1CleanupPipeline:
 
     def test_glossary_then_s1_with_the_per_app_control_line(self, monkeypatch):
         """Outlook gets email shape; the glossary runs before cleanup either way."""
-        context = app_context.ActiveContext(
-            window_title="Inbox - Outlook", process_name="olk.exe", cursor_position=None
-        )
+        context = app_context.ActiveContext(window_title="Inbox - Outlook", process_name="olk.exe")
         rules = app_prompts.normalize_app_prompts(
             {"olk.exe": [{"styling": "semi-formal", "context": "email"}]}
         )
@@ -457,7 +450,7 @@ class TestS1CleanupPipeline:
 
     def test_an_app_without_a_rule_keeps_the_global_style(self, monkeypatch):
         context = app_context.ActiveContext(
-            window_title="Untitled - Notepad", process_name="notepad.exe", cursor_position=None
+            window_title="Untitled - Notepad", process_name="notepad.exe"
         )
         rules = app_prompts.normalize_app_prompts(
             {"olk.exe": [{"styling": "semi-formal", "context": "email"}]}
