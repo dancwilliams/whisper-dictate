@@ -442,10 +442,10 @@ site than `not modifiers_held()`.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `make check` exits 0 before every commit in this phase, not only at the end
-- [ ] `wc -l whisper_dictate/*.py | tail -1` is at least 250 lines below the 5,667 measured at `1974cd4`
-- [ ] Coverage for `gui.py` has not dropped from its Phase 4 figure
-- [ ] `git ls-files commit.txt scripts/prefetch_model.py` prints nothing
+- [x] `make check` exits 0 before every commit in this phase, not only at the end (run as its four commands; the Makefile-only and docs-only commits changed no Python)
+- [x] `wc -l whisper_dictate/*.py | tail -1` is at least 250 lines below the 5,667 measured at `1974cd4` — 5,383: 284 below, and 403 below the 5,786 this phase started from
+- [x] Coverage for `gui.py` has not dropped from its Phase 4 figure (25% to 30%)
+- [x] `git ls-files commit.txt scripts/prefetch_model.py` prints nothing
 
 #### Manual Verification:
 - [ ] Settings → Advanced transcription: every control from before is there except "Word timestamps", and changing beam size then relaunching keeps the value
