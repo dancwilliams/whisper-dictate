@@ -225,15 +225,27 @@ graph LR
     AudioThread[Audio Thread<br/>sounddevice callback]
     RecorderThread[Recorder Thread<br/>buffer management]
 
+    HookThread[Hook Thread<br/>keyboard hook + message pump]
+    Worker[Dictation Worker<br/>one per dictation]
+
+    HookThread -->|after 0: press, release, cancel| MainThread
     MainThread -->|start_recording| AudioThread
     AudioThread -->|audio chunks| RecorderThread
-    RecorderThread -->|buffered data| MainThread
     MainThread -->|stop_recording| RecorderThread
+    MainThread -->|settings snapshot| Worker
+    RecorderThread -->|buffered data| Worker
+    Worker -->|after 0: status, transcript, dialogs| MainThread
 ```
 
-- **Main Thread**: GUI event loop (tkinter), hotkey callbacks, transcription, LLM calls
+- **Main Thread**: the Tk event loop, and the only thread that touches a Tk variable or widget. Hook events reach it through `after(0, ...)`.
+- **Hook Thread**: the low-level keyboard hook and its message pump (`hotkeys.py`). It never calls Tk directly.
+- **Dictation Worker**: transcription, cleanup and delivery (`_transcribe_and_clean`, `_clean_with_s1`, `_deliver`). `_stop_and_transcribe` copies the settings out of Tk on the main thread (`_capture_dictation_config`) and hands the worker that dict. The worker reads the snapshot and never touches Tk; status, the transcript box and error dialogs go back through `after(0, ...)`.
+- **Loader Threads**: `asr.Resident` builds the recognizer and the cleanup model off the main thread, from `_asr_config` and `_s1_style`, which are captured the same way.
 - **Audio Callback Thread**: sounddevice callback (high priority, minimal processing)
 - **Recorder Thread**: Buffer management, queue processing (daemon thread)
+
+Touching Tk from any other thread deadlocks whenever the main thread is inside a Tcl
+callback, a modal dialog for one.
 
 ## File Structure
 
