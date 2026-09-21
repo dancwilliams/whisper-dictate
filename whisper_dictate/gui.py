@@ -113,6 +113,7 @@ class App(Tk):
         self.s1 = asr.Resident(s1.S1Cleaner, ttl=0.0)
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self._press_at = 0.0
+        self._status_state = "ready"
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
         self.btn_llm_refresh: ttk.Button | None = None
@@ -973,6 +974,9 @@ class App(Tk):
 
     def _set_status(self, state: str, message: str) -> None:
         """Update status in both label and indicator."""
+        # Recorded on the calling thread, not in the after() callback: the worker
+        # reads it back straight away to decide whether a warning is still standing.
+        self._status_state = state
         if threading.current_thread() is not threading.main_thread():
             self.after(0, self._set_status, state, message)
             return
@@ -1600,7 +1604,7 @@ class App(Tk):
 
         self._deliver(final_text)
 
-        if getattr(self, "_status_state", "ready") not in {"error", "warning"}:
+        if self._status_state not in {"error", "warning"}:
             self._set_status("ready", "Ready")
 
     def _capture_s1_style(self) -> None:
@@ -1675,11 +1679,12 @@ class App(Tk):
             time.sleep(float(self.var_paste_delay.get()))
             # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
             # dictation apps use.
-            if clipboard.send_paste():
-                self._set_status("ready", "Pasted into active window")
-            else:
+            if not clipboard.send_paste():
                 self._set_status("error", "Auto-paste failed")
                 logger.error("SendInput refused the paste keystroke")
+            elif self._status_state not in {"error", "warning"}:
+                # A cleanup warning outranks the news that the paste landed.
+                self._set_status("ready", "Pasted into active window")
 
         if saved is None:
             return

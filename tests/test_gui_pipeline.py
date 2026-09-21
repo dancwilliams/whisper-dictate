@@ -91,6 +91,7 @@ def make_app(mods):
         app.glossary_manager = mods.glossary.load_glossary_manager.return_value
         app.prompt_content = ""
         app._press_at = 0.0
+        app._status_state = "ready"
         app._settings_saved = False
         return app
 
@@ -189,7 +190,6 @@ class TestTranscribeAndClean:
         assert "warning" in states(app)
         mods.clipboard.set_text.assert_called_once_with("hello world")
 
-    @pytest.mark.xfail(strict=True, reason="B1, fixed in phase 3")
     def test_endpoint_failure_warning_survives(self, make_app, mods):
         mods.llm_cleanup.clean_with_llm.side_effect = llm_cleanup.LLMCleanupError("down")
         app = make_app(var_cleanup_backend="endpoint")
