@@ -721,7 +721,10 @@ class App(Tk):
             ).grid(row=7, column=0, columnspan=2, sticky="w")
             ttk.Label(
                 frame,
-                text="⚠ Warning: Debug mode logs transcribed speech and prompts to disk",
+                text=(
+                    "⚠ Warning: Debug mode logs transcribed speech, prompts and the "
+                    "active window title to disk"
+                ),
                 foreground="#cc6600",
                 wraplength=440,
                 justify="left",
