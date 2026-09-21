@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 import tkinter as tk
-from collections.abc import Sequence
 from tkinter import StringVar, Toplevel, messagebox, ttk
 
 from whisper_dictate import app_prompts, s1
@@ -27,8 +26,7 @@ class AppPromptDialog(Toplevel):
 
         self.entries = app_prompts.rules_to_entries(app_prompts.clone_rules(rules))
         self.result: app_prompts.AppPromptMap | None = None
-        self._recent_entries: list[dict[str, str | None]] = []
-        self._prepare_recent_entries(recent_processes or [])
+        self._recent_entries = list(recent_processes or [])
 
         ttk.Label(
             self,
@@ -136,26 +134,6 @@ class AppPromptDialog(Toplevel):
             return entry["process_name"], entry.get("window_title")
         except IndexError:
             return None
-
-    def _prepare_recent_entries(
-        self, recent_processes: Sequence[str | dict[str, str | None]]
-    ) -> None:
-        for entry in recent_processes:
-            if isinstance(entry, str):
-                process_name = entry.strip()
-                window_title = None
-            elif isinstance(entry, dict):
-                process_name = (entry.get("process_name") or "").strip()
-                window_title = entry.get("window_title")
-            else:
-                continue
-
-            if not process_name:
-                continue
-
-            self._recent_entries.append(
-                {"process_name": process_name, "window_title": window_title}
-            )
 
     # ------------------------------------------------------------------
     # Button callbacks

@@ -1049,20 +1049,6 @@ class App(Tk):
         finally:
             self.destroy()
 
-    def _format_recent_processes_for_dialog(self) -> list[dict[str, str | None]]:
-        formatted: list[dict[str, str | None]] = []
-        for entry in self.recent_processes:
-            process = (entry.get("process_name") or "").strip()
-            if not process:
-                continue
-            formatted.append(
-                {
-                    "process_name": process,
-                    "window_title": entry.get("window_title"),
-                }
-            )
-        return formatted
-
     def _open_prompt_dialog(self) -> None:
         """Open prompt editing dialog."""
         dialog = PromptDialog(self, self.prompt_content)
@@ -1095,7 +1081,7 @@ class App(Tk):
         dialog = AppPromptDialog(
             self,
             self.app_prompts,
-            list(self._format_recent_processes_for_dialog()),
+            list(self.recent_processes),
         )
         self.wait_window(dialog)
         if dialog.result is not None:
@@ -1615,29 +1601,15 @@ class App(Tk):
             )
 
     def _record_recent_process(self, process_name: str | None, window_title: str | None) -> None:
-        """Track recently seen applications using process and window title."""
-
+        """Track recently seen applications, newest first, one entry per process and title."""
         normalized_process = (process_name or "").strip()
         if not normalized_process:
             return
 
-        normalized_window = window_title.strip() if isinstance(window_title, str) else None
+        normalized_window = (window_title.strip() or None) if window_title else None
         entry = {"process_name": normalized_process, "window_title": normalized_window}
-
-        try:
+        if entry in self.recent_processes:
             self.recent_processes.remove(entry)
-        except ValueError:
-            for existing in list(self.recent_processes):
-                if existing.get("process_name") != normalized_process:
-                    continue
-                existing_window = existing.get("window_title") or None
-                if existing_window == normalized_window:
-                    try:
-                        self.recent_processes.remove(existing)
-                    except ValueError:
-                        pass
-                    break
-
         self.recent_processes.appendleft(entry)
 
 
