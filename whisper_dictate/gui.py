@@ -6,6 +6,7 @@ import time
 import winsound
 from collections import deque
 from collections.abc import Callable
+from itertools import count
 from tkinter import (
     END,
     BooleanVar,
@@ -514,179 +515,66 @@ class App(Tk):
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(1, weight=1)
 
-            row = 0
+            rows = count()
 
-            # VAD Settings Section
-            ttk.Label(frame, text="Voice Activity Detection", font=("Segoe UI", 9, "bold")).grid(
-                row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
-            )
-            row += 1
+            def heading(text: str) -> None:
+                row = next(rows)
+                if row:
+                    ttk.Separator(frame, orient="horizontal").grid(
+                        row=row, column=0, columnspan=2, sticky="we", pady=(12, 8)
+                    )
+                    row = next(rows)
+                ttk.Label(frame, text=text, font=("Segoe UI", 9, "bold")).grid(
+                    row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
+                )
 
+            def spinboxes(*specs: tuple[str, DoubleVar, float, float, float]) -> None:
+                for label, var, low, high, step in specs:
+                    self._add_labeled_widget(
+                        frame,
+                        label,
+                        next(rows),
+                        ttk.Spinbox(
+                            frame, from_=low, to=high, increment=step, textvariable=var, width=10
+                        ),
+                    )
+
+            heading("Voice Activity Detection")
             ttk.Checkbutton(frame, text="Enable VAD filtering", variable=self.var_vad_enabled).grid(
-                row=row, column=0, columnspan=2, sticky="w"
+                row=next(rows), column=0, columnspan=2, sticky="w"
             )
-            row += 1
+            spinboxes(
+                ("VAD threshold (0.3-0.8)", self.var_vad_threshold, 0.1, 1.0, 0.1),
+                ("Min speech duration (ms)", self.var_vad_min_speech_ms, 100, 1000, 50),
+                ("Min silence duration (ms)", self.var_vad_min_silence_ms, 100, 2000, 100),
+                ("Speech padding (ms)", self.var_vad_speech_pad_ms, 100, 1000, 50),
+            )
 
-            self._add_labeled_widget(
-                frame,
-                "VAD threshold (0.3-0.8)",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=0.1,
-                    to=1.0,
-                    increment=0.1,
-                    textvariable=self.var_vad_threshold,
-                    width=10,
+            heading("Hallucination Prevention")
+            spinboxes(
+                (
+                    "Compression ratio threshold",
+                    self.var_compression_ratio_threshold,
+                    1.0,
+                    5.0,
+                    0.1,
                 ),
+                ("Log probability threshold", self.var_log_prob_threshold, -2.0, 0.0, 0.1),
+                ("No speech threshold", self.var_no_speech_threshold, 0.0, 1.0, 0.1),
             )
-            row += 1
 
-            self._add_labeled_widget(
-                frame,
-                "Min speech duration (ms)",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=100,
-                    to=1000,
-                    increment=50,
-                    textvariable=self.var_vad_min_speech_ms,
-                    width=10,
-                ),
+            heading("Other Settings")
+            spinboxes(
+                ("Beam size (1-10)", self.var_beam_size, 1, 10, 1),
+                ("Temperature (0.0-1.5)", self.var_temperature, 0.0, 1.5, 0.1),
             )
-            row += 1
-
-            self._add_labeled_widget(
-                frame,
-                "Min silence duration (ms)",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=100,
-                    to=2000,
-                    increment=100,
-                    textvariable=self.var_vad_min_silence_ms,
-                    width=10,
-                ),
-            )
-            row += 1
-
-            self._add_labeled_widget(
-                frame,
-                "Speech padding (ms)",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=100,
-                    to=1000,
-                    increment=50,
-                    textvariable=self.var_vad_speech_pad_ms,
-                    width=10,
-                ),
-            )
-            row += 1
-
-            # Separator
-            ttk.Separator(frame, orient="horizontal").grid(
-                row=row, column=0, columnspan=2, sticky="we", pady=(12, 8)
-            )
-            row += 1
-
-            # Hallucination Prevention Section
-            ttk.Label(frame, text="Hallucination Prevention", font=("Segoe UI", 9, "bold")).grid(
-                row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
-            )
-            row += 1
-
-            self._add_labeled_widget(
-                frame,
-                "Compression ratio threshold",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=1.0,
-                    to=5.0,
-                    increment=0.1,
-                    textvariable=self.var_compression_ratio_threshold,
-                    width=10,
-                ),
-            )
-            row += 1
-
-            self._add_labeled_widget(
-                frame,
-                "Log probability threshold",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=-2.0,
-                    to=0.0,
-                    increment=0.1,
-                    textvariable=self.var_log_prob_threshold,
-                    width=10,
-                ),
-            )
-            row += 1
-
-            self._add_labeled_widget(
-                frame,
-                "No speech threshold",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=0.0,
-                    to=1.0,
-                    increment=0.1,
-                    textvariable=self.var_no_speech_threshold,
-                    width=10,
-                ),
-            )
-            row += 1
-
-            # Separator
-            ttk.Separator(frame, orient="horizontal").grid(
-                row=row, column=0, columnspan=2, sticky="we", pady=(12, 8)
-            )
-            row += 1
-
-            # Other Advanced Settings
-            ttk.Label(frame, text="Other Settings", font=("Segoe UI", 9, "bold")).grid(
-                row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
-            )
-            row += 1
-
-            self._add_labeled_widget(
-                frame,
-                "Beam size (1-10)",
-                row,
-                ttk.Spinbox(
-                    frame, from_=1, to=10, increment=1, textvariable=self.var_beam_size, width=10
-                ),
-            )
-            row += 1
-
-            self._add_labeled_widget(
-                frame,
-                "Temperature (0.0-1.5)",
-                row,
-                ttk.Spinbox(
-                    frame,
-                    from_=0.0,
-                    to=1.5,
-                    increment=0.1,
-                    textvariable=self.var_temperature,
-                    width=10,
-                ),
-            )
-            row += 1
 
             ttk.Checkbutton(
                 frame, text="Enable word timestamps", variable=self.var_word_timestamps
-            ).grid(row=row, column=0, columnspan=2, sticky="w")
-            row += 1
+            ).grid(row=next(rows), column=0, columnspan=2, sticky="w")
 
             # Initial prompt
+            row = next(rows)
             ttk.Label(frame, text="Initial prompt (optional)").grid(
                 row=row, column=0, sticky="nw", pady=4
             )
@@ -699,7 +587,6 @@ class App(Tk):
                 self.var_initial_prompt.set(initial_prompt_text.get("1.0", "end-1c"))
 
             initial_prompt_text.bind("<KeyRelease>", save_initial_prompt)
-            row += 1
 
             # Help text
             ttk.Label(
@@ -709,7 +596,7 @@ class App(Tk):
                 wraplength=440,
                 justify="left",
                 font=("Segoe UI", 9, "italic"),
-            ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=next(rows), column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         self._open_window(
             "_advanced_transcription_window", "Advanced Transcription (Whisper only)", build
