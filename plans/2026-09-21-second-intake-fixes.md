@@ -246,9 +246,9 @@ Keep the combo binding at `:357`. It releases at once; the close path then finds
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] The four new `TestResident` tests fail on `a91c9e9` and pass after step 2 (say so in the PR)
-- [ ] `uv run pytest tests/test_asr.py tests/test_gui_pipeline.py -v` passes
-- [ ] `git grep -n "_generation" whisper_dictate/asr.py` shows the counter read in `_load` and bumped in `release`
+- [x] The four new `TestResident` tests fail on `a91c9e9` and pass after step 2 (say so in the PR)
+- [x] `uv run pytest tests/test_asr.py tests/test_gui_pipeline.py -v` passes
+- [x] `git grep -n "_generation" whisper_dictate/asr.py` shows the counter read in `_load` and bumped in `release`
 - [ ] The four check commands exit 0; CI green
 
 #### Manual Verification:
