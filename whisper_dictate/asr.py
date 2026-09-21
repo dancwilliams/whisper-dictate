@@ -122,6 +122,9 @@ class Resident:
 
     Used for both the recognizer and the cleanup model: each is several GB on a
     GPU shared with other tenants, and most of the day neither is wanted.
+
+    Every release() bumps a generation; a load that finishes under a different
+    generation from the one it started in is discarded and built again.
     """
 
     def __init__(self, factory: Callable[[], Any], ttl: float):
@@ -131,6 +134,7 @@ class Resident:
         self._settled = threading.Event()
         self._obj: Any = None
         self._loading = False
+        self._generation = 0
         self._error: BaseException | None = None
         self._timer: threading.Timer | None = None
 
@@ -153,17 +157,26 @@ class Resident:
         threading.Thread(target=self._load, daemon=True).start()
 
     def _load(self) -> None:
-        try:
-            obj = self.factory()
-        except BaseException as e:  # reported to whoever calls get()
+        while True:
             with self._lock:
-                self._error, self._loading = e, False
-            self._settled.set()
-            return
-        with self._lock:
-            self._obj, self._loading = obj, False
+                generation = self._generation
+            error: BaseException | None = None
+            obj: Any = None
+            try:
+                obj = self.factory()
+            except BaseException as e:  # reported to whoever calls get()
+                error = e
+            with self._lock:
+                if generation == self._generation:
+                    self._obj, self._error, self._loading = obj, error, False
+                    break
+            # Released while we were building: what we hold was made from settings
+            # that have since changed. Drop it and build again.
+            del obj
+            _free_gpu_memory()
         self._settled.set()
-        self._restart_timer()
+        if error is None:
+            self._restart_timer()
 
     def get(self) -> Any:
         """Block until the object is loaded, and reset the idle timer.
@@ -171,12 +184,16 @@ class Resident:
         Raises:
             Whatever the factory raised.
         """
-        self.warm()
-        self._settled.wait()
-        with self._lock:
-            error, obj = self._error, self._obj
-        if error is not None:
-            raise error
+        while True:
+            self.warm()
+            self._settled.wait()
+            with self._lock:
+                error, obj = self._error, self._obj
+            if error is not None:
+                raise error
+            if obj is not None:
+                break
+            # Released between the wait and the lock; go round and load again.
         self._restart_timer()
         return obj
 
@@ -188,7 +205,11 @@ class Resident:
                 self._timer = None
             had = self._obj is not None
             self._obj = None
-            self._settled.clear()
+            self._generation += 1
+            # Only a load in flight will set the event again. With none, leave it
+            # set: a get() already waiting wakes, finds nothing, and reloads.
+            if self._loading:
+                self._settled.clear()
         if had:
             _free_gpu_memory()
 

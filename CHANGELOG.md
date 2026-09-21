@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Changing the Whisper model or the device did nothing while a model was
+  resident: only the Recognizer combo released it. Closing Speech recognition
+  settings now releases the recognizer when anything it was built from changed,
+  and the next dictation loads the new one.
+- Changing the recognizer while a model was still loading was ignored: the load
+  finished and installed the model chosen first. A load that was released while
+  it ran is now discarded and built again from the current settings.
+- A dictation could leave the pill on "Transcribing..." for good, or never
+  finish, when the idle timer released the model at the moment it was fetched.
+  The fetch now reloads instead, and an unexpected error in the dictation worker
+  is logged and shown rather than lost with its thread.
 - The floating pill could not be dragged; it stuck at the top-left corner.
   `geometry()` only *requests* a move, and the `lift()` and `-topmost` calls
   that followed it acted on where the window actually was, discarding the

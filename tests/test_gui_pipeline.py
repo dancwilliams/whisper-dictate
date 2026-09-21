@@ -256,6 +256,41 @@ class TestTranscribeAndClean:
         mods.messagebox.showerror.assert_called_once()
         mods.clipboard.set_text.assert_not_called()
 
+    def test_worker_reports_an_unexpected_error(self, make_app, mods):
+        """Anything escaping the thread would leave the pill on "Transcribing..."."""
+        app = make_app()
+        app._transcribe_and_clean = MagicMock(side_effect=AttributeError("boom"))
+        app._dictation_worker({})
+
+        assert states(app)[-1] == "error"
+
+
+class TestSpeechWindowClose:
+    @pytest.fixture
+    def app(self, make_app):
+        def _make(**var_overrides):
+            app = make_app(**var_overrides)
+            app._speech_window = None
+            app._speech_window_traces = []
+            app._asr_config = ("whisper", "small", "cuda", "float16")
+            app._save_settings = MagicMock()
+            return app
+
+        return _make
+
+    def test_a_changed_model_releases_the_recognizer(self, app):
+        app = app(var_model="large-v3")
+        app._close_window("_speech_window")
+
+        app.asr.release.assert_called_once()
+        assert messages(app)[-1] == "Recognizer: Whisper large-v3"
+
+    def test_nothing_changed_keeps_the_recognizer(self, app):
+        app = app()
+        app._close_window("_speech_window")
+
+        app.asr.release.assert_not_called()
+
 
 class TestHotkey:
     def test_tap_locks_recording(self, make_app, mods):
