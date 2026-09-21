@@ -34,7 +34,7 @@ class DummyChat:
 
 
 class DummyOpenAI:
-    def __init__(self, *, base_url, api_key):  # noqa: D401
+    def __init__(self, *, base_url, api_key, max_retries):  # noqa: D401
         self.base_url = base_url
         self.api_key = api_key
         self.chat = DummyChat()
