@@ -322,10 +322,10 @@ def _num(self, var, default: float) -> float:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `uv run pytest` passes with no `xfail` left in `tests/test_gui_pipeline.py` (`git grep -n xfail tests/test_gui_pipeline.py` returns nothing)
-- [ ] A test asserts the worker path reads no Tk variable: build the app with every `var_*` as a `MagicMock` whose `.get` raises, call `_transcribe_and_clean(cfg)`, and it completes
-- [ ] `git grep -nE "self\.var_\w+\.(get|set)\(" whisper_dictate/gui.py` shows no hit inside `_transcribe_and_clean`, `_clean_with_s1` or `_deliver`
-- [ ] `make check` exits 0
+- [x] `uv run pytest` passes with no `xfail` left in `tests/test_gui_pipeline.py` (`git grep -n xfail tests/test_gui_pipeline.py` returns nothing) — 369 passed, 1 skipped
+- [x] A test asserts the worker path reads no Tk variable: build the app with every `var_*` as a `MagicMock` whose `.get` raises, call `_transcribe_and_clean(cfg)`, and it completes
+- [x] `git grep -nE "self\.var_\w+\.(get|set)\(" whisper_dictate/gui.py` shows no hit inside `_transcribe_and_clean`, `_clean_with_s1` or `_deliver`
+- [x] `make check` exits 0 (run as its four commands)
 
 #### Manual Verification:
 - [ ] Settings → Automation: clear "Paste delay" and leave it blank. Copy a sentence to the clipboard, dictate into Notepad: the dictation pastes, and a moment later Ctrl+V pastes the original sentence
