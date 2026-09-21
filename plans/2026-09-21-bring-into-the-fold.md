@@ -402,7 +402,7 @@ updates:
 - [x] `git grep -n -i "pillow" -- pyproject.toml CLAUDE.MD` returns nothing; `uv lock --check` exits 0
 - [x] `git grep -n -i "hugging" README.md` returns at least one line
 - [x] `gitleaks detect --source . --redact` exits 0 (130 commits, no leaks)
-- [ ] `make check` exits 0; CI green
+- [x] `make check` exits 0 (run as its four commands); CI green (PR #66, five checks)
 
 #### Manual Verification:
 - [ ] `dist/whisper-dictate-gui.exe` (one-file build) launches and shows its icon — built 2026-09-21, PyInstaller exit 0
