@@ -8,6 +8,7 @@ import threading
 import time
 from collections import deque
 from tkinter import TclError
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -326,6 +327,20 @@ class TestSpeechWindowClose:
 
 
 class TestHotkey:
+    @pytest.mark.parametrize(("held", "warned"), [(0.2, True), (0.01, False)])
+    def test_a_slow_post_is_logged(self, held, warned, make_app, mocker, caplog):
+        """Windows drops the hook at 300 ms; the log must say when we get close."""
+        app = make_app()
+        clock = [0.0]
+        # gui's own reference only: pytest times tests with the real clock.
+        mocker.patch.object(gui, "time", SimpleNamespace(perf_counter=lambda: clock[0]))
+        app.after = MagicMock(side_effect=lambda *_: clock.__setitem__(0, clock[0] + held))
+
+        with caplog.at_level("WARNING", logger="whisper_dictate"):
+            app._post(app._on_hotkey_press)
+
+        assert ("Hotkey press callback held the hook thread for 200 ms" in caplog.text) is warned
+
     def test_tap_locks_recording(self, make_app, mods):
         app = make_app()
         app.recorder.is_recording.return_value = True

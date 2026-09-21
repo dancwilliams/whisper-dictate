@@ -87,6 +87,10 @@ BEEP_HZ, BEEP_MS = 880, 60
 # holding the keys is the user's business, and a paste under them does nothing.
 MODIFIER_WAIT_SECONDS = 5.0
 
+# Windows drops a low-level hook that overruns LowLevelHooksTimeout, 300 ms by
+# default, and the hook thread waits on Tk in _post. Say so well before that.
+SLOW_HOOK_POST_SECONDS = 0.1
+
 # Every setting that lives in a Tk variable: (settings key, variable, type). It
 # drives load, save and the worker's snapshot. int and float are both DoubleVars.
 SETTINGS: tuple[tuple[str, str, type], ...] = (
@@ -1270,8 +1274,19 @@ class App(Tk):
         self._register_hotkey()
 
     def _post(self, handler: Callable[[], None]) -> None:
-        """Hand a hook-thread event to the Tk thread."""
+        """Hand a hook-thread event to the Tk thread.
+
+        Timed here and not in hotkeys.py: that module sees every keystroke and
+        is kept free of logging on purpose.
+        """
+        started = time.perf_counter()
         self.after(0, handler)
+        elapsed = time.perf_counter() - started
+        if elapsed > SLOW_HOOK_POST_SECONDS:
+            event = handler.__name__.removeprefix("_on_hotkey_")
+            logger.warning(
+                f"Hotkey {event} callback held the hook thread for {elapsed * 1000:.0f} ms"
+            )
 
     def _on_hotkey_press(self) -> None:
         """Chord went down: start recording, or end a recording locked by a tap."""
