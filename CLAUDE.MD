@@ -143,6 +143,8 @@ also carry the S1 style keys (`styling`, `structure`, `context`).
 - Naming: `test_<module_name>.py`
 
 ### Running Tests Locally
+`make` is not installed on the Windows dev box; each target is one `uv run` command, see the `Makefile`.
+
 ```powershell
 # Run all tests
 make test
