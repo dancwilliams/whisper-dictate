@@ -129,8 +129,8 @@ uv run pytest
 - [x] The four check commands exit 0
 
 #### Manual Verification:
-- [ ] Dan reads the README paragraph and agrees with the wording
-- [ ] Settings → LLM cleanup: the warning fits on the window without clipping
+- [x] Dan reads the README paragraph and agrees with the wording
+- [x] Settings → LLM cleanup: the warning fits on the window without clipping
 
 ---
 
