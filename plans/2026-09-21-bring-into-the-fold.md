@@ -147,7 +147,7 @@ EOF
 - [x] `make check` exits 0 (run as its four commands: `make` is not installed on the Windows dev box)
 - [x] `uv run pytest` — 343 passed, 1 skipped
 - [x] `git grep -n "continue-on-error" .github/` returns nothing
-- [ ] CI on the PR shows five checks, all green, including `Test (Python 3.13)`
+- [x] CI on the PR shows five checks, all green, including `Test (Python 3.13)` (PR #62)
 - [ ] After step 4: `gh api repos/dancwilliams/whisper-dictate/branches/main/protection -q '.required_status_checks.contexts | length'` prints `5`
 
 #### Manual Verification:
