@@ -8,6 +8,8 @@ import platform
 from dataclasses import dataclass
 from pathlib import Path
 
+USER32: ctypes.WinDLL | None
+KERNEL32: ctypes.WinDLL | None
 if platform.system() == "Windows":
     USER32 = ctypes.windll.user32
     KERNEL32 = ctypes.windll.kernel32
@@ -26,6 +28,7 @@ class ActiveContext:
 
 
 def _get_window_title(hwnd: int) -> str | None:
+    assert USER32 is not None  # get_active_context returns before calling this off Windows
     length = USER32.GetWindowTextLengthW(hwnd)
     if length == 0:
         return None
@@ -37,6 +40,7 @@ def _get_window_title(hwnd: int) -> str | None:
 
 
 def _get_process_name(hwnd: int) -> str | None:
+    assert USER32 is not None and KERNEL32 is not None  # see get_active_context
     pid = ctypes.wintypes.DWORD()
     USER32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     process_query_limited_information = 0x1000
@@ -56,6 +60,7 @@ def _get_process_name(hwnd: int) -> str | None:
 
 
 def _get_cursor_position() -> tuple[int, int] | None:
+    assert USER32 is not None  # get_active_context returns before calling this off Windows
     point = ctypes.wintypes.POINT()
     if USER32.GetCursorPos(ctypes.byref(point)):
         return point.x, point.y

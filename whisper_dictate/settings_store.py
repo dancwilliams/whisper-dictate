@@ -39,7 +39,7 @@ def load_settings() -> dict[str, Any]:
 
     try:
         if SETTINGS_FILE.is_file():
-            settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            settings: dict[str, Any] = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
 
             # Merge with defaults (preserve existing, add missing)
             for key, value in defaults.items():
