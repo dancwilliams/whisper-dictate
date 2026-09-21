@@ -76,6 +76,3 @@ jobs:
 
       - name: Run pytest with coverage
         run: uv run pytest
-
-      - name: Display coverage report
-        run: uv run pytest --cov=whisper_dictate --cov-report=term-missing
