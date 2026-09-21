@@ -255,6 +255,21 @@ class TestClearedSecureSetting:
         creds.delete_credential.assert_not_called()
         creds.store_credential.assert_not_called()
 
+    def test_plaintext_key_moves_to_the_credential_manager(self, creds):
+        settings = {"model": "base", "llm_key": "sk-plain"}
+        settings_store._migrate_secure_settings(settings)
+
+        creds.store_credential.assert_called_once_with("llm_api_key", "sk-plain")
+        assert settings == {"model": "base"}
+
+    def test_failed_migration_keeps_the_plaintext_key(self, creds):
+        """Dropping it from the settings without storing it would lose the key."""
+        creds.store_credential.side_effect = creds.CredentialStorageError("keyring down")
+        settings = {"model": "base", "llm_key": "sk-plain"}
+        settings_store._migrate_secure_settings(settings)
+
+        assert settings["llm_key"] == "sk-plain"
+
 
 class TestGetSecureSetting:
     """Tests for get_secure_setting function."""

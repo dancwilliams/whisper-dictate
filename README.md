@@ -183,9 +183,6 @@ uv run pytest
 ```powershell
 # Run all tests
 make test
-
-# Run tests with coverage report
-make test-coverage
 ```
 
 ### Code Quality Checks

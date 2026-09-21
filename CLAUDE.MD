@@ -149,9 +149,6 @@ also carry the S1 style keys (`styling`, `structure`, `context`).
 # Run all tests
 make test
 
-# Run all tests with coverage
-make test-coverage
-
 # Run specific test file
 uv run pytest tests/test_app_context.py
 

@@ -34,11 +34,8 @@ def store_credential(key: str, value: str) -> None:
 
     Raises:
         CredentialStorageError: If storage fails
-        ValueError: If key or value is empty
+        ValueError: If value is empty
     """
-    if not key or not key.strip():
-        raise ValueError("Credential key cannot be empty")
-
     if not value or not value.strip():
         raise ValueError("Credential value cannot be empty")
 
@@ -62,11 +59,7 @@ def retrieve_credential(key: str) -> str | None:
 
     Raises:
         CredentialStorageError: If retrieval fails
-        ValueError: If key is empty
     """
-    if not key or not key.strip():
-        raise ValueError("Credential key cannot be empty")
-
     try:
         value = keyring.get_password(SERVICE_NAME, key)
         if value:
@@ -88,11 +81,7 @@ def delete_credential(key: str) -> None:
 
     Raises:
         CredentialStorageError: If deletion fails
-        ValueError: If key is empty
     """
-    if not key or not key.strip():
-        raise ValueError("Credential key cannot be empty")
-
     try:
         keyring.delete_password(SERVICE_NAME, key)
         logger.info(f"Deleted credential: {key}")
@@ -103,26 +92,3 @@ def delete_credential(key: str) -> None:
         # KeyringError, or a backend that failed to initialise
         logger.error(f"Failed to delete credential {key}: {e}")
         raise CredentialStorageError(f"Failed to delete credential: {e}") from e
-
-
-def migrate_from_plaintext(plaintext_value: str, key: str) -> bool:
-    """Migrate a plaintext credential to secure storage.
-
-    Args:
-        plaintext_value: The plaintext credential value
-        key: The credential identifier
-
-    Returns:
-        True if migration successful, False otherwise
-    """
-    if not plaintext_value or not plaintext_value.strip():
-        logger.debug(f"No plaintext value to migrate for {key}")
-        return False
-
-    try:
-        store_credential(key, plaintext_value)
-        logger.info(f"Migrated plaintext credential to secure storage: {key}")
-        return True
-    except (CredentialStorageError, ValueError) as e:
-        logger.warning(f"Failed to migrate credential {key}: {e}")
-        return False

@@ -12,9 +12,6 @@ clean:
 test:
 	uv run pytest
 
-.PHONY: test-coverage
-test-coverage: test
-
 .PHONY: lint
 lint:
 	uv run ruff check .
@@ -46,8 +43,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build-exe       - Build Windows executable with PyInstaller"
 	@echo "  clean           - Remove build artifacts and cache directories"
-	@echo "  test            - Run pytest test suite"
-	@echo "  test-coverage   - Same as test; coverage is always on (pyproject addopts)"
+	@echo "  test            - Run pytest test suite; coverage is always on (pyproject addopts)"
 	@echo "  lint            - Run ruff linting checks"
 	@echo "  lint-fix        - Run ruff linting with auto-fix"
 	@echo "  format          - Format code with ruff"
