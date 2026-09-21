@@ -346,7 +346,7 @@ The `print(` criterion also caught four prints this section does not name, in `g
 - [x] `git grep -n "max_retries=0" whisper_dictate/llm_cleanup.py` shows two lines
 - [x] `git grep -n "print(" whisper_dictate/` returns nothing
 - [x] Coverage for `whisper_dictate\audio.py` is 100%
-- [ ] The four check commands exit 0; CI green
+- [x] The four check commands exit 0; CI green
 
 #### Manual Verification:
 - [ ] Copy a sentence. With endpoint cleanup on, dictate a long sentence and straight after it a two-word one, so they finish close together. Both paste, in order, and Ctrl+V afterwards pastes the original sentence
