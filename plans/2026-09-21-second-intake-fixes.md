@@ -375,7 +375,7 @@ Branch: `chore/deletions-2`. Report section 5, minus the miner. One commit per i
 #### Automated Verification:
 - [x] The four check commands exit 0 before every commit
 - [x] `git grep -n "migrate_from_plaintext\|def shutdown\|_stop_recorder\|test-coverage" -- . ':!plans' ':!advisor-plans'` returns nothing
-- [ ] CI's test jobs each show one pytest run; all five checks green
+- [x] CI's test jobs each show one pytest run; all five checks green
 - [x] Coverage for `credentials.py` and `audio.py` stays at 100%
 
 #### Manual Verification:
