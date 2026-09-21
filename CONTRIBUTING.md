@@ -166,9 +166,6 @@ uv run pytest
 # Run all tests
 make test
 
-# Run with coverage
-make test-coverage
-
 # Run specific test file
 uv run pytest tests/test_module.py
 
