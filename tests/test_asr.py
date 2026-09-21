@@ -197,6 +197,81 @@ class TestResident:
         resident.release()
         mock_free.assert_called_once()
 
+    @staticmethod
+    def _held_factory(first: BaseException | None = None):
+        """A factory whose first build blocks on `go`; later builds return at once."""
+        started, go = threading.Event(), threading.Event()
+        builds = []
+
+        def factory():
+            builds.append(1)
+            n = len(builds)
+            started.set()
+            go.wait(2.0)
+            if n == 1 and first is not None:
+                raise first
+            return n
+
+        return factory, builds, started, go
+
+    @patch("whisper_dictate.asr._free_gpu_memory")
+    def test_release_during_a_load_builds_again(self, mock_free):
+        """What was loading was made from settings that have since changed."""
+        factory, builds, started, go = self._held_factory()
+        resident = Resident(factory, ttl=0)
+        resident.warm()
+        assert started.wait(1.0)
+        resident.release()
+        go.set()
+
+        assert resident.get() == 2
+        assert len(builds) == 2
+        mock_free.assert_called_once()
+
+    def test_release_during_a_load_that_then_fails(self):
+        factory, builds, started, go = self._held_factory(first=RuntimeError("stale"))
+        resident = Resident(factory, ttl=0)
+        resident.warm()
+        assert started.wait(1.0)
+        resident.release()
+        go.set()
+
+        assert resident.get() == 2
+        assert len(builds) == 2
+
+    def test_get_survives_a_release_between_warm_and_wait(self):
+        resident = Resident(lambda: "model", ttl=0)
+        resident.get()
+        real_warm, releases = resident.warm, []
+
+        def warm_then_release():
+            real_warm()
+            if not releases:
+                releases.append(1)
+                resident.release()
+
+        resident.warm = warm_then_release
+        results = []
+        thread = threading.Thread(target=lambda: results.append(resident.get()), daemon=True)
+        thread.start()
+        thread.join(timeout=2.0)
+
+        assert not thread.is_alive()
+        assert results == ["model"]
+
+    def test_get_never_returns_none(self):
+        resident = Resident(lambda: "model", ttl=0)
+        real_wait, releases = resident._settled.wait, []
+
+        def wait_then_release():
+            real_wait()
+            if not releases:
+                releases.append(1)
+                resident.release()
+
+        resident._settled.wait = wait_then_release
+        assert resident.get() == "model"
+
 
 def test_free_gpu_memory_does_not_import_torch(monkeypatch):
     """Freeing memory must not drag torch into a process running Whisper only."""

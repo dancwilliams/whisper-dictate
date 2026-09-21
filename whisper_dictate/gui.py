@@ -336,6 +336,11 @@ class App(Tk):
                 except (ValueError, KeyError):
                     pass
             self._speech_window_traces = []
+            # The model and device only reach the recognizer through a release.
+            before = self._asr_config
+            self._capture_asr_config()
+            if self._asr_config != before:
+                self._reload_backend()
         # Quit is not the only way out: a kill or a crash must not cost the edit.
         self._save_settings()
 
@@ -1220,7 +1225,7 @@ class App(Tk):
         self.asr.release()
         self._capture_asr_config()
         self._apply_idle_ttl()
-        self._set_status("ready", f"ASR backend: {self.var_asr_backend.get()}")
+        self._set_status("ready", f"Recognizer: {self._asr_description()}")
 
     def _register_hotkey(self, quiet: bool = False) -> None:
         """Register the global hotkey.
@@ -1340,7 +1345,7 @@ class App(Tk):
         self.btn_toggle.config(text="Start recording")
         # Settings are read here, on the Tk thread; the worker gets the copy.
         cfg = self._capture_dictation_config()
-        threading.Thread(target=self._transcribe_and_clean, args=(cfg,), daemon=True).start()
+        threading.Thread(target=self._dictation_worker, args=(cfg,), daemon=True).start()
 
     def _capture_dictation_config(self) -> dict[str, Any]:
         """Copy every setting a dictation uses out of Tk. Main thread only."""
@@ -1353,6 +1358,15 @@ class App(Tk):
         """Add a line to the transcript box. Main thread only."""
         self.txt_out.insert(END, text)
         self.txt_out.see(END)
+
+    def _dictation_worker(self, cfg: dict[str, Any]) -> None:
+        """Thread target. Nothing escapes: an unhandled error would leave the
+        pill on "Transcribing..." for good."""
+        try:
+            self._transcribe_and_clean(cfg)
+        except Exception as e:
+            logger.error(f"Dictation failed: {e}", exc_info=True)
+            self._set_status("error", "Dictation failed; see the log")
 
     def _transcribe_and_clean(self, cfg: dict[str, Any]) -> None:
         """Transcribe audio and optionally clean with LLM.
