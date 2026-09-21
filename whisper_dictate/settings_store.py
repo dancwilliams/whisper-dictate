@@ -111,14 +111,18 @@ def _store_secure_settings(settings: dict[str, Any]) -> None:
         settings: Settings dictionary
     """
     for key in SECURE_KEYS:
-        if key in settings and settings[key]:
-            value = settings[key]
-            if isinstance(value, str) and value.strip():
-                try:
-                    credential_key = _get_credential_key(key)
-                    credentials.store_credential(credential_key, value)
-                except (credentials.CredentialStorageError, ValueError) as e:
-                    logger.warning(f"Failed to store {key} in credential manager: {e}")
+        # An absent key is a partial save, not a cleared field: leave it stored.
+        value = settings.get(key)
+        if not isinstance(value, str):
+            continue
+        credential_key = _get_credential_key(key)
+        try:
+            if value.strip():
+                credentials.store_credential(credential_key, value)
+            else:
+                credentials.delete_credential(credential_key)
+        except (credentials.CredentialStorageError, ValueError) as e:
+            logger.warning(f"Failed to update {key} in credential manager: {e}")
 
 
 def get_secure_setting(key: str) -> str | None:
