@@ -169,6 +169,15 @@ whisper-dictate/
 
 ## 🧪 Development
 
+`make` is optional. On Windows, `winget install ezwinports.make` provides it. Without it, run what the targets run:
+
+```powershell
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy whisper_dictate
+uv run pytest
+```
+
 ### Running Tests
 
 ```powershell
@@ -283,7 +292,7 @@ The build is a single file, `dist/whisper-dictate-gui.exe`, with all required CU
 - **Automatic migration**: Existing plaintext API keys are automatically migrated to secure storage on first run
 
 ### Debug Mode Warning
-- When debug logging is enabled, **transcribed speech and prompts are logged to disk**
+- When debug logging is enabled, **transcribed speech, prompts and the active window title are logged to disk**
 - Use debug mode only when troubleshooting, not for regular use
 - The GUI displays a prominent warning when debug mode is active
 
