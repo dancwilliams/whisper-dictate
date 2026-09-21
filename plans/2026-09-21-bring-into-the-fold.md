@@ -397,15 +397,15 @@ updates:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `git grep -nE "pip install|python -m (venv|pip)" -- '*.md'` returns nothing
-- [ ] `git grep -n "WhisperDictateGUI\|llm_api_key\|use_glossary\|floating_indicator\|window_title_pattern" -- CLAUDE.MD` returns nothing
-- [ ] `git grep -n -i "pillow" -- pyproject.toml CLAUDE.MD` returns nothing; `uv lock --check` exits 0
-- [ ] `git grep -n -i "hugging" README.md` returns at least one line
-- [ ] `gitleaks detect --source . --redact` exits 0
+- [x] `git grep -nE "pip install|python -m (venv|pip)" -- '*.md'` returns nothing (outside `plans/`, `advisor-plans/` and `research/`, which quote the old text)
+- [x] `git grep -n "WhisperDictateGUI\|llm_api_key\|use_glossary\|floating_indicator\|window_title_pattern" -- CLAUDE.MD` returns nothing
+- [x] `git grep -n -i "pillow" -- pyproject.toml CLAUDE.MD` returns nothing; `uv lock --check` exits 0
+- [x] `git grep -n -i "hugging" README.md` returns at least one line
+- [x] `gitleaks detect --source . --redact` exits 0 (130 commits, no leaks)
 - [ ] `make check` exits 0; CI green
 
 #### Manual Verification:
-- [ ] `dist/whisper-dictate-gui/whisper-dictate-gui.exe` builds, launches, and shows its icon
+- [ ] `dist/whisper-dictate-gui.exe` (one-file build) launches and shows its icon — built 2026-09-21, PyInstaller exit 0
 - [ ] A week after merge, one grouped Dependabot PR has appeared (or `gh api repos/dancwilliams/whisper-dictate/dependabot/alerts` responds, showing the ecosystem is recognised)
 - [ ] Dan reads the new README paragraph and agrees it is what he wants users told
 
