@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 SETTINGS_FILE = Path.home() / ".whisper_dictate/whisper_dictate_settings.json"
 
-# Settings keys that should be stored securely
-SECURE_KEYS = {"llm_key"}
+# Settings keys that are stored securely, and the credential each one is kept under
+SECURE_KEYS = {"llm_key": credentials.LLM_API_KEY}
 
 # Set by load_settings when the file was there but unreadable, so the GUI can say so.
 last_load_error: str | None = None
@@ -111,8 +111,7 @@ def _migrate_secure_settings(settings: dict[str, Any]) -> None:
             if isinstance(plaintext_value, str) and plaintext_value.strip():
                 # Attempt migration
                 try:
-                    credential_key = _get_credential_key(key)
-                    if credentials.migrate_from_plaintext(plaintext_value, credential_key):
+                    if credentials.migrate_from_plaintext(plaintext_value, SECURE_KEYS[key]):
                         # Remove from settings dict after successful migration
                         del settings[key]
                         logger.info(f"Migrated {key} to secure storage")
@@ -131,7 +130,7 @@ def _store_secure_settings(settings: dict[str, Any]) -> None:
         value = settings.get(key)
         if not isinstance(value, str):
             continue
-        credential_key = _get_credential_key(key)
+        credential_key = SECURE_KEYS[key]
         try:
             if value.strip():
                 credentials.store_credential(credential_key, value)
@@ -154,24 +153,7 @@ def get_secure_setting(key: str) -> str | None:
         raise ValueError(f"Key '{key}' is not a secure setting")
 
     try:
-        credential_key = _get_credential_key(key)
-        return credentials.retrieve_credential(credential_key)
+        return credentials.retrieve_credential(SECURE_KEYS[key])
     except (credentials.CredentialStorageError, ValueError) as e:
         logger.warning(f"Failed to retrieve {key} from credential manager: {e}")
         return None
-
-
-def _get_credential_key(settings_key: str) -> str:
-    """Convert settings key to credential key.
-
-    Args:
-        settings_key: Settings key (e.g., "llm_key")
-
-    Returns:
-        Credential key for keyring storage (e.g., "llm_api_key")
-    """
-    # Map settings keys to credential keys
-    key_mapping = {
-        "llm_key": credentials.LLM_API_KEY,
-    }
-    return key_mapping.get(settings_key, settings_key)

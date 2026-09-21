@@ -173,36 +173,3 @@ class TestMigrateFromPlaintext:
         result = credentials.migrate_from_plaintext("my_api_key", "test_key")
 
         assert result is False
-
-
-class TestIsCredentialStored:
-    """Test checking if credential exists."""
-
-    @patch("whisper_dictate.credentials.retrieve_credential")
-    def test_is_credential_stored_true(self, mock_retrieve):
-        """Test checking for existing credential."""
-        mock_retrieve.return_value = "some_value"
-
-        result = credentials.is_credential_stored("test_key")
-
-        assert result is True
-        mock_retrieve.assert_called_once_with("test_key")
-
-    @patch("whisper_dictate.credentials.retrieve_credential")
-    def test_is_credential_stored_false(self, mock_retrieve):
-        """Test checking for non-existent credential."""
-        mock_retrieve.return_value = None
-
-        result = credentials.is_credential_stored("test_key")
-
-        assert result is False
-        mock_retrieve.assert_called_once_with("test_key")
-
-    @patch("whisper_dictate.credentials.retrieve_credential")
-    def test_is_credential_stored_error_returns_false(self, mock_retrieve):
-        """Test that errors during check return False."""
-        mock_retrieve.side_effect = credentials.CredentialStorageError("Error")
-
-        result = credentials.is_credential_stored("test_key")
-
-        assert result is False

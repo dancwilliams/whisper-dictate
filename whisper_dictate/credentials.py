@@ -8,7 +8,7 @@ Credentials are encrypted by the operating system and tied to the user account.
 import logging
 
 import keyring
-from keyring.errors import KeyringError, PasswordDeleteError
+from keyring.errors import PasswordDeleteError
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +45,10 @@ def store_credential(key: str, value: str) -> None:
     try:
         keyring.set_password(SERVICE_NAME, key, value)
         logger.info(f"Stored credential: {key}")
-    except KeyringError as e:
+    except Exception as e:
+        # KeyringError, or a backend that failed to initialise
         logger.error(f"Failed to store credential {key}: {e}")
         raise CredentialStorageError(f"Failed to store credential: {e}") from e
-    except Exception as e:
-        # Catch unexpected errors (e.g., backend initialization issues)
-        logger.error(f"Unexpected error storing credential {key}: {e}")
-        raise CredentialStorageError(f"Unexpected error storing credential: {e}") from e
 
 
 def retrieve_credential(key: str) -> str | None:
@@ -77,13 +74,10 @@ def retrieve_credential(key: str) -> str | None:
         else:
             logger.debug(f"No credential found for: {key}")
         return value
-    except KeyringError as e:
+    except Exception as e:
+        # KeyringError, or a backend that failed to initialise
         logger.error(f"Failed to retrieve credential {key}: {e}")
         raise CredentialStorageError(f"Failed to retrieve credential: {e}") from e
-    except Exception as e:
-        # Catch unexpected errors
-        logger.error(f"Unexpected error retrieving credential {key}: {e}")
-        raise CredentialStorageError(f"Unexpected error retrieving credential: {e}") from e
 
 
 def delete_credential(key: str) -> None:
@@ -105,13 +99,10 @@ def delete_credential(key: str) -> None:
     except PasswordDeleteError:
         # Credential doesn't exist - not an error
         logger.debug(f"No credential to delete: {key}")
-    except KeyringError as e:
+    except Exception as e:
+        # KeyringError, or a backend that failed to initialise
         logger.error(f"Failed to delete credential {key}: {e}")
         raise CredentialStorageError(f"Failed to delete credential: {e}") from e
-    except Exception as e:
-        # Catch unexpected errors
-        logger.error(f"Unexpected error deleting credential {key}: {e}")
-        raise CredentialStorageError(f"Unexpected error deleting credential: {e}") from e
 
 
 def migrate_from_plaintext(plaintext_value: str, key: str) -> bool:
@@ -134,19 +125,4 @@ def migrate_from_plaintext(plaintext_value: str, key: str) -> bool:
         return True
     except (CredentialStorageError, ValueError) as e:
         logger.warning(f"Failed to migrate credential {key}: {e}")
-        return False
-
-
-def is_credential_stored(key: str) -> bool:
-    """Check if a credential exists in secure storage.
-
-    Args:
-        key: The credential identifier
-
-    Returns:
-        True if credential exists, False otherwise
-    """
-    try:
-        return retrieve_credential(key) is not None
-    except (CredentialStorageError, ValueError):
         return False
