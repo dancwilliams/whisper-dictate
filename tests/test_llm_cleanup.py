@@ -58,12 +58,6 @@ class TestLLMCleanup:
             assert result == "Cleaned text"
             mock_client.chat.completions.create.assert_called_once()
 
-    def test_clean_with_llm_no_openai(self):
-        """Test that missing OpenAI raises error."""
-        with patch("whisper_dictate.llm_cleanup.OpenAI", None):
-            with pytest.raises(LLMCleanupError, match="OpenAI client not installed"):
-                clean_with_llm("text", "http://test", "model", None, "prompt", 0.1)
-
     def test_clean_with_llm_api_error(self):
         """Test handling of API errors."""
         mock_client = MagicMock()

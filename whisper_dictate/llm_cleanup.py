@@ -4,15 +4,12 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from openai import OpenAI
+
 from whisper_dictate.glossary import GlossaryManager
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
-
-try:
-    from openai import OpenAI
-except ImportError:
-    OpenAI = None  # type: ignore
 
 
 logger = logging.getLogger("whisper_dictate")
@@ -35,11 +32,8 @@ def list_llm_models(endpoint: str, api_key: str | None, timeout: float = 10.0) -
         A list of model identifiers (may be empty)
 
     Raises:
-        LLMCleanupError: If the client is unavailable or listing fails
+        LLMCleanupError: If listing fails
     """
-    if OpenAI is None:
-        raise LLMCleanupError("OpenAI client not installed. Run: uv add openai")
-
     try:
         client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key")
         response = client.models.list(timeout=timeout)
@@ -57,7 +51,7 @@ def clean_with_llm(
     prompt: str,
     temperature: float,
     prompt_context: str | None = None,
-    glossary: str | GlossaryManager | None = None,
+    glossary: GlossaryManager | None = None,
     app_prompt: str | None = None,
     debug_logging: bool = False,
     timeout: float = 15.0,
@@ -73,7 +67,7 @@ def clean_with_llm(
         prompt: System prompt for the LLM
         temperature: Temperature for generation
         prompt_context: Optional runtime context to append to the prompt
-        glossary: Optional glossary text prepended to the prompt
+        glossary: Optional glossary, prepended to the prompt
         app_prompt: Optional application-specific prompt appended to the system prompt
         debug_logging: When True, log the full prompt payload before sending
         timeout: Request timeout in seconds
@@ -82,18 +76,12 @@ def clean_with_llm(
         Cleaned text, or None on failure
 
     Raises:
-        LLMCleanupError: If cleanup fails and OpenAI is available
+        LLMCleanupError: If cleanup fails
     """
     if not raw_text.strip():
         return ""
 
-    if OpenAI is None:
-        raise LLMCleanupError("OpenAI client not installed. Run: uv add openai")
-
-    if isinstance(glossary, GlossaryManager):
-        glossary_text = glossary.format_for_prompt().strip()
-    else:
-        glossary_text = (glossary or "").strip()
+    glossary_text = glossary.format_for_prompt().strip() if glossary else ""
     system_prompt = prompt.rstrip()
     if glossary_text:
         system_prompt = f"Glossary entries (prioritized):\n{glossary_text}\n\n{system_prompt}"
