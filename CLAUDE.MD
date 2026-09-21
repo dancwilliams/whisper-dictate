@@ -33,8 +33,8 @@ Whisper Dictate is a privacy-first, local speech-to-text and AI cleanup tool for
 
 ### Naming Conventions
 - **Files:** lowercase with underscores (e.g., `app_context.py`)
-- **Classes:** PascalCase (e.g., `WhisperDictateGUI`)
-- **Functions/variables:** snake_case (e.g., `get_active_window_info`)
+- **Classes:** PascalCase (e.g., `AudioRecorder`)
+- **Functions/variables:** snake_case (e.g., `get_active_context`)
 - **Constants:** UPPER_SNAKE_CASE (e.g., `DEFAULT_MODEL`)
 
 ### Import Organization
@@ -62,7 +62,7 @@ Ruff enforces import sorting with the "I" rule:
 | `glossary.py` | Glossary persistence, phonetic rules, per-app hotwords | `GlossaryManager`, `GlossaryRule`, `apply_glossary()`, `hotwords_for_app()` |
 | `history.py` | Local dictation record and audio pruning | `record()`, `prune_audio()` |
 | `glossary_dialog.py` | GUI for glossary management | `GlossaryDialog` |
-| `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_hotkey_string()` |
+| `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_chord()` |
 | `clipboard.py` | Clipboard snapshot/restore (ctypes) | `snapshot()`, `restore()`, `set_text()` |
 | `gui_components.py` | Reusable GUI widgets | `PromptDialog`, `StatusIndicator` |
 | `logging_config.py` | Centralized logging setup | `setup_logging()` |
@@ -84,30 +84,38 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
 
 ```json
 {
-  "model": "base",
+  "model": "small",
+  "asr_backend": "whisper",
+  "idle_ttl_minutes": 5.0,
+  "history_enable": true,
+  "history_audio_days": 14.0,
   "device": "cuda",
-  "compute_type": "int8_float16",
-  "input_device": null,
-  "hotkey": "ctrl+win+g",
-  "llm_endpoint": "http://localhost:1234/v1",
-  "llm_model": "gpt-3.5-turbo",
-  "llm_api_key": "",
-  "llm_temperature": 0.7,
-  "llm_enabled": false,
-  "auto_paste": false,
+  "compute": "float16",
+  "input": "",
+  "hotkey": "CTRL+SPACE",
+  "auto_paste": true,
   "paste_delay": 0.15,
-  "use_glossary": false,
-  "app_prompts": [
-    {
-      "process_name": "winword.exe",
-      "window_title_pattern": "",
-      "prompt": "Format as professional business text..."
-    }
-  ],
-  "floating_indicator": {
-    "x": 100,
-    "y": 100
+  "restore_delay": 0.6,
+  "cleanup_backend": "s1",
+  "s1_styling": "semi-casual",
+  "s1_structure": "prose",
+  "s1_context": "general",
+  "llm_endpoint": "http://localhost:1234/v1",
+  "llm_model": "openai/gpt-oss-20b",
+  "llm_temp": 0.1,
+  "llm_debug": false,
+  "glossary_enable": true,
+  "auto_load_model": false,
+  "auto_register_hotkey": false,
+  "app_prompts": {
+    "winword.exe": [
+      {
+        "prompt": "Format as professional business text...",
+        "window_title_regex": "Quarterly"
+      }
+    ]
   },
+  "recent_processes": ["winword.exe", "notepad.exe"],
   "vad_enabled": false,
   "vad_threshold": 0.5,
   "vad_min_speech_ms": 250,
@@ -119,9 +127,14 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "word_timestamps": false,
   "temperature": 0.0,
   "beam_size": 5,
-  "initial_prompt": ""
+  "initial_prompt": "",
+  "indicator_position": { "x": 100, "y": 100 }
 }
 ```
+
+The API key (`llm_key` in `_save_settings`) is never written to this file;
+`settings_store` moves it to Windows Credential Manager. A rule in `app_prompts` may
+also carry the S1 style keys (`styling`, `structure`, `context`).
 
 ## Testing
 
@@ -167,7 +180,7 @@ make test          # Pytest test suite
 - pytest.ini options in `pyproject.toml`
 - Coverage target: `whisper_dictate` package
 - pytest-mock for mocking Windows APIs and external dependencies
-- Integration tests cover full pipelines (audio → transcription → LLM → paste)
+- `test_integration.py` covers context, prompts, glossary and cleanup; `test_gui_pipeline.py` covers the dictation pipeline and delivery
 
 ### Mocking Guidelines
 - Mock Windows APIs (`ctypes.windll`) in tests for cross-platform compatibility
@@ -179,12 +192,11 @@ make test          # Pytest test suite
 
 ### Core Dependencies
 - `faster-whisper` — Whisper model inference
-- `ctranslate2` — Backend for faster-whisper
+- `ctranslate2` — Backend for faster-whisper (transitive; not pinned here)
 - `nvidia-*` packages — CUDA runtime and cuDNN
 - `openai` — LLM cleanup client
 - `sounddevice` — Audio recording
 - `clipboard.py` — Clipboard and auto-paste (Shift+Insert), ctypes only; no pyautogui/pyperclip
-- `pillow` — GUI icons/images
 
 ### Dev Dependencies
 Declared in the `dev` [dependency group](https://peps.python.org/pep-0735/), not an extra;
@@ -205,7 +217,7 @@ Declared in the `dev` [dependency group](https://peps.python.org/pep-0735/), not
 6. Run tests: `uv run pytest`
 
 ### Modifying GUI
-- Main GUI class: `WhisperDictateGUI` in `gui.py`
+- Main GUI class: `App` in `gui.py`
 - Reusable components in `gui_components.py`
 - Use tkinter best practices (grid layout, proper event handling)
 - Test with Windows scaling/DPI settings
@@ -257,14 +269,15 @@ The spec file bundles CUDA DLLs and all dependencies. See `docs/build.md` for de
 
 ### File Paths
 - Settings directory: `~/.whisper_dictate/` (expands to `C:\Users\<username>\.whisper_dictate\`)
-- Prompt file: `~/.whisper_dictate_prompt.txt`
+- Prompt file: `~/.whisper_dictate/whisper_dictate_prompt.txt`
 - Glossary: `~/.whisper_dictate/whisper_dictate_glossary.json`
 - Logs: `~/.whisper_dictate/logs/whisper_dictate.log`
 
 ### Threading
 - GUI runs in main thread
 - Audio recording in separate thread
-- Hotkey callbacks use thread-safe event posting (`root.event_generate()`)
+- Hotkey callbacks are marshalled to the Tk thread with `after(0, ...)`
+- Transcription, cleanup and delivery run on a worker that reads a settings snapshot and never touches Tk
 
 ## Troubleshooting Common Issues
 
@@ -283,13 +296,6 @@ The spec file bundles CUDA DLLs and all dependencies. See `docs/build.md` for de
 - Adjust paste delay if target app is slow
 - Check Windows mic privacy settings
 
-## Recent Changes
-
-- **LLM usage statistics logging** (commit bdae6c7) — Logs token counts and model info
-- **Comprehensive integration tests** (commit 454379e) — Full pipeline testing
-- **Windows API tests for app_context** (commit 098390b) — Thorough testing of window detection
-- **Recent window titles in app prompt dialog** (commit 9fbb13c) — Prefill recent apps
-
 ## Git Workflow
 
 This project uses a worktree-based workflow:
@@ -299,6 +305,8 @@ This project uses a worktree-based workflow:
 - Feature branches: descriptive names (e.g., `inspiring-curie`)
 
 When creating PRs, target the `main` branch.
+
+Attribution: none. Commits and PRs carry no AI or assistant attribution. Adopted 2026-09-21; earlier history is left as is.
 
 ## Questions or Issues?
 
