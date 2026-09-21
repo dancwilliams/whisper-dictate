@@ -11,17 +11,11 @@ This project ships a standalone Windows executable generated with [PyInstaller](
 
 ## Local build steps
 
-1. **Sync dependencies in Python 3.11.** If you use [uv](https://docs.astral.sh/uv/) locally (recommended) run:
+1. **Sync dependencies in Python 3.11** with [uv](https://docs.astral.sh/uv/):
    ```bash
    uv sync --python 3.11
    ```
-   This materializes a `.venv` with the locked dependencies. Prefer `--frozen` when you want to guarantee the lock file is respected. If you would rather stay on plain `pip`, create a virtual environment and install the package instead:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   python -m pip install --upgrade pip
-   pip install .
-   ```
+   This materializes a `.venv` with the locked dependencies. Prefer `--frozen` when you want to guarantee the lock file is respected.
 2. **Build the executable.** The PyInstaller spec writes the output to `dist/whisper-dictate-gui/` and includes the GUI icon plus CUDA DLLs. When using uv the Makefile target keeps everything in the managed environment:
    ```bash
    USE_UV=1 make build-exe
