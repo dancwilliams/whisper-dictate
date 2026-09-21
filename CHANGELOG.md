@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Two dictations finishing together could lose the user's clipboard: the second
   snapshotted it while it still held the first one's text, and restored that.
   Deliveries now take turns.
+- A hung cleanup endpoint held a dictation for 45 seconds: the OpenAI client
+  retries twice by default, on top of the 15-second timeout. Retries are off, so
+  the raw text pastes after one timeout.
 - The floating pill could not be dragged; it stuck at the top-left corner.
   `geometry()` only *requests* a move, and the `lift()` and `-topmost` calls
   that followed it acted on where the window actually was, discarding the

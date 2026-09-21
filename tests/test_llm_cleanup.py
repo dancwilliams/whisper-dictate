@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from whisper_dictate.glossary import GlossaryManager, GlossaryRule
-from whisper_dictate.llm_cleanup import LLMCleanupError, clean_with_llm
+from whisper_dictate.llm_cleanup import LLMCleanupError, clean_with_llm, list_llm_models
 
 
 class TestLLMCleanup:
@@ -63,9 +63,22 @@ class TestLLMCleanup:
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = Exception("API error")
 
-        with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client):
+        with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client) as mock_openai:
             with pytest.raises(LLMCleanupError, match="LLM cleanup failed"):
                 clean_with_llm("text", "http://test", "model", None, "prompt", 0.1)
+        # A hung endpoint must cost one timeout, not the SDK's three attempts.
+        assert mock_openai.call_args.kwargs["max_retries"] == 0
+
+    def test_list_models_sorts_dedupes_and_does_not_retry(self):
+        mock_client = MagicMock()
+        mock_client.models.list.return_value.data = [
+            MagicMock(id="b"),
+            MagicMock(id="a"),
+            MagicMock(id="b"),
+        ]
+        with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=mock_client) as mock_openai:
+            assert list_llm_models("http://test", None) == ["a", "b"]
+        assert mock_openai.call_args.kwargs["max_retries"] == 0
 
     def test_clean_with_llm_empty_response(self):
         """Test handling of empty response."""
