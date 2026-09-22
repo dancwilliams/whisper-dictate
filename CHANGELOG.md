@@ -43,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tk_popup` unwound into a dead Tk. Menu commands now run once the menu has
   closed, and the popup tolerates the app going away underneath it.
 
+### Removed
+- The PyInstaller exe build: the spec, the `build-windows` workflow, the
+  `build-exe` target, `docs/build.md` and the frozen-app path lookup. Nobody
+  runs the exe; the source install is the only supported way to run the app.
+  The last commit carrying the build is the parent of the one that removed it,
+  should another user ever need one.
+
 ### Added
 - Opt-in phonetic glossary rules (`match_type: "phonetic"`)
   - One rule catches the spellings a recognizer invents: `threat fax`,

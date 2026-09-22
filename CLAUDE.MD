@@ -11,7 +11,6 @@ Whisper Dictate is a privacy-first, local speech-to-text and AI cleanup tool for
 - faster-whisper (SYSTRAN) for local speech-to-text
 - OpenAI API client for optional LLM cleanup
 - tkinter for GUI
-- PyInstaller for creating standalone executables
 - CUDA 12.4 + cuDNN 9.5 for GPU acceleration
 
 **Package Manager:** `uv` (Astral's fast Python package manager)
@@ -202,7 +201,6 @@ Declared in the `dev` [dependency group](https://peps.python.org/pep-0735/), not
 - `pytest`, `pytest-cov`, `pytest-mock` — Testing
 - `ruff` — Linting and formatting
 - `mypy` — Type checking
-- `pyinstaller` — Executable creation
 
 ## Common Tasks
 
@@ -242,21 +240,6 @@ settings = load_settings()
 settings["new_key"] = "new_value"
 save_settings(settings)
 ```
-
-## Building
-
-### Create Standalone EXE
-```powershell
-# Using Makefile (recommended)
-make build-exe
-
-# Direct PyInstaller
-uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
-```
-
-Output: `dist/whisper-dictate-gui.exe` (one-file build)
-
-The spec file bundles CUDA DLLs and all dependencies. See `docs/build.md` for details.
 
 ## Windows-Specific Considerations
 
@@ -311,6 +294,5 @@ Attribution: none. Commits and PRs carry no AI or assistant attribution. Adopted
 Refer to:
 - `README.md` — User-facing documentation
 - `docs/startup.md` — Running at login, the pill menu, single-instance behaviour
-- `docs/build.md` — Build instructions
 - Test files in `tests/` — Usage examples
 - Module docstrings — Implementation details

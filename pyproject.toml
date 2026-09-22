@@ -25,7 +25,6 @@ dev = [
     "pytest-mock>=3.12.0",
     "ruff>=0.1.0",
     "mypy>=1.8.0",
-    "pyinstaller>=6.22",
 ]
 # Heavy ML wheels: installed locally, excluded in CI (`uv sync --no-group ml`).
 # The tests mock these; this Windows machine exercises the real thing.
