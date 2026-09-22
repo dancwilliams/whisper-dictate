@@ -403,7 +403,7 @@ The three GitHub secrets the workflow used (`WINDOWS_SIGNING_CERTIFICATE`, `WIND
 #### Automated Verification:
 - [x] `git grep -n -i "pyinstaller\|build-exe\|_MEIPASS\|build-windows\|docs/build" -- . ':!plans' ':!advisor-plans' ':!CHANGELOG.md' ':!research'` returns nothing
 - [x] `uv sync` leaves the ML group installed and `import PyInstaller` fails
-- [ ] The four check commands exit 0; CI green
+- [x] The four check commands exit 0; CI green
 
 #### Manual Verification:
 - [ ] Dan reads the README and CHANGELOG entries and agrees with the wording

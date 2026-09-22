@@ -16,10 +16,17 @@ from whisper_dictate.gui_components import StatusIndicator  # noqa: E402
 
 @pytest.fixture
 def root():
-    try:
-        window = tkinter.Tk()
-    except tkinter.TclError:  # pragma: no cover - headless CI
-        pytest.skip("no display available")
+    # Under pytest's fd capture Tk() now and then fails to source its own
+    # library files (init.tcl, ttk/spinbox.tcl) and raises; a second try works.
+    # Measured on the dev box: 2 of 8 runs with --capture=fd, 0 of 16 without.
+    # With no display at all every try fails, and that is the skip.
+    for attempt in range(3):
+        try:
+            window = tkinter.Tk()
+            break
+        except tkinter.TclError as e:
+            if attempt == 2:  # pragma: no cover - headless CI
+                pytest.skip(f"no display available: {e}")
     # Withdrawn, as the app leaves it once it is running by itself. The pill
     # misbehaved only in this state, which is why the fixture reproduces it.
     window.withdraw()
