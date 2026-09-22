@@ -266,6 +266,7 @@ uv sync --locked
 - Credentials are **tied to your user account** and encrypted by the operating system
 - API keys are **never stored in plaintext** JSON files
 - **Automatic migration**: Existing plaintext API keys are automatically migrated to secure storage on first run
+- **Removing a key**: blank the API key in Settings → LLM cleanup and the app deletes it from Credential Manager. Removing it by hand instead, delete every entry whose target contains `WhisperDictate`: `keyring` sometimes keeps a second one named `llm_api_key@WhisperDictate`
 
 ### Debug Mode Warning
 - When debug logging is enabled, **transcribed speech, prompts and the active window title are logged to disk**
