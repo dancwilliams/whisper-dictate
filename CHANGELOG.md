@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- A glossary rule with an invalid regular expression, or a replacement naming
+  a group that does not exist, failed the whole dictation: the audio was
+  discarded and the status read "Dictation failed; see the log". The bad rule
+  is now skipped and named in the log, and neither dialog will save a pattern
+  that does not compile.
 - Changing the Whisper model or the device did nothing while a model was
   resident: only the Recognizer combo released it. Closing Speech recognition
   settings now releases the recognizer when anything it was built from changed,
@@ -156,6 +161,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive test coverage (87% for credentials module)
 
 ### Changed
+- Per-app window-title patterns are no longer screened by a length limit and
+  a nesting heuristic that also refused legitimate patterns such as
+  `(\w+ )?Report - Word`. They are checked when the rule is saved instead.
 - Improved error handling across the codebase (#40)
   - Replaced broad `except Exception` with specific exception types
   - Added inline comments documenting exception types

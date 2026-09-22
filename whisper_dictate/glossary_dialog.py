@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from pathlib import Path
 from tkinter import BooleanVar, StringVar, Toplevel, filedialog, messagebox, ttk
@@ -288,6 +289,12 @@ class GlossaryRuleDialog(Toplevel):
             reason = phonetic_rejection(trigger)
             if reason:
                 messagebox.showerror("Glossary", reason)
+                return
+        if self.var_match_type.get() == "regex":
+            try:
+                re.compile(trigger)
+            except re.error as e:
+                messagebox.showerror("Glossary", f"Not a valid regular expression: {e}")
                 return
         self.result = GlossaryRule(
             trigger=trigger,
