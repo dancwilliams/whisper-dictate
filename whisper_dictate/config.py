@@ -150,11 +150,8 @@ _dll_directories: list[object] = []
 
 def set_cuda_paths() -> None:
     """Ensure CUDA DLL folders from the embedded Nvidia wheels are on PATH."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        nvidia_base_path = Path(sys._MEIPASS) / "nvidia"
-    else:
-        venv_base = Path(sys.executable).resolve().parent.parent
-        nvidia_base_path = venv_base / "Lib" / "site-packages" / "nvidia"
+    venv_base = Path(sys.executable).resolve().parent.parent
+    nvidia_base_path = venv_base / "Lib" / "site-packages" / "nvidia"
 
     cuda_dirs = [
         nvidia_base_path / "cuda_runtime" / "bin",

@@ -1,9 +1,3 @@
-PYINSTALLER_SPEC ?= packaging/pyinstaller/whisper_dictate_gui.spec
-
-.PHONY: build-exe
-build-exe:
-	uv run pyinstaller $(PYINSTALLER_SPEC) --noconfirm
-
 .PHONY: clean
 clean:
 	rm -rf build dist *.spec __pycache__ .pytest_cache .coverage htmlcov .mypy_cache .ruff_cache
@@ -41,7 +35,6 @@ fix: lint-fix format
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build-exe       - Build Windows executable with PyInstaller"
 	@echo "  clean           - Remove build artifacts and cache directories"
 	@echo "  test            - Run pytest test suite; coverage is always on (pyproject addopts)"
 	@echo "  lint            - Run ruff linting checks"

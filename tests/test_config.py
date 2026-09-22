@@ -71,36 +71,13 @@ class TestSetCudaPaths:
             (base / part / "bin").mkdir(parents=True)
         return base
 
-    def _frozen_sys(self, tmp_path):
-        mock_sys = MagicMock()
-        mock_sys.frozen = True
-        mock_sys._MEIPASS = str(tmp_path)
-        mock_sys.executable = "/fake/path/python.exe"
-        return mock_sys
-
     def _dev_sys(self, tmp_path):
         mock_sys = MagicMock()
-        mock_sys.frozen = False
         venv_python = tmp_path / "venv" / "Scripts" / "python.exe"
         venv_python.parent.mkdir(parents=True)
         venv_python.touch()
         mock_sys.executable = str(venv_python)
         return mock_sys
-
-    def test_frozen_app_puts_every_cuda_dir_on_path(self, tmp_path, monkeypatch):
-        base = self._wheel_layout(tmp_path / "nvidia")
-        original_path = os.environ.get("PATH", "")
-        with patch("whisper_dictate.config.sys", self._frozen_sys(tmp_path)):
-            monkeypatch.delenv("CUDA_PATH", raising=False)
-            with patch("whisper_dictate.config.os.add_dll_directory") as add:
-                set_cuda_paths()
-            for part in ("cuda_runtime", "cublas", "cudnn"):
-                assert str(base / part / "bin") in os.environ["PATH"]
-            registered = {call.args[0] for call in add.call_args_list}
-            assert registered == {
-                str(base / p / "bin") for p in ("cuda_runtime", "cublas", "cudnn")
-            }
-        os.environ["PATH"] = original_path
 
     def test_development_layout(self, tmp_path, monkeypatch):
         base = self._wheel_layout(tmp_path / "venv" / "Lib" / "site-packages" / "nvidia")

@@ -157,10 +157,6 @@ whisper-dictate/
 │   ├─ test_transcription.py
 │   └─ test_audio.py
 │
-├─ packaging/
-│   └─ pyinstaller/
-│       └─ whisper_dictate_gui.spec  # PyInstaller build spec
-│
 ├─ pyproject.toml
 └─ README.md
 ```
@@ -226,7 +222,6 @@ uv run pytest --cov=whisper_dictate --cov-report=html
 For developers and contributors:
 
 - **[Architecture Documentation](docs/architecture.md)** — System architecture diagrams, data flow, module responsibilities, and design patterns
-- **[Build Instructions](docs/build.md)** — Detailed guide for creating standalone executables
 - **[Starting at Login](docs/startup.md)** — Startup shortcut, the floating pill's menu, and what to check when nothing appears
 - **[CLAUDE.md](CLAUDE.md)** — AI assistant context and development guidelines
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Contribution guidelines and coding standards
@@ -249,22 +244,6 @@ If you want to freeze dependency versions for reproducibility:
 uv lock
 uv sync --locked
 ```
-
----
-
-## 📦 Create an EXE
-
-Build a standalone Windows executable using the PyInstaller spec:
-
-```powershell
-# Using the Makefile (recommended)
-make build-exe
-
-# Or directly with PyInstaller
-uv run pyinstaller packaging/pyinstaller/whisper_dictate_gui.spec --noconfirm
-```
-
-The build is a single file, `dist/whisper-dictate-gui.exe`, with all required CUDA DLLs bundled inside it. See [`docs/build.md`](docs/build.md) for detailed build instructions.
 
 ---
 

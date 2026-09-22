@@ -384,11 +384,36 @@ Branch: `chore/deletions-2`. Report section 5, minus the miner. One commit per i
 
 ---
 
-## Phase 5: S1 in the exe, time-boxed
+## Phase 5: The exe build is removed (decision of 2026-09-21)
+
+Branch: `chore/drop-exe`. Replaces the phase as written below. After Phase 4, Dan decided the
+exe is not worth the cycles: nobody runs it, and one can be produced again if another user ever
+appears. Rather than bundle `llama_cpp\lib` and test it, the build goes.
+
+Removed: `.github/workflows/build-windows.yml`, `packaging/pyinstaller/whisper_dictate_gui.spec`,
+`docs/build.md`, the `build-exe` target, the `pyinstaller` dev dependency (and `uv.lock` with it),
+the frozen-app branch of `set_cuda_paths` with its test, the PyInstaller block of `.gitignore`,
+and every mention in `README.md` and `CLAUDE.MD`. `CHANGELOG.md` records it under Removed.
+
+The three GitHub secrets the workflow used (`WINDOWS_SIGNING_CERTIFICATE`, `WINDOWS_SIGNING_PASSWORD`,
+`WINDOWS_TIMESTAMP_URL`) are not in the repo; Dan can delete them from the repo settings.
+
+### Success Criteria
+
+#### Automated Verification:
+- [x] `git grep -n -i "pyinstaller\|build-exe\|_MEIPASS\|build-windows\|docs/build" -- . ':!plans' ':!advisor-plans' ':!CHANGELOG.md' ':!research'` returns nothing
+- [x] `uv sync` leaves the ML group installed and `import PyInstaller` fails
+- [ ] The four check commands exit 0; CI green
+
+#### Manual Verification:
+- [ ] Dan reads the README and CHANGELOG entries and agrees with the wording
+- [ ] Run `/repo-intake quick`: no tier 1 blocker, no tier 2 FAIL, N1 to N7 not reported
+
+### As originally planned (not done)
 
 Branch: `build/bundle-llama`. One build. If S1 does not run in it, take the fallback; do not iterate on the spec.
 
-### Changes Required
+#### Changes Required
 
 #### 1. Collect the llama.cpp DLLs
 **File**: `packaging/pyinstaller/whisper_dictate_gui.spec`. Rename `_collect_nvidia_binaries` to `_collect_binaries` and add `"llama_cpp"` to its package list (`:22-26`). The existing `try/except` (`:28-33`) already covers the CI build, where `--no-group ml` means the package is absent. Extend the comment there to say so. `collect_dynamic_libs` places the files under `llama_cpp/lib`, which is where `llama_cpp` looks for them.
@@ -403,15 +428,15 @@ Branch: `build/bundle-llama`. One build. If S1 does not run in it, take the fall
 
 **File**: `docs/build.md:38` — the workflow runs `uv sync --frozen --python 3.11 --no-group ml` (`build-windows.yml:36`). Make the sentence match, whichever branch is taken.
 
-### Success Criteria
+#### Success Criteria
 
-#### Automated Verification:
+##### Automated Verification:
 - [ ] PyInstaller exits 0
 - [ ] Bundled branch only: the archive listing shows `llama.dll` and `ggml-cuda.dll` under `llama_cpp\lib`
 - [ ] `git grep -n "no-group ml" docs/build.md` shows the corrected line
 - [ ] The four check commands exit 0; CI green
 
-#### Manual Verification:
+##### Manual Verification:
 - [ ] Launch `dist\whisper-dictate-gui.exe` with cleanup set to built-in and dictate. Either the log shows "S1-mini loaded on GPU" (or CPU) and the text is cleaned, or it shows "S1 cleanup failed" and the fallback sentence goes in
 - [ ] Dan reads the README sentence and agrees it is what he wants users told
 - [ ] Run `/repo-intake quick`: no tier 1 blocker, no tier 2 FAIL, N1 to N7 not reported
