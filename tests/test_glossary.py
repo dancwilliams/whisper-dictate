@@ -70,6 +70,24 @@ class TestGlossaryApplication:
         result = apply_glossary(text, manager)
         assert result.count("GPT-X") == 2
 
+    def test_a_regex_rule_that_will_not_compile_is_skipped(self, caplog) -> None:
+        """A hand-edited file can carry one; it must cost the rule, not the dictation."""
+        manager = GlossaryManager(
+            [
+                GlossaryRule(trigger="(unclosed", replacement="X", match_type="regex"),
+                GlossaryRule(trigger="epic", replacement="EPIC", match_type="word"),
+            ]
+        )
+        assert apply_glossary("an epic (unclosed story", manager) == "an EPIC (unclosed story"
+        assert "Skipping glossary rule '(unclosed'" in caplog.text
+
+    def test_a_replacement_with_a_missing_group_is_skipped(self, caplog) -> None:
+        manager = GlossaryManager(
+            [GlossaryRule(trigger=r"gpt-(\d)", replacement=r"GPT-\9", match_type="regex")]
+        )
+        assert apply_glossary("gpt-4", manager) == "gpt-4"
+        assert "Skipping glossary rule" in caplog.text
+
 
 class TestGlossaryRuleManipulation:
     """Test adding, updating, and removing rules."""
