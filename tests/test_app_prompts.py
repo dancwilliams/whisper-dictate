@@ -1,10 +1,6 @@
 """Tests for per-application prompt resolution."""
 
-import re
-
-import pytest
-
-from whisper_dictate import app_context, app_prompts
+from whisper_dictate import app_prompts
 from whisper_dictate.app_context import ActiveContext
 
 
@@ -312,127 +308,45 @@ class TestCloneRules:
         assert cloned is not original
 
 
-class TestRegexValidation:
-    """Test regex pattern validation for ReDoS protection."""
+class TestWindowTitlePatterns:
+    """A saved pattern is the user's own; a bad one costs its rule, not the dictation."""
 
-    def test_validate_regex_pattern_valid(self):
-        """Test validation of safe regex patterns."""
-        # Should not raise
-        app_prompts.validate_regex_pattern("simple")
-        app_prompts.validate_regex_pattern(".*\\.txt")
-        app_prompts.validate_regex_pattern("(group)")
-        app_prompts.validate_regex_pattern("[a-z]+")
+    def test_invalid_pattern_skips_the_rule(self, caplog):
+        rules = {"notepad.exe": [{"prompt": "P", "window_title_regex": "(unclosed"}]}
+        ctx = _make_context("notepad.exe", "anything")
 
-    def test_validate_regex_pattern_too_long(self):
-        """Test rejection of overly long patterns."""
-        long_pattern = "a" * (app_prompts.MAX_REGEX_LENGTH + 1)
+        assert app_prompts.resolve_app_prompt(rules, ctx) is None
+        assert "Skipping invalid window-title regex '(unclosed'" in caplog.text
 
-        with pytest.raises(app_prompts.RegexValidationError, match="Regex pattern too long"):
-            app_prompts.validate_regex_pattern(long_pattern)
-
-    def test_validate_regex_pattern_nested_repetitions(self):
-        """Test rejection of patterns with excessive nested repetitions."""
-        # Pattern with catastrophic backtracking: (a+)+
-        dangerous_pattern = "(a+)+"
-
-        with pytest.raises(app_prompts.RegexValidationError, match="too many nested repetitions"):
-            app_prompts.validate_regex_pattern(dangerous_pattern)
-
-    def test_validate_regex_pattern_deeply_nested(self):
-        """Test rejection of deeply nested repetition patterns."""
-        # Pattern with 4 levels of nesting: ((((a)*)*)*)*
-        dangerous_pattern = "((((a)*)*)*)*"
-
-        with pytest.raises(app_prompts.RegexValidationError, match="too many nested repetitions"):
-            app_prompts.validate_regex_pattern(dangerous_pattern)
-
-    def test_validate_regex_pattern_invalid_syntax(self):
-        """Test rejection of syntactically invalid patterns."""
-        with pytest.raises(re.error):
-            app_prompts.validate_regex_pattern("(unclosed")
-
-        with pytest.raises(re.error):
-            app_prompts.validate_regex_pattern("[invalid")
-
-
-class TestSafeRegexSearch:
-    """Test safe regex searching with timeout protection."""
-
-    def test_safe_regex_search_match(self):
-        """Test safe regex search with matching pattern."""
-        assert app_prompts.safe_regex_search("hello", "hello world") is True
-        assert app_prompts.safe_regex_search("HELLO", "hello world") is True  # Case insensitive
-        assert app_prompts.safe_regex_search(".*world", "hello world") is True
-
-    def test_safe_regex_search_no_match(self):
-        """Test safe regex search with non-matching pattern."""
-        assert app_prompts.safe_regex_search("goodbye", "hello world") is False
-        assert app_prompts.safe_regex_search("^world", "hello world") is False
-
-    def test_safe_regex_search_invalid_pattern(self):
-        """Test safe regex search with invalid pattern returns False."""
-        # Pattern too long
-        long_pattern = "a" * (app_prompts.MAX_REGEX_LENGTH + 1)
-        assert app_prompts.safe_regex_search(long_pattern, "text") is False
-
-        # Nested repetitions
-        assert app_prompts.safe_regex_search("(a+)+", "aaaa") is False
-
-        # Invalid syntax
-        assert app_prompts.safe_regex_search("(unclosed", "text") is False
-
-    def test_safe_regex_search_timeout(self):
-        """Test safe regex search with pattern that would cause ReDoS."""
-        # This pattern can cause catastrophic backtracking
-        # (a+)+ with input like "aaaaaaaaaaaaaaaaaaaaaaaaaX"
-        dangerous_pattern = "(a+)+"
-        dangerous_input = "a" * 25 + "X"
-
-        # Should return False due to validation, not timeout
-        # (pattern is blocked before timeout can occur)
-        assert app_prompts.safe_regex_search(dangerous_pattern, dangerous_input) is False
-
-
-class TestResolveAppPromptWithSafeRegex:
-    """Test that resolve_app_prompt uses safe regex matching."""
-
-    def test_resolve_app_prompt_with_dangerous_regex(self):
-        """Test that dangerous regex patterns don't cause DoS."""
+    def test_invalid_pattern_falls_through_to_the_process_rule(self):
         rules = {
             "notepad.exe": [
-                {
-                    "prompt": "Dangerous",
-                    "window_title_regex": "(a+)+",  # Would cause ReDoS
-                }
+                {"prompt": "Broken", "window_title_regex": "(unclosed"},
+                {"prompt": "Default"},
             ]
         }
+        ctx = _make_context("notepad.exe", "anything")
 
-        context = app_context.ActiveContext(
-            process_name="notepad.exe",
-            window_title="a" * 25 + "X",  # Input that triggers catastrophic backtracking
-        )
+        assert app_prompts.resolve_app_prompt(rules, ctx) == "Default"
 
-        # Should return None quickly (pattern blocked), not hang
-        result = app_prompts.resolve_app_prompt(rules, context)
-        assert result is None  # Pattern validation fails, no match
+    def test_invalid_pattern_skips_the_style_rule(self, caplog):
+        rules = {"notepad.exe": [{"styling": "formal", "window_title_regex": "(unclosed"}]}
+        ctx = _make_context("notepad.exe", "anything")
 
-    def test_resolve_app_prompt_with_long_regex(self):
-        """Test that overly long regex patterns are rejected."""
-        long_pattern = "a" * (app_prompts.MAX_REGEX_LENGTH + 1)
-        rules = {
-            "notepad.exe": [
-                {
-                    "prompt": "Long pattern",
-                    "window_title_regex": long_pattern,
-                }
-            ]
-        }
+        assert app_prompts.resolve_app_style(rules, ctx) == {}
+        assert "Skipping invalid window-title regex" in caplog.text
 
-        context = app_context.ActiveContext(process_name="notepad.exe", window_title="test")
+    def test_an_optional_group_with_a_quantifier_inside_is_legitimate(self):
+        """The nesting heuristic this replaced refused this: a `+` inside a `?` group."""
+        rules = {"winword.exe": [{"prompt": "P", "window_title_regex": r"(\w+ )?Report - Word"}]}
+        ctx = _make_context("winword.exe", "Quarterly Report - Word")
 
-        # Should return None (pattern validation fails)
-        result = app_prompts.resolve_app_prompt(rules, context)
-        assert result is None
+        assert app_prompts.resolve_app_prompt(rules, ctx) == "P"
+
+    def test_matching_is_case_insensitive(self):
+        rules = {"notepad.exe": [{"prompt": "P", "window_title_regex": "todo"}]}
+
+        assert app_prompts.resolve_app_prompt(rules, _make_context("notepad.exe", "My TODO")) == "P"
 
 
 class TestPerAppStyle:
