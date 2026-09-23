@@ -1039,7 +1039,15 @@ class App(Tk):
                 settings["indicator_position"] = {"x": pos[0], "y": pos[1]}
 
         if not settings_store.save_settings(settings):
-            logger.warning("Could not save settings to disk")
+            logger.warning("Settings were not fully saved")
+            # From main()'s finally there is no window left to show this in.
+            if self.winfo_exists():
+                messagebox.showwarning(
+                    "Settings",
+                    "Some settings could not be saved; see the log.\n\n"
+                    "If you entered an API key, keep a copy of it: it may not "
+                    "survive a restart.",
+                )
 
     def _on_close(self) -> None:
         """Handle window close event by saving settings then destroying."""
@@ -1364,10 +1372,15 @@ class App(Tk):
         threading.Thread(target=self._dictation_worker, args=(cfg,), daemon=True).start()
 
     def _capture_dictation_config(self) -> dict[str, Any]:
-        """Copy every setting a dictation uses out of Tk. Main thread only."""
+        """Copy every setting, and the audio, a dictation uses out of Tk. Main thread only.
+
+        The buffer is read here and not on the worker: a key-down before the
+        worker's first line would clear it (audio.py start()).
+        """
         cfg = self._read_vars()
         cfg["initial_prompt"] = cfg["initial_prompt"] or None
         cfg["llm_key"] = cfg["llm_key"] or None
+        cfg["audio"] = self.recorder.get_buffer()
         return cfg
 
     def _append_transcript(self, text: str) -> None:
@@ -1390,7 +1403,7 @@ class App(Tk):
         Runs on a worker thread: settings come from cfg, and anything that
         touches a widget goes through after().
         """
-        audio_data = self.recorder.get_buffer()
+        audio_data = cfg["audio"]
         if audio_data is None:
             self._set_status("warning", "No audio captured")
             return

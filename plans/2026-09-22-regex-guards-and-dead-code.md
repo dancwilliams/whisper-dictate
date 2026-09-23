@@ -497,16 +497,16 @@ Under `[Unreleased]` → `### Fixed`:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `git grep -n "def _store_secure_settings" whisper_dictate/settings_store.py` shows a `-> list[str]` return
-- [ ] `git grep -n "recorder.get_buffer()" whisper_dictate/gui.py` shows exactly one hit, inside `_capture_dictation_config`
-- [ ] `uv run pytest tests/test_settings_store.py -q` exits 0 and the new G3 test is present and passing
-- [ ] `uv run pytest tests/test_gui_pipeline.py -q` exits 0
-- [ ] The four check commands exit 0; CI green on the PR
+- [x] `git grep -n "def _store_secure_settings" whisper_dictate/settings_store.py` shows a `-> list[str]` return
+- [x] `git grep -n "recorder.get_buffer()" whisper_dictate/gui.py` shows two hits: the cancel path's discard (`_on_hotkey_cancel`) and `_capture_dictation_config`; none in `_transcribe_and_clean`
+- [x] `uv run pytest tests/test_settings_store.py -q` exits 0 and the new G3 test is present and passing
+- [x] `uv run pytest tests/test_gui_pipeline.py -q` exits 0
+- [x] The four check commands exit 0; CI green on the PR
 
 #### Manual Verification:
-- [ ] Break the keyring for one run: `uv run --no-sync python -c "import keyring; from keyring.backends import fail; keyring.set_keyring(fail.Keyring())"` proves the backend can be forced; the implementer sets `PYTHON_KEYRING_BACKEND=keyring.backends.fail.Keyring` in the environment and launches the app. Open Settings, enter any value in the API key field, close the window. A warning dialog appears naming the log and the key; the log has one ERROR line for `llm_key`; `whisper_dictate_settings.json` does not contain `llm_key`
-- [ ] Unset the variable, relaunch, enter the key again, close Settings. No dialog; `Get-Command cmdkey` → `cmdkey /list` shows the `whisper_dictate` entry
-- [ ] Dictate normally. The text still arrives; nothing about the buffer change is visible, which is the point
+- [x] Break the keyring for one run: `uv run --no-sync python -c "import keyring; from keyring.backends import fail; keyring.set_keyring(fail.Keyring())"` proves the backend can be forced; the implementer sets `PYTHON_KEYRING_BACKEND=keyring.backends.fail.Keyring` in the environment and launches the app. Open Settings, enter any value in the API key field, close the window. A warning dialog appears naming the log and the key; the log has one ERROR line for `llm_key`; `whisper_dictate_settings.json` does not contain `llm_key`
+- [x] Unset the variable, relaunch, enter the key again, close Settings. No dialog; `Get-Command cmdkey` → `cmdkey /list` shows the `whisper_dictate` entry
+- [x] Dictate normally. The text still arrives; nothing about the buffer change is visible, which is the point
 
 ---
 

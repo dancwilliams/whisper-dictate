@@ -259,6 +259,14 @@ class TestTranscribeAndClean:
 
         assert states(app)[-1] == "warning"
 
+    def test_the_buffer_is_read_when_the_config_is_captured(self, make_app):
+        """A key-down before the worker's first line would clear it (audio.py start())."""
+        app = make_app()
+        cfg = app._capture_dictation_config()
+
+        assert cfg["audio"] is AUDIO
+        app.recorder.get_buffer.assert_called_once()
+
     def test_worker_reads_no_tk_variable(self, make_app, mods):
         app = make_app(var_cleanup_backend="endpoint", var_history_enable=True)
         mods.llm_cleanup.clean_with_llm.return_value = "Hello, world."
@@ -435,6 +443,30 @@ class TestOnClose:
         saved = store.save_settings.call_args.args[0]
         assert saved["paste_delay"] == 0.15
         assert saved["restore_delay"] == 0.6
+
+    def test_a_save_that_lost_something_warns_while_a_window_is_up(self, make_app, mods, mocker):
+        """A key the keyring refused is now nowhere; the user has to hear that."""
+        store = mocker.patch.object(gui, "settings_store")
+        store.save_settings.return_value = False
+        app = make_app()
+        app.indicator.get_position.return_value = None
+        app.winfo_exists = MagicMock(return_value=True)
+        app._save_settings()
+
+        mods.messagebox.showwarning.assert_called_once()
+        assert "API key" in mods.messagebox.showwarning.call_args.args[1]
+
+    def test_a_save_that_lost_something_after_the_window_is_gone_only_logs(
+        self, make_app, mods, mocker
+    ):
+        store = mocker.patch.object(gui, "settings_store")
+        store.save_settings.return_value = False
+        app = make_app()
+        app.indicator.get_position.return_value = None
+        app.winfo_exists = MagicMock(return_value=False)
+        app._save_settings()
+
+        mods.messagebox.showwarning.assert_not_called()
 
 
 class TestSettingsTable:
