@@ -1,6 +1,6 @@
 .PHONY: clean
 clean:
-	rm -rf build dist *.spec __pycache__ .pytest_cache .coverage htmlcov .mypy_cache .ruff_cache
+	rm -rf build dist __pycache__ .pytest_cache .coverage htmlcov .mypy_cache .ruff_cache
 
 .PHONY: test
 test:
