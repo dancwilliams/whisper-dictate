@@ -270,6 +270,26 @@ class TestClearedSecureSetting:
 
         assert settings["llm_key"] == "sk-plain"
 
+    def test_a_key_that_could_not_be_stored_is_reported(self, creds, settings_file):
+        """The file never holds the key, so a failed store means the value is nowhere;
+        the save has to say so rather than return True."""
+        creds.store_credential.side_effect = creds.CredentialStorageError("keyring down")
+
+        assert save_settings({"model": "base", "llm_key": "sk-plain"}) is False
+        # The other settings still land, and the key is still not written as a fallback.
+        on_disk = json.loads(settings_file.read_text(encoding="utf-8"))
+        assert on_disk == {"model": "base"}
+
+    def test_a_stored_key_saves_true(self, creds):
+        assert save_settings({"model": "base", "llm_key": "sk-plain"}) is True
+
+    def test_store_secure_settings_names_what_failed(self, creds):
+        creds.store_credential.side_effect = creds.CredentialStorageError("keyring down")
+
+        assert settings_store._store_secure_settings({"llm_key": "sk-plain"}) == ["llm_key"]
+        creds.store_credential.side_effect = None
+        assert settings_store._store_secure_settings({"llm_key": "sk-plain"}) == []
+
 
 class TestGetSecureSetting:
     """Tests for get_secure_setting function."""

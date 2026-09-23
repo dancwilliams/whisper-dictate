@@ -51,14 +51,12 @@ def load_settings() -> dict[str, Any]:
 def save_settings(settings: dict[str, Any]) -> bool:
     """Persist settings to disk. Returns True on success, False otherwise.
 
-    Secure settings (API keys) are stored in system credential manager
-    and removed from the JSON file.
+    Secure settings (API keys) are stored in the system credential manager and
+    never written to the JSON file. If one cannot be stored, the file is still
+    written without it and this returns False: the value is now nowhere.
     """
     try:
-        # Store secure settings in credential manager
-        _store_secure_settings(settings)
-
-        # Create a copy without secure keys for JSON storage
+        failed = _store_secure_settings(settings)
         settings_to_save = {k: v for k, v in settings.items() if k not in SECURE_KEYS}
 
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -67,7 +65,7 @@ def save_settings(settings: dict[str, Any]) -> bool:
         tmp = SETTINGS_FILE.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(settings_to_save, indent=2), encoding="utf-8")
         os.replace(tmp, SETTINGS_FILE)
-        return True
+        return not failed
     except (OSError, UnicodeEncodeError, TypeError, ValueError) as e:  # pragma: no cover
         # OSError: File/directory write errors
         # UnicodeEncodeError: Invalid character encoding
@@ -97,12 +95,14 @@ def _migrate_secure_settings(settings: dict[str, Any]) -> None:
                     logger.warning(f"Failed to migrate {key}: {e}")
 
 
-def _store_secure_settings(settings: dict[str, Any]) -> None:
+def _store_secure_settings(settings: dict[str, Any]) -> list[str]:
     """Store secure settings in credential manager.
 
-    Args:
-        settings: Settings dictionary
+    Returns:
+        The settings keys that could not be stored. Their values are not in
+        the keyring and will not be in the file either; the caller has to say so.
     """
+    failed: list[str] = []
     for key in SECURE_KEYS:
         # An absent key is a partial save, not a cleared field: leave it stored.
         value = settings.get(key)
@@ -115,7 +115,9 @@ def _store_secure_settings(settings: dict[str, Any]) -> None:
             else:
                 credentials.delete_credential(credential_key)
         except (credentials.CredentialStorageError, ValueError) as e:
-            logger.warning(f"Failed to update {key} in credential manager: {e}")
+            logger.error(f"Could not store {key} in the credential manager: {e}")
+            failed.append(key)
+    return failed
 
 
 def get_secure_setting(key: str) -> str | None:
