@@ -97,10 +97,9 @@ Measured 2026-09-22 with `uv run --no-sync`:
   the dialog shows with `messagebox.showerror`. That is the shape to copy.
 - `app_prompt_dialog.py` already imports `re` (`:5`, for `re.escape` at `:142`), so its
   validation needs no new import. `glossary_dialog.py` does not import `re`.
-- **`MODEL_INFO`'s `speed` and `description` are read by nothing.**
-  `get_model_display_name` (`config.py:202-225`) uses `display_name`, `disk_mb`, `vram_gb`,
-  `ram_gb`. `git grep` over `whisper_dictate` and `tests` finds no other reader; the only
-  reference is `tests/test_config.py:147`, asserting the keys are present.
+- ~~**`MODEL_INFO`'s `speed` and `description` are read by nothing.**~~ Wrong: `gui.py:434-439`
+  reads both for the model description label. The grep that said otherwise was truncated
+  by `head`. Retracted in phase 3.
 - The `isinstance(disk_mb_value, (int, float))` guard and its `"? MB"` branch
   (`config.py:215-221`) exist only because `MODEL_INFO` is typed
   `dict[str, dict[str, str | int | float]]`. Every literal in the file is an int.
@@ -516,14 +515,12 @@ Branch: `chore/dead-data`. Independent of phases 1 and 2; nothing here changes b
 
 ### Changes Required
 
-#### 1. Drop the two `MODEL_INFO` fields nothing reads
+#### 1. ~~Drop the two `MODEL_INFO` fields nothing reads~~ Retracted
 
-**File**: `whisper_dictate/config.py:88-138`. Remove the `"speed"` and `"description"`
-entries from all six models (`:94-95`, `:102-103`, `:110-111`, `:118-119`, `:126-127`,
-`:134-135`).
-
-**File**: `tests/test_config.py:147`. Drop `"speed"` and `"description"` from
-`required_fields`.
+`speed` and `description` are read at `gui.py:434-439`, for the label under the model
+dropdown. The intake grep missed it (report section 5, item 3). Both fields stay and go
+into the `TypedDict` below; the label code loses its `.get(..., "")` fallbacks the same
+way `get_model_display_name` does.
 
 #### 2. Type `MODEL_INFO` so the runtime guard is unnecessary
 
@@ -535,6 +532,8 @@ class ModelInfo(TypedDict):
     disk_mb: int
     vram_gb: int
     ram_gb: float
+    speed: str
+    description: str
 
 
 MODEL_INFO: dict[str, ModelInfo] = {
@@ -594,15 +593,15 @@ Nothing user-visible in this phase. No entry.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `git grep -n '"speed"\|"description"' -- whisper_dictate/config.py tests/test_config.py` returns nothing
-- [ ] `git grep -n "isinstance(disk_mb_value" whisper_dictate/config.py` returns nothing
-- [ ] `git grep -n "^\.env" .gitignore` shows `.env*` and `.envrc`
-- [ ] `git status --porcelain` is empty after the `.gitignore` edit — nothing newly untracked
-- [ ] The four check commands exit 0; CI green on the PR
+- [x] ~~`speed`/`description` grep returns nothing~~ retracted: both fields stay, `gui.py:434-439` reads them
+- [x] `git grep -n "isinstance(disk_mb_value" whisper_dictate/config.py` returns nothing
+- [x] `git grep -n "^\.env" .gitignore` shows `.env*` and `.envrc`
+- [x] `git status --porcelain` is empty after the `.gitignore` edit — nothing newly untracked
+- [x] The four check commands exit 0; CI green on the PR
 
 #### Manual Verification:
-- [ ] Open Speech recognition settings. The model dropdown still reads e.g. `Small (465 MB, ~2 GB VRAM)` on CUDA and `~1 GB RAM` on CPU
-- [ ] Switch device between cpu and cuda and confirm the requirement text follows
+- [x] Open Speech recognition settings. The model dropdown still reads e.g. `Small (465 MB, ~2 GB VRAM)` on CUDA and `~1 GB RAM` on CPU
+- [x] Switch device between cpu and cuda and confirm the requirement text follows
 
 ---
 
@@ -653,7 +652,6 @@ Nothing user-visible in this phase. No entry.
 - Anyone importing `app_prompts.safe_regex_search`, `validate_regex_pattern`,
   `RegexValidationError` or the three `MAX_*`/`*_TIMEOUT_SECONDS` constants from outside the
   package would break. `git grep` shows only the deleted tests do.
-- `MODEL_INFO` entries lose two keys. Nothing outside `config.py` reads them.
 - `save_settings` now returns `False` in one more case: a secure key that could not be
   stored. Callers that treated `True` as "everything is on disk" were already wrong, since
   the key was never on disk; they now hear about it. `_store_secure_settings` gains a return

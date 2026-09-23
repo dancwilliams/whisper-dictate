@@ -3,7 +3,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypedDict
 
 # Audio defaults
 SAMPLE_RATE = 16000
@@ -83,9 +83,19 @@ Correct: What's the weather like?
 Remember: You are a text editor, NOT a conversational assistant. Only reformat, never respond. Output only the cleaned text with no commentary
 """
 
+
+class ModelInfo(TypedDict):
+    display_name: str
+    disk_mb: int
+    vram_gb: int
+    ram_gb: float
+    speed: str
+    description: str
+
+
 # Model metadata for UI display
 # Sizes are approximate and based on faster-whisper/CTranslate2 format
-MODEL_INFO: dict[str, dict[str, str | int | float]] = {
+MODEL_INFO: dict[str, ModelInfo] = {
     "tiny.en": {
         "display_name": "Tiny (English)",
         "disk_mb": 75,
@@ -201,26 +211,14 @@ def normalize_compute_type(device: str, compute_type: str) -> str:
 
 def get_model_display_name(model_id: str, device: str) -> str:
     """Get formatted display name with resource requirements for model dropdown."""
-    info = MODEL_INFO.get(model_id, {})
-    if not info:
+    info = MODEL_INFO.get(model_id)
+    if info is None:
         return model_id
 
-    if device == "cuda":
-        req = f"~{info.get('vram_gb', '?')} GB VRAM"
-    else:
-        req = f"~{info.get('ram_gb', '?')} GB RAM"
-
-    disk_mb_value = info.get("disk_mb", 0)
-    # Ensure disk_mb is a number
-    if isinstance(disk_mb_value, (int, float)):
-        if disk_mb_value >= 1000:
-            disk_str = f"{disk_mb_value / 1000:.1f} GB"
-        else:
-            disk_str = f"{disk_mb_value} MB"
-    else:
-        disk_str = "? MB"
-
-    return f"{info.get('display_name', model_id)} ({disk_str}, {req})"
+    req = f"~{info['vram_gb']} GB VRAM" if device == "cuda" else f"~{info['ram_gb']} GB RAM"
+    disk_mb = info["disk_mb"]
+    disk_str = f"{disk_mb / 1000:.1f} GB" if disk_mb >= 1000 else f"{disk_mb} MB"
+    return f"{info['display_name']} ({disk_str}, {req})"
 
 
 def get_model_choices(device: str) -> list[tuple[str, str]]:
