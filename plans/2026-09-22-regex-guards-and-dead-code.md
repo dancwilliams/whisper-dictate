@@ -600,8 +600,8 @@ Nothing user-visible in this phase. No entry.
 - [x] The four check commands exit 0; CI green on the PR
 
 #### Manual Verification:
-- [ ] Open Speech recognition settings. The model dropdown still reads e.g. `Small (465 MB, ~2 GB VRAM)` on CUDA and `~1 GB RAM` on CPU
-- [ ] Switch device between cpu and cuda and confirm the requirement text follows
+- [x] Open Speech recognition settings. The model dropdown still reads e.g. `Small (465 MB, ~2 GB VRAM)` on CUDA and `~1 GB RAM` on CPU
+- [x] Switch device between cpu and cuda and confirm the requirement text follows
 
 ---
 
