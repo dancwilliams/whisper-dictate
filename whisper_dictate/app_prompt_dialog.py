@@ -274,10 +274,17 @@ class AppPromptEntryDialog(Toplevel):
             # in Outlook" needs no prompt.
             messagebox.showerror("App prompt", "Set a prompt, a cleanup style, or both.")
             return
+        window_regex = self.var_window_regex.get().strip()
+        if window_regex:
+            try:
+                re.compile(window_regex)
+            except re.error as e:
+                messagebox.showerror("App prompt", f"Window title regex: {e}")
+                return
 
         self.result = {
             "process_name": process,
-            "window_title_regex": self.var_window_regex.get().strip(),
+            "window_title_regex": window_regex,
             "prompt": prompt,
             **styles,
         }

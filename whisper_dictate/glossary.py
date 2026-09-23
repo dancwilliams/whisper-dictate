@@ -309,8 +309,13 @@ class GlossaryManager:
         for rule in self.rules:
             if rule.match_type == "phonetic":
                 continue
-            pattern = rule.compile_pattern()
-            result = pattern.sub(rule.replacement, result)
+            try:
+                result = rule.compile_pattern().sub(rule.replacement, result)
+            except re.error as e:
+                # A hand-edited file can carry a pattern the dialog would have
+                # refused, or a replacement with a group reference that has no
+                # group. One rule is not worth the dictation.
+                logger.warning(f"Skipping glossary rule {rule.trigger!r}: {e}")
         return self._apply_phonetic(result)
 
     def _apply_phonetic(self, text: str) -> str:
