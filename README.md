@@ -70,7 +70,9 @@ If "Auto-paste" is enabled, the result pastes automatically into the app you wer
 - **Edit → Glossary…** to maintain glossary entries (persisted to `~/.whisper_dictate/whisper_dictate_glossary.json`).
 - **Settings → Speech recognition…** to pick your device (CPU/CUDA) and model. Models display their size and resource requirements (e.g., "Small (465 MB, ~2 GB VRAM)"), and the optimal compute type is auto-configured based on your device selection.
 - **Settings → Advanced transcription…** to fine-tune VAD (Voice Activity Detection), hallucination prevention thresholds, beam size, temperature, and initial prompts. See [docs/transcription-optimization.md](docs/transcription-optimization.md) for detailed guidance.
-- **Settings → Automation…** to set the global hotkey, enable auto-paste, and tune the paste delay.
+- **Settings → Automation…** to set the global hotkey, enable auto-paste, tune the paste delay, and choose whether
+  speakers are muted while recording (on by default, so music or video isn't dictated;
+  a mute you set yourself is left alone).
 - **Settings → LLM cleanup…** to toggle cleanup, set endpoint/model/API key, refresh available models, and adjust temperature.
   Use **Use glossary before prompt** to normalize transcripts with your glossary and prepend the rules to the LLM system prompt so it honors your terminology.
 All settings are saved to `~/.whisper_dictate/whisper_dictate_settings.json` when you close the app.

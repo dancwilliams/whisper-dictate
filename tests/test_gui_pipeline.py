@@ -29,6 +29,7 @@ VAR_DEFAULTS = {
     "var_input": "",
     "var_hotkey": "CTRL+SPACE",
     "var_auto_paste": True,
+    "var_mute_speakers": True,
     "var_paste_delay": 0.15,
     "var_restore_delay": 0.6,
     "var_cleanup_backend": "off",
@@ -378,6 +379,18 @@ class TestHotkey:
         app.recorder.get_buffer.assert_called_once()
         assert messages(app)[-1] == "Cancelled"
         mods.clipboard.set_text.assert_not_called()
+
+    @pytest.mark.parametrize("already_muted", [False, True])
+    def test_speakers_unmuted_only_if_we_muted_them(self, make_app, mocker, already_muted):
+        set_mute = mocker.patch.object(gui.speaker, "set_mute", return_value=already_muted)
+        app = make_app()
+        app.recorder.is_recording.return_value = True
+        app._mute_speakers()
+        app._restore_speakers()
+        app._restore_speakers()  # a second stop must not unmute again
+
+        expected = [mocker.call(True)] + ([] if already_muted else [mocker.call(False)])
+        assert set_mute.call_args_list == expected
 
 
 class TestRecentProcesses:
