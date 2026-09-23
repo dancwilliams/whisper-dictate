@@ -38,6 +38,7 @@ from whisper_dictate import (
     prompt,
     s1,
     settings_store,
+    speaker,
     transcription,
 )
 from whisper_dictate.app_prompt_dialog import AppPromptDialog
@@ -82,6 +83,9 @@ TAP_SECONDS = 0.3
 
 # The cue that says capture is live. Short enough not to bleed into the first word.
 BEEP_HZ, BEEP_MS = 880, 60
+# Beep() returns before the device has played the tone; muting straight away clips it.
+# Output latency varies by device (Bluetooth is worst): raise this if the beep still clips.
+BEEP_TAIL_MS = 300
 
 # How long to wait for a held chord to come up before pasting anyway. Generous:
 # holding the keys is the user's business, and a paste under them does nothing.
@@ -104,6 +108,7 @@ SETTINGS: tuple[tuple[str, str, type], ...] = (
     ("input", "var_input", str),
     ("hotkey", "var_hotkey", str),
     ("auto_paste", "var_auto_paste", bool),
+    ("mute_speakers", "var_mute_speakers", bool),
     ("paste_delay", "var_paste_delay", float),
     ("restore_delay", "var_restore_delay", float),
     ("cleanup_backend", "var_cleanup_backend", str),
@@ -137,6 +142,8 @@ class App(Tk):
     """Main application window."""
 
     RECENT_PROCESSES_MAX = 15
+    # Set when this app muted the speakers, so a mute the user chose is left alone.
+    _unmute_on_stop = False
 
     def __init__(self):
         super().__init__()
@@ -242,6 +249,7 @@ class App(Tk):
         self.var_input = StringVar(value="")
         self.var_hotkey = StringVar(value="CTRL+SPACE")
         self.var_auto_paste = BooleanVar(value=True)
+        self.var_mute_speakers = BooleanVar(value=True)
         self.var_paste_delay = DoubleVar(value=0.15)
         self.var_restore_delay = DoubleVar(value=0.6)
 
@@ -464,9 +472,14 @@ class App(Tk):
             ttk.Entry(frame, textvariable=self.var_hotkey, width=16).grid(
                 row=1, column=0, sticky="we", pady=(0, 8)
             )
+            checks = ttk.Frame(frame)
+            checks.grid(row=2, column=0, sticky="w")
             ttk.Checkbutton(
-                frame, text="Auto-paste into active window", variable=self.var_auto_paste
-            ).grid(row=2, column=0, sticky="w")
+                checks, text="Auto-paste into active window", variable=self.var_auto_paste
+            ).pack(side="left")
+            ttk.Checkbutton(
+                checks, text="Mute speakers while recording", variable=self.var_mute_speakers
+            ).pack(side="left", padx=(16, 0))
 
             paste_row = ttk.Frame(frame)
             paste_row.grid(row=3, column=0, sticky="we", pady=(4, 0))
@@ -1323,6 +1336,7 @@ class App(Tk):
         if not self.recorder.is_recording():
             return
         self.recorder.stop()
+        self._restore_speakers()
         self.recorder.get_buffer()  # discard
         self.btn_toggle.config(text="Start recording")
         self._set_status("ready", "Cancelled")
@@ -1356,12 +1370,38 @@ class App(Tk):
     def _on_first_audio(self) -> None:
         """Runs on the audio thread the instant capture is live."""
         # winsound.Beep blocks for its full duration; never on the audio thread.
-        threading.Thread(target=winsound.Beep, args=(BEEP_HZ, BEEP_MS), daemon=True).start()
+        threading.Thread(target=self._beep_then_mute, daemon=True).start()
         self._set_status("listening", "Recording - release to transcribe")
+
+    def _beep_then_mute(self) -> None:
+        """Muting first would silence the beep: the speakers are the beep's output."""
+        winsound.Beep(BEEP_HZ, BEEP_MS)
+        self.after(BEEP_TAIL_MS, self._mute_speakers)
+
+    def _mute_speakers(self) -> None:
+        """Silence playback so music or video is not dictated. Main thread only."""
+        # The recording may have ended during the beep.
+        if not self.var_mute_speakers.get() or not self.recorder.is_recording():
+            return
+        try:
+            self._unmute_on_stop = not speaker.set_mute(True)
+        except OSError as e:
+            logger.warning(f"Could not mute speakers: {e}")
+
+    def _restore_speakers(self) -> None:
+        """Undo _mute_speakers, if it muted anything."""
+        if not self._unmute_on_stop:
+            return
+        self._unmute_on_stop = False
+        try:
+            speaker.set_mute(False)
+        except OSError as e:
+            logger.warning(f"Could not unmute speakers: {e}")
 
     def _stop_and_transcribe(self) -> None:
         """Close the microphone and hand the buffer to the pipeline."""
         self.recorder.stop()
+        self._restore_speakers()
         self._set_status("transcribing", "Transcribing...")
         self.btn_toggle.config(text="Start recording")
         # Settings are read here, on the Tk thread; the worker gets the copy.
@@ -1676,6 +1716,7 @@ def main() -> None:
         if hasattr(app, "hotkey_manager") and app.hotkey_manager:
             app.hotkey_manager.unregister()
         app.recorder.stop()
+        app._restore_speakers()
 
 
 if __name__ == "__main__":

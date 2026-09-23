@@ -63,6 +63,7 @@ Ruff enforces import sorting with the "I" rule:
 | `glossary_dialog.py` | GUI for glossary management | `GlossaryDialog` |
 | `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_chord()` |
 | `clipboard.py` | Clipboard snapshot/restore (ctypes) | `snapshot()`, `restore()`, `set_text()` |
+| `speaker.py` | Mute default playback device while recording (Core Audio, ctypes) | `set_mute()` |
 | `gui_components.py` | Reusable GUI widgets | `PromptDialog`, `StatusIndicator` |
 | `logging_config.py` | Centralized logging setup | `setup_logging()` |
 | `settings_store.py` | Settings persistence | `load_settings()`, `save_settings()` |
@@ -93,6 +94,7 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "input": "",
   "hotkey": "CTRL+SPACE",
   "auto_paste": true,
+  "mute_speakers": true,
   "paste_delay": 0.15,
   "restore_delay": 0.6,
   "cleanup_backend": "s1",
