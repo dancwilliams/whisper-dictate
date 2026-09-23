@@ -431,11 +431,8 @@ class App(Tk):
                 for model_id, disp in get_model_choices(device):
                     if disp == display:
                         self.var_model.set(model_id)
-                        info = MODEL_INFO.get(model_id, {})
-                        desc = info.get("description", "")
-                        speed = info.get("speed", "")
-                        if speed:
-                            desc = f"Speed: {speed} | {desc}"
+                        info = MODEL_INFO.get(model_id)
+                        desc = f"Speed: {info['speed']} | {info['description']}" if info else ""
                         desc_label.config(text=desc)
                         return
 
@@ -762,7 +759,7 @@ class App(Tk):
         """Reset the floating status indicator to its default location."""
         self._indicator_position = None
         if hasattr(self, "indicator"):
-            self.indicator.reset_position()
+            self.indicator._reset_position()
             self._set_status("ready", "Status indicator reset")
 
     def _open_log_viewer(self) -> None:
