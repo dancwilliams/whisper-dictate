@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- An API key that could not be stored in Windows Credential Manager was
+  silently lost: the settings file is never allowed to hold it, and nothing
+  said the store had failed. The save now reports it and, while a window is
+  open, says to keep a copy.
+- Pressing the hotkey again in the instant after releasing it could clear the
+  audio before the transcriber read it. The buffer is now read on the same
+  thread that stopped the recorder, before anything can start it again.
 - A glossary rule with an invalid regular expression, or a replacement naming
   a group that does not exist, failed the whole dictation: the audio was
   discarded and the status read "Dictation failed; see the log". The bad rule
