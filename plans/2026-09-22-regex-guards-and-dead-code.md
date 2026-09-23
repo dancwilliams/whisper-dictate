@@ -337,11 +337,11 @@ Under `### Changed`:
 - [x] CI green on the PR
 
 #### Manual Verification:
-- [ ] Edit → Per-app prompts… → Add. Type `notepad.exe`, a prompt, and `(unclosed` as the window title regex. Save is refused with a message naming the problem; the dialog stays open
-- [ ] Change it to `(\w+ )?Report - Word` and save. The rule appears in the list
-- [ ] Edit → Glossary → Add a rule, match type `regex`, trigger `(unclosed`. Save is refused
-- [ ] Hand-edit `~/.whisper_dictate/whisper_dictate_glossary.json` to give a regex rule the trigger `(unclosed`, restart, dictate. The dictation completes normally; the log has one "Skipping glossary rule" line naming the trigger
-- [ ] Dictate into Notepad with a matching per-app rule and confirm the per-app prompt is still chosen (precedence unchanged)
+- [x] Edit → Per-app prompts… → Add. Type `notepad.exe`, a prompt, and `(unclosed` as the window title regex. Save is refused with a message naming the problem; the dialog stays open
+- [x] Change it to `(\w+ )?Report - Word` and save. The rule appears in the list
+- [x] Edit → Glossary → Add a rule, match type `regex`, trigger `(unclosed`. Save is refused
+- [x] Hand-edit `~/.whisper_dictate/whisper_dictate_glossary.json` to give a regex rule the trigger `(unclosed`, restart, dictate. The dictation completes normally; the log has one "Skipping glossary rule" line naming the trigger
+- [x] Dictate into Notepad with a matching per-app rule and confirm the per-app prompt is still chosen (precedence unchanged)
 
 ---
 
