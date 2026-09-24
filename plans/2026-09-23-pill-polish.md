@@ -319,10 +319,10 @@ and under `[Unreleased]` / `Changed`:
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` passes, including the new cases in `tests/test_gui_components.py`
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` exit 0
-- [ ] `uv run mypy whisper_dictate` exit 0 (ctypes bindings typed as in `app_context.py`)
-- [ ] CI green on the PR (three Python versions, Windows)
+- [x] `uv run pytest` passes, including the new cases in `tests/test_gui_components.py`
+- [x] `uv run ruff check .` and `uv run ruff format --check .` exit 0
+- [x] `uv run mypy whisper_dictate` exit 0 (ctypes bindings typed as in `app_context.py`)
+- [x] CI green on the PR (three Python versions, Windows)
 
 #### Manual Verification (dev box, two monitors)
 - [ ] Drag the pill onto the second monitor; trigger a dictation; it stays there through
