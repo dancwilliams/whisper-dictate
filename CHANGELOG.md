@@ -64,6 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tk_popup` unwound into a dead Tk. Menu commands now run once the menu has
   closed, and the popup tolerates the app going away underneath it.
 
+### Removed
+- The nvidia-cudnn-cu12 and nvidia-cuda-nvrtc-cu12 wheels, about 850 MB in the
+  venv. Measured on the dev box: ctranslate2 loads the cuDNN inside its own
+  wheel and no cuDNN kernel library from anywhere, torch bundles its own, and
+  nothing loads nvrtc. cuBLAS and the CUDA runtime stay; llama-cpp and
+  ctranslate2 resolve them from the wheels.
+
 ### Changed
 - torch comes from the CUDA 13.0 index (2.14.0+cu130) instead of CUDA 12.8
   (2.11.0+cu128), which also frees setuptools from the `<82` pin the old

@@ -182,7 +182,7 @@ sequenceDiagram
 
 | Module | Responsibility | External Dependencies |
 |--------|----------------|----------------------|
-| `config.py` | Configuration defaults, CUDA setup | nvidia-cublas, nvidia-cudnn |
+| `config.py` | Configuration defaults, CUDA setup | nvidia-cublas, nvidia-cuda-runtime |
 | `app_context.py` | Active window detection (Windows API) | ctypes (windll.user32, windll.kernel32) |
 | `prompt.py` | LLM prompt loading/saving | None |
 | `app_prompts.py` | Per-application prompt resolution | None |
@@ -285,7 +285,7 @@ whisper_dictate/
 ## Performance Considerations
 
 - **Model Caching**: Whisper model loaded once and reused
-- **GPU Acceleration**: CUDA 12.4 + cuDNN 9.5 for faster inference
+- **GPU Acceleration**: CUDA 12.4 wheels for faster-whisper and llama-cpp, CUDA 13.0 for torch
 - **Compute Types**: Configurable (int8_float16, float16, int8)
 - **Audio Buffering**: Background thread prevents blocking GUI
 - **Lazy Loading**: Models loaded on first use, not at startup

@@ -254,7 +254,6 @@ uv sync --locked
 | Symptom                      | Cause                           | Fix                                    |
 | ---------------------------- | ------------------------------- | -------------------------------------- |
 | Hotkey not working           | Registered from wrong thread    | Fixed in latest build; re-register it  |
-| `cudnn_ops64_9.dll missing`  | cuDNN not installed             | Install cuDNN v9 and add to PATH       |
 | `int8_float16 not supported` | CPU mode only                   | Use `--compute-type int8`              |
 | Nothing pastes               | GUI has focus                   | Trigger with hotkey from target window |
 | Audio errors                 | Mic blocked by privacy settings | Enable mic access for desktop apps     |
