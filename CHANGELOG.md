@@ -62,6 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closed, and the popup tolerates the app going away underneath it.
 
 ### Changed
+- The status pill is a rounded capsule, dark or light to match the Windows
+  app theme and following it live, instead of a square grey window.
 - Status messages fit the pill: 32 characters, with the six longer ones
   reworded ("Locked; press again to stop", "Recording; release to stop",
   "Cleanup empty; used raw text", "No cleanup; used raw text", "Clipboard
