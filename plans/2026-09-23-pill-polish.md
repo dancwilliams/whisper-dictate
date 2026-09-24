@@ -325,15 +325,15 @@ and under `[Unreleased]` / `Changed`:
 - [x] CI green on the PR (three Python versions, Windows)
 
 #### Manual Verification (dev box, two monitors)
-- [ ] Drag the pill onto the second monitor; trigger a dictation; it stays there through
+- [x] Drag the pill onto the second monitor; trigger a dictation; it stays there through
       "Recording", "Transcribing", "Cleaned", "Pasted".
-- [ ] Drag it to the top of the tall monitor (negative y); it is allowed and stays.
-- [ ] Quit and relaunch; it reappears on the second monitor where it was.
-- [ ] Double-click: it lands bottom-right of the primary, above the taskbar, 24 px in.
-- [ ] Park it hard against the right edge of either monitor and dictate: no jiggle.
-- [ ] Drag across the gap between monitors: it follows the cursor, no dead zone, no jump
+- [x] Drag it to the top of the tall monitor (negative y); it is allowed and stays.
+- [x] Quit and relaunch; it reappears on the second monitor where it was.
+- [x] Double-click: it lands bottom-right of the primary, above the taskbar, 24 px in.
+- [x] Park it hard against the right edge of either monitor and dictate: no jiggle.
+- [x] Drag across the gap between monitors: it follows the cursor, no dead zone, no jump
       back.
-- [ ] Settings → Reset status indicator position still works.
+- [x] Settings → Reset status indicator position still works.
 
 **Implementation Note**: pause here for Dan's manual confirmation before opening phase 2.
 
