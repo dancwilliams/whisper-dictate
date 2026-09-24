@@ -465,15 +465,15 @@ grabbable. That is the correct behaviour for a capsule.
 - [x] CI green
 
 #### Manual Verification
-- [ ] Over a busy desktop the corners show desktop, not grey. Outline hides the stair-step
+- [x] Over a busy desktop the corners show desktop, not grey. Outline hides the stair-step
       at arm's length.
-- [ ] With the app running, switch Windows to dark apps mode: within 3 s the capsule is
+- [x] With the app running, switch Windows to dark apps mode: within 3 s the capsule is
       dark with light text. Switch back: the reverse, no relaunch.
-- [ ] Drag from the text, from the dot, from the empty capsule: all work. Clicking exactly
+- [x] Drag from the text, from the dot, from the empty capsule: all work. Clicking exactly
       on a corner pixel falls through (expected).
-- [ ] Right-click menu still opens; Quit still exits without a traceback.
-- [ ] All seven phase 1 manual checks still pass.
-- [ ] Every status colour is readable on both themes ("warning" yellow dot on light fill
+- [x] Right-click menu still opens; Quit still exits without a traceback.
+- [x] All seven phase 1 manual checks still pass.
+- [x] Every status colour is readable on both themes ("warning" yellow dot on light fill
       is the one to look at).
 
 ---
