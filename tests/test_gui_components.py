@@ -5,13 +5,31 @@ because two user-visible bugs got through without them: the pill could not be
 dragged, and quitting from its menu ended in a traceback.
 """
 
+import sys
 from types import SimpleNamespace
 
 import pytest
 
 tkinter = pytest.importorskip("tkinter")
 
-from whisper_dictate.gui_components import StatusIndicator  # noqa: E402
+from whisper_dictate import gui_components  # noqa: E402
+from whisper_dictate.gui_components import StatusIndicator, work_area  # noqa: E402
+
+# Two monitors: the second is to the right and taller, reaching above y=0,
+# like the dev box. The primary's work area stops short of the screen (taskbar).
+PRIMARY = (0, 0, 1600, 860)
+SECONDARY = (1800, -100, 2600, 900)
+
+
+def fake_work_area(_master, x, y):
+    return SECONDARY if x >= 1700 else PRIMARY
+
+
+@pytest.fixture(autouse=True)
+def monitors(monkeypatch):
+    # Real monitor layouts differ between the dev box and CI; the geometry
+    # tests need one answer.
+    monkeypatch.setattr(gui_components, "work_area", fake_work_area)
 
 
 @pytest.fixture
@@ -84,7 +102,7 @@ class TestDragging:
         drag(indicator, (205, 205), (800, 600))
         root.update()
 
-        indicator.update("listening", "Recording - release to transcribe")
+        indicator.update("listening", "Recording; release to stop")
         root.update()
 
         assert position(indicator) == (795, 595)
@@ -106,20 +124,104 @@ class TestDragging:
         root.update()
 
         x, y = position(indicator)
-        assert x > root.winfo_screenwidth() // 2
+        assert x > PRIMARY[2] // 2
         assert indicator.get_position() is None
+
+    def test_the_default_corner_clears_the_taskbar(self, root):
+        """It sat a guessed 96 px up; rcWork says where the taskbar really is."""
+        indicator = StatusIndicator(root)
+        indicator.show()
+        root.update()
+
+        x, y = position(indicator)
+        assert x + indicator.window.winfo_width() == PRIMARY[2] - StatusIndicator.MARGIN
+        assert y + indicator.window.winfo_height() == PRIMARY[3] - StatusIndicator.MARGIN
 
     def test_the_pill_is_kept_on_screen(self, root):
         indicator = StatusIndicator(root, initial_position=(200, 200))
         indicator.show()
         root.update()
 
-        drag(indicator, (205, 205), (99999, 99999))
+        drag(indicator, (205, 205), (1650, 99999))
         root.update()
 
         x, y = position(indicator)
-        assert 0 <= x <= root.winfo_screenwidth()
-        assert 0 <= y <= root.winfo_screenheight()
+        assert x + indicator.window.winfo_width() <= PRIMARY[2]
+        assert y + indicator.window.winfo_height() <= PRIMARY[3]
+
+    def test_a_drag_follows_the_pointer_onto_a_second_monitor(self, root):
+        """It stopped at the primary's edge: winfo_screenwidth() is one monitor."""
+        indicator = StatusIndicator(root, initial_position=(200, 200))
+        indicator.show()
+        root.update()
+
+        drag(indicator, (205, 205), (2105, 5))
+        root.update()
+
+        assert position(indicator) == (2100, 0)
+
+    def test_a_saved_position_on_a_second_monitor_is_honoured(self, root):
+        """Saved on the second monitor, it came back on the first at startup and
+        after every status change."""
+        indicator = StatusIndicator(root, initial_position=(2100, 0))
+        indicator.show()
+        root.update()
+        assert position(indicator) == (2100, 0)
+
+        indicator.update("listening", "Recording; release to stop")
+        root.update()
+        assert position(indicator) == (2100, 0)
+
+    def test_a_negative_y_on_a_tall_monitor_is_allowed(self, root):
+        indicator = StatusIndicator(root, initial_position=(2100, -50))
+        indicator.show()
+        root.update()
+        assert position(indicator) == (2100, -50)
+
+    def test_a_clamped_position_is_not_persisted(self, root):
+        """Saved on a monitor that is unplugged today, it is shown on the
+        nearest edge but keeps its saved spot for when the monitor is back."""
+        indicator = StatusIndicator(root, initial_position=(3000, 0))
+        indicator.show()
+        root.update()
+
+        x, _y = position(indicator)
+        assert x + indicator.window.winfo_width() <= SECONDARY[2]
+        assert indicator.get_position() == (3000, 0)
+
+
+class TestSize:
+    def test_the_pill_does_not_resize_between_messages(self, root):
+        """Growing with the message moved the right edge, and the clamp then
+        jerked the pill about whenever it sat near a screen edge."""
+        indicator = StatusIndicator(root)
+        indicator.show()
+        indicator.update("ready", "Idle")
+        root.update()
+        idle = indicator.window.winfo_width()
+
+        indicator.update("listening", "Clipboard locked; see transcript")
+        root.update()
+
+        assert indicator.window.winfo_width() == idle
+
+    def test_long_messages_are_truncated(self, root):
+        indicator = StatusIndicator(root)
+        indicator.update("ready", "x" * 60)
+        shown = indicator.label.cget("text")
+        assert len(shown) == StatusIndicator.MAX_CHARS
+        assert shown.endswith("…")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="real Win32 monitor query")
+def test_work_area_of_the_primary_monitor(root, monkeypatch):
+    # The autouse fixture patched the module attribute; this imported name is
+    # the real function. (0, 0) is always on the primary, whose work area is
+    # within the screen Tk reports and shorter than it wherever a taskbar is.
+    left, top, right, bottom = work_area(root, 0, 0)
+    assert (left, top) == (0, 0)
+    assert 0 < right <= root.winfo_screenwidth()
+    assert 0 < bottom <= root.winfo_screenheight()
 
 
 class TestMenu:
