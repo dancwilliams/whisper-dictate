@@ -6,7 +6,7 @@ import platform
 import tkinter.font as tkfont
 from collections.abc import Callable, Sequence
 from functools import partial
-from tkinter import END, Canvas, Menu, TclError, Text, Tk, Toplevel, ttk
+from tkinter import END, Canvas, Menu, Misc, TclError, Text, Tk, Toplevel, ttk
 
 MONITOR_DEFAULTTONEAREST = 2
 
@@ -37,8 +37,9 @@ def work_area(master: Tk, x: int, y: int) -> tuple[int, int, int, int]:
 
     winfo_screenwidth() is the primary monitor only, so a pill on a second
     monitor was clamped back onto the first on every status update. rcWork
-    excludes the taskbar. Tk and Win32 share one coordinate space here because
-    the process is not DPI-aware; do not convert.
+    excludes the taskbar. Tk and Win32 share one coordinate space, the
+    system-DPI space both see after main()'s SetProcessDPIAware(); a 100 %
+    secondary appears scaled by the primary's factor to both. Do not convert.
     """
     if USER32 is not None:
         monitor = USER32.MonitorFromPoint(ctypes.wintypes.POINT(x, y), MONITOR_DEFAULTTONEAREST)
@@ -47,6 +48,15 @@ def work_area(master: Tk, x: int, y: int) -> tuple[int, int, int, int]:
             r = info.rcWork
             return r.left, r.top, r.right, r.bottom
     return 0, 0, master.winfo_screenwidth(), master.winfo_screenheight()
+
+
+def px(widget: Misc, points: float) -> int:
+    """Pixels for a distance given in points, at this display's density.
+
+    For the options Tk insists are integers: window geometry and Treeview column
+    widths. Everything else takes "9p" directly.
+    """
+    return round(widget.winfo_fpixels(f"{points}p"))
 
 
 # Keyed out by -transparentcolor so the window is the capsule's shape and
@@ -127,8 +137,8 @@ class StatusIndicator:
         "error": "#dc3545",
     }
     MAX_CHARS = 32
-    MARGIN = 24
-    PAD_Y = 8
+    MARGIN_PT = 18
+    PAD_Y_PT = 6
 
     def __init__(
         self,
@@ -161,7 +171,7 @@ class StatusIndicator:
         # the font so a DPI change scales the capsule with the text.
         font = tkfont.nametofont("TkDefaultFont")
         line = font.metrics("linespace")
-        height = line + 2 * self.PAD_Y
+        height = line + 2 * px(self.window, self.PAD_Y_PT)
         radius = height // 2
         dot = max(8, line * 2 // 3)
         # Fixed width: a pill that grew with the message moved its right edge,
@@ -319,8 +329,9 @@ class StatusIndicator:
         else:
             # (0, 0) is always on the primary; rcWork already clears the taskbar.
             _left, _top, right, bottom = work_area(self.master, 0, 0)
-            x = right - window_w - self.MARGIN
-            y = bottom - window_h - self.MARGIN
+            margin = px(self.window, self.MARGIN_PT)
+            x = right - window_w - margin
+            y = bottom - window_h - margin
 
         self.window.geometry(f"+{int(x)}+{int(y)}")
         # Flush the move before touching z-order: geometry() only *requests* a

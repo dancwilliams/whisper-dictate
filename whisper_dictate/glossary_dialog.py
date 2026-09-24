@@ -14,6 +14,7 @@ from whisper_dictate.glossary import (
     phonetic_code,
     phonetic_rejection,
 )
+from whisper_dictate.gui_components import px
 
 
 class GlossaryDialog(Toplevel):
@@ -38,7 +39,7 @@ class GlossaryDialog(Toplevel):
                 "Use triggers to match what you say or what Whisper outputs. "
                 "Replacements are inserted into the transcript."
             ),
-            wraplength=520,
+            wraplength="390p",
             justify="left",
         ).grid(row=0, column=0, sticky="we", padx=12, pady=(12, 8))
 
@@ -49,14 +50,14 @@ class GlossaryDialog(Toplevel):
             height=8,
         )
         for col, heading, width in (
-            ("trigger", "Trigger", 160),
-            ("replacement", "Replacement", 180),
-            ("type", "Match", 70),
-            ("case", "Case", 70),
-            ("boundary", "Whole words", 100),
+            ("trigger", "Trigger", 120),
+            ("replacement", "Replacement", 135),
+            ("type", "Match", 52.5),
+            ("case", "Case", 52.5),
+            ("boundary", "Whole words", 75),
         ):
             self.tree.heading(col, text=heading)
-            self.tree.column(col, width=width, anchor="w")
+            self.tree.column(col, width=px(self, width), anchor="w")
         self.tree.grid(row=1, column=0, sticky="nsew", padx=12)
 
         btns = ttk.Frame(self)
@@ -241,7 +242,7 @@ class GlossaryRuleDialog(Toplevel):
         )
 
         # A phonetic rule matches on sound, so the spelling options do not apply.
-        self.lbl_phonetic = ttk.Label(frame, text="", wraplength=430, foreground="gray")
+        self.lbl_phonetic = ttk.Label(frame, text="", wraplength="322.5p", foreground="gray")
         self.lbl_phonetic.grid(row=7, column=0, sticky="w", pady=(0, 6))
         self.var_match_type.trace_add("write", lambda *_a: self._describe_phonetic())
         self.var_trigger.trace_add("write", lambda *_a: self._describe_phonetic())

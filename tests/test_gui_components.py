@@ -13,7 +13,7 @@ import pytest
 tkinter = pytest.importorskip("tkinter")
 
 from whisper_dictate import gui_components  # noqa: E402
-from whisper_dictate.gui_components import StatusIndicator, work_area  # noqa: E402
+from whisper_dictate.gui_components import StatusIndicator, px, work_area  # noqa: E402
 
 # Two monitors: the second is to the right and taller, reaching above y=0,
 # like the dev box. The primary's work area stops short of the screen (taskbar).
@@ -134,8 +134,9 @@ class TestDragging:
         root.update()
 
         x, y = position(indicator)
-        assert x + indicator.window.winfo_width() == PRIMARY[2] - StatusIndicator.MARGIN
-        assert y + indicator.window.winfo_height() == PRIMARY[3] - StatusIndicator.MARGIN
+        margin = px(root, StatusIndicator.MARGIN_PT)
+        assert x + indicator.window.winfo_width() == PRIMARY[2] - margin
+        assert y + indicator.window.winfo_height() == PRIMARY[3] - margin
 
     def test_the_pill_is_kept_on_screen(self, root):
         indicator = StatusIndicator(root, initial_position=(200, 200))
@@ -257,6 +258,10 @@ class TestTheme:
         assert indicator.canvas.itemcget(indicator._edge[0], "outline") == dark["edge"]
         assert indicator.canvas.itemcget(indicator._edge[2], "fill") == dark["edge"]
         assert indicator.canvas.itemcget(indicator.text, "fill") == dark["text"]
+
+
+def test_px_converts_points_at_the_display_density(root):
+    assert px(root, 72) == round(root.winfo_fpixels("1i"))
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="real Win32 monitor query")
