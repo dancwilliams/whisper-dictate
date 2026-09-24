@@ -511,8 +511,7 @@ monkeypatch that module's `messagebox.showerror` to a recorder, call `_on_save()
 Four tests. Both constructors take only the parent and an optional existing entry:
 `AppPromptEntryDialog(parent, entry=None)` (`app_prompt_dialog.py:198-201`) and
 `GlossaryRuleDialog(parent, rule=None)` (`glossary_dialog.py:190-193`). Both call
-`grab_set()` on a withdrawn root; if that raises under pytest, `wait_visibility` first or
-patch `grab_set` on the instance, and say which in the PR.
+`grab_set()` on a withdrawn root; measured: it does not raise under pytest, no workaround.
 
 #### 2. A skipped glossary rule is reported once per session
 
@@ -556,18 +555,22 @@ second dictation ends in `ready`.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` passes with the four dialog tests and the three glossary tests added
-- [ ] `app_prompt_dialog.py` and `glossary_dialog.py` coverage each above 30 %
-- [ ] ruff, format check, mypy exit 0; CI green
+- [x] `uv run pytest` passes with the four dialog tests and the three glossary tests added
+- [x] `app_prompt_dialog.py` and `glossary_dialog.py` coverage each above 30 %
+- [x] ruff, format check, mypy exit 0; CI green
 
 #### Manual Verification
-- [ ] Hand-edit `~/.whisper_dictate/whisper_dictate_glossary.json` to give a regex rule the
+- [x] Hand-edit `~/.whisper_dictate/whisper_dictate_glossary.json` to give a regex rule the
       trigger `(unclosed`; restart; dictate. The pill goes yellow with "Glossary rule
       skipped: (unclosed" (truncated) and the dictation is pasted.
-- [ ] Dictate again: pill ends on "Ready", no warning.
-- [ ] Fix the rule in the Glossary dialog; dictate; no warning, rule applies.
+- [x] Dictate again: pill ends on "Ready", no warning.
+- [x] Fix the rule in the Glossary dialog; dictate; no warning, rule applies.
 
 ---
+
+Manual check 2026-09-24 found the warning lasting a split second: raised before cleanup, it
+was replaced by "Cleaned by LLM". Moved to just before delivery; the pipeline test now runs
+with cleanup on, which is how it was missed. All three phases merged.
 
 ## Testing Strategy
 

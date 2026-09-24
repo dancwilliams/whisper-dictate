@@ -154,6 +154,8 @@ class GlossaryManager:
             and rule.replacement.strip()
             and not (rule.match_type == "phonetic" and phonetic_rejection(rule.trigger))
         ]
+        # Triggers of rules apply() could not use, for the caller to report.
+        self.skipped: list[str] = []
         self._sort_rules()
 
     # ------------------------------------------------------------------
@@ -306,6 +308,7 @@ class GlossaryManager:
             return text
 
         result = text
+        self.skipped = []
         for rule in self.rules:
             if rule.match_type == "phonetic":
                 continue
@@ -316,6 +319,7 @@ class GlossaryManager:
                 # refused, or a replacement with a group reference that has no
                 # group. One rule is not worth the dictation.
                 logger.warning(f"Skipping glossary rule {rule.trigger!r}: {e}")
+                self.skipped.append(rule.trigger)
         return self._apply_phonetic(result)
 
     def _apply_phonetic(self, text: str) -> str:
