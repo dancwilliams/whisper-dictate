@@ -560,13 +560,17 @@ second dictation ends in `ready`.
 - [x] ruff, format check, mypy exit 0; CI green
 
 #### Manual Verification
-- [ ] Hand-edit `~/.whisper_dictate/whisper_dictate_glossary.json` to give a regex rule the
+- [x] Hand-edit `~/.whisper_dictate/whisper_dictate_glossary.json` to give a regex rule the
       trigger `(unclosed`; restart; dictate. The pill goes yellow with "Glossary rule
       skipped: (unclosed" (truncated) and the dictation is pasted.
-- [ ] Dictate again: pill ends on "Ready", no warning.
-- [ ] Fix the rule in the Glossary dialog; dictate; no warning, rule applies.
+- [x] Dictate again: pill ends on "Ready", no warning.
+- [x] Fix the rule in the Glossary dialog; dictate; no warning, rule applies.
 
 ---
+
+Manual check 2026-09-24 found the warning lasting a split second: raised before cleanup, it
+was replaced by "Cleaned by LLM". Moved to just before delivery; the pipeline test now runs
+with cleanup on, which is how it was missed. All three phases merged.
 
 ## Testing Strategy
 
