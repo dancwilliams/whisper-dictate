@@ -278,9 +278,9 @@ Mapping: 4 → `"3p"`, 6 → `"4.5p"`, 8 → `"6p"`, 10 → `"7.5p"`, 12 → `"9
 - [x] Four gates exit 0; CI green
 
 #### Manual Verification
-- [ ] Every window from the phase 1 list looks as it did on `main` before phase 1: same
+- [x] Every window from the phase 1 list looks as it did on `main` before phase 1: same
       spacing, now with sharp text.
-- [ ] At 100 % (CI, or Windows set to 100 % briefly) nothing changed at all: a point is
+- [x] At 100 % (CI, or Windows set to 100 % briefly) nothing changed at all: a point is
       exactly 4/3 px there, so `"9p"` is 12 px.
 
 ---
