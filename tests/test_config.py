@@ -67,7 +67,7 @@ class TestSetCudaPaths:
     """
 
     def _wheel_layout(self, base):
-        for part in ("cuda_runtime", "cublas", "cudnn"):
+        for part in ("cuda_runtime", "cublas"):
             (base / part / "bin").mkdir(parents=True)
         return base
 

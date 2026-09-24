@@ -11,7 +11,7 @@ Whisper Dictate is a privacy-first, local speech-to-text and AI cleanup tool for
 - faster-whisper (SYSTRAN) for local speech-to-text
 - OpenAI API client for optional LLM cleanup
 - tkinter for GUI
-- CUDA 12.4 + cuDNN 9.5 for GPU acceleration
+- CUDA for GPU acceleration: 12.4 wheels for faster-whisper and llama-cpp, 13.0 for torch
 
 **Package Manager:** `uv` (Astral's fast Python package manager)
 
@@ -192,7 +192,7 @@ make test          # Pytest test suite
 ### Core Dependencies
 - `faster-whisper` — Whisper model inference
 - `ctranslate2` — Backend for faster-whisper (transitive; not pinned here)
-- `nvidia-*` packages — CUDA runtime and cuDNN
+- `nvidia-*` packages — CUDA 12 cuBLAS and runtime for ctranslate2 and llama-cpp
 - `openai` — LLM cleanup client
 - `sounddevice` — Audio recording
 - `clipboard.py` — Clipboard and auto-paste (Shift+Insert), ctypes only; no pyautogui/pyperclip
@@ -264,8 +264,8 @@ save_settings(settings)
 
 ## Troubleshooting Common Issues
 
-### CUDA/cuDNN Issues
-- Ensure CUDA 12.4 and cuDNN 9.5 are installed
+### CUDA Issues
+- The CUDA DLLs come from the pip wheels; nothing needs installing system-wide
 - `config.py` adds CUDA paths to system PATH
 - Use CPU mode (`device="cpu"`, `compute_type="int8"`) as fallback
 

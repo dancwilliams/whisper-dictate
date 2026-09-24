@@ -10,10 +10,11 @@ dependencies = [
     # Metaphone, for opt-in phonetic glossary rules.
     "jellyfish>=1.1.0",
     "numpy>=2.3.4",
-    "nvidia-cublas-cu12==12.4.5.8",        # unchanged: CUDA pins are decided in Phase 3 with torch
-    "nvidia-cuda-nvrtc-cu12==12.4.127",
+    # CUDA 12 cuBLAS for ctranslate2 and llama-cpp, cudart for llama-cpp. Both link
+    # the *64_12 names, so these stay on 12 even though torch is on 13. cuDNN
+    # comes inside the ctranslate2 wheel; nothing loads nvrtc.
+    "nvidia-cublas-cu12==12.4.5.8",
     "nvidia-cuda-runtime-cu12==12.4.127",
-    "nvidia-cudnn-cu12==9.5.0.50",
     "openai>=3.16",
     "sounddevice>=0.5.6",
 ]

@@ -166,7 +166,6 @@ def set_cuda_paths() -> None:
     cuda_dirs = [
         nvidia_base_path / "cuda_runtime" / "bin",
         nvidia_base_path / "cublas" / "bin",
-        nvidia_base_path / "cudnn" / "bin",
     ]
 
     paths_to_add = [str(path) for path in cuda_dirs if path.exists()]
