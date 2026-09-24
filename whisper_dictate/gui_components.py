@@ -1,8 +1,51 @@
 """Reusable GUI components for whisper-dictate."""
 
+import ctypes
+import ctypes.wintypes
+import platform
 from collections.abc import Callable, Sequence
 from functools import partial
 from tkinter import END, Canvas, Menu, TclError, Text, Tk, Toplevel, ttk
+
+MONITOR_DEFAULTTONEAREST = 2
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.wintypes.DWORD),
+        ("rcMonitor", ctypes.wintypes.RECT),
+        ("rcWork", ctypes.wintypes.RECT),
+        ("dwFlags", ctypes.wintypes.DWORD),
+    ]
+
+
+USER32: ctypes.WinDLL | None
+if platform.system() == "Windows":
+    USER32 = ctypes.windll.user32
+    # POINT goes by value; without argtypes ctypes passes it wrong on 64-bit.
+    USER32.MonitorFromPoint.argtypes = [ctypes.wintypes.POINT, ctypes.wintypes.DWORD]
+    USER32.MonitorFromPoint.restype = ctypes.wintypes.HMONITOR
+    USER32.GetMonitorInfoW.argtypes = [ctypes.wintypes.HMONITOR, ctypes.POINTER(_MONITORINFO)]
+    USER32.GetMonitorInfoW.restype = ctypes.wintypes.BOOL
+else:
+    USER32 = None
+
+
+def work_area(master: Tk, x: int, y: int) -> tuple[int, int, int, int]:
+    """(left, top, right, bottom) of the usable desktop on the monitor nearest (x, y).
+
+    winfo_screenwidth() is the primary monitor only, so a pill on a second
+    monitor was clamped back onto the first on every status update. rcWork
+    excludes the taskbar. Tk and Win32 share one coordinate space here because
+    the process is not DPI-aware; do not convert.
+    """
+    if USER32 is not None:
+        monitor = USER32.MonitorFromPoint(ctypes.wintypes.POINT(x, y), MONITOR_DEFAULTTONEAREST)
+        info = _MONITORINFO(cbSize=ctypes.sizeof(_MONITORINFO))
+        if monitor and USER32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+            r = info.rcWork
+            return r.left, r.top, r.right, r.bottom
+    return 0, 0, master.winfo_screenwidth(), master.winfo_screenheight()
 
 
 class PromptDialog(Toplevel):
@@ -56,6 +99,8 @@ class StatusIndicator:
         "warning": "#ffc107",
         "error": "#dc3545",
     }
+    MAX_CHARS = 32
+    MARGIN = 24
 
     def __init__(
         self,
@@ -91,7 +136,9 @@ class StatusIndicator:
         self.dot.grid(row=0, column=0, padx=(0, 6))
         self.dot_oval = self.dot.create_oval(2, 2, 12, 12, fill=self.COLORS["idle"], outline="")
 
-        self.label = ttk.Label(frame, text="Idle", anchor="w")
+        # Fixed width: a label that grows with the message moved the pill's
+        # right edge, and near a screen edge the clamp then jerked it about.
+        self.label = ttk.Label(frame, text="Idle", anchor="w", width=self.MAX_CHARS)
         self.label.grid(row=0, column=1, sticky="w")
 
         frame.columnconfigure(1, weight=1)
@@ -157,14 +204,14 @@ class StatusIndicator:
         x = int(event.x_root - self._drag_offset[0])
         y = int(event.y_root - self._drag_offset[1])
 
-        # Keep fully on the nearest screen
-        sw = self.master.winfo_screenwidth()
-        sh = self.master.winfo_screenheight()
+        # Keep fully on the monitor under the pointer, so it follows a drag
+        # across monitors instead of stopping at the primary's edge.
+        left, top, right, bottom = work_area(self.master, event.x_root, event.y_root)
         self.window.update_idletasks()
         ww = self.window.winfo_width()
         wh = self.window.winfo_height()
-        x = max(0, min(x, sw - ww))
-        y = max(0, min(y, sh - wh))
+        x = max(left, min(x, right - ww))
+        y = max(top, min(y, bottom - wh))
 
         self.window.geometry(f"+{x}+{y}")
 
@@ -193,21 +240,20 @@ class StatusIndicator:
 
         self.window.update_idletasks()
 
-        screen_w = self.master.winfo_screenwidth()
-        screen_h = self.master.winfo_screenheight()
         window_w = self.window.winfo_width()
         window_h = self.window.winfo_height()
 
         # If user has placed it, respect that unless actively dragging
         if self.user_position is not None and not self._dragging:
             x, y = self.user_position
-            x = max(0, min(int(x), screen_w - window_w))
-            y = max(0, min(int(y), screen_h - window_h))
+            left, top, right, bottom = work_area(self.master, int(x), int(y))
+            x = max(left, min(int(x), right - window_w))
+            y = max(top, min(int(y), bottom - window_h))
         else:
-            margin_x = 24
-            margin_y = 96
-            x = screen_w - window_w - margin_x
-            y = screen_h - window_h - margin_y
+            # (0, 0) is always on the primary; rcWork already clears the taskbar.
+            _left, _top, right, bottom = work_area(self.master, 0, 0)
+            x = right - window_w - self.MARGIN
+            y = bottom - window_h - self.MARGIN
 
         self.window.geometry(f"+{int(x)}+{int(y)}")
         # Flush the move before touching z-order: geometry() only *requests* a
@@ -255,7 +301,8 @@ class StatusIndicator:
         """Update the indicator with new state and message."""
         color = self.COLORS.get(state, self.COLORS["idle"])
         self.dot.itemconfigure(self.dot_oval, fill=color)
-        display = message if len(message) <= 40 else message[:37] + "…"
+        limit = self.MAX_CHARS
+        display = message if len(message) <= limit else message[: limit - 1] + "…"
         self.label.config(text=display)
         if not self.window.winfo_viewable():
             self.window.deiconify()

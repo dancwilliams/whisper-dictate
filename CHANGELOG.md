@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- The status pill could not be kept on a second monitor: it was clamped to
+  the primary screen on every status change, and the top of a taller monitor
+  was out of reach. It now clamps to the monitor it is on, and its default
+  corner sits just above the taskbar instead of a guessed 96 px up.
+- The pill grew and shrank with each message and jumped whenever that ran it
+  into a screen edge. It is now one fixed size.
 - An API key that could not be stored in Windows Credential Manager was
   silently lost: the settings file is never allowed to hold it, and nothing
   said the store had failed. The save now reports it and, while a window is
@@ -54,6 +60,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command destroyed the interpreter while the menu was still posted, so
   `tk_popup` unwound into a dead Tk. Menu commands now run once the menu has
   closed, and the popup tolerates the app going away underneath it.
+
+### Changed
+- Status messages fit the pill: 32 characters, with the six longer ones
+  reworded ("Locked; press again to stop", "Recording; release to stop",
+  "Cleanup empty; used raw text", "No cleanup; used raw text", "Clipboard
+  locked; see transcript", and the recognizer name followed by "ready").
 
 ### Removed
 - The PyInstaller exe build: the spec, the `build-windows` workflow, the

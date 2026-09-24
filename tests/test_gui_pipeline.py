@@ -326,7 +326,7 @@ class TestSpeechWindowClose:
         app._close_window("_speech_window")
 
         app.asr.release.assert_called_once()
-        assert messages(app)[-1] == "Recognizer: Whisper large-v3"
+        assert messages(app)[-1] == "Whisper large-v3 ready"
 
     def test_nothing_changed_keeps_the_recognizer(self, app):
         app = app()
@@ -359,7 +359,7 @@ class TestHotkey:
 
         app._stop_and_transcribe.assert_not_called()
         app.recorder.stop.assert_not_called()
-        assert "locked" in messages(app)[-1]
+        assert messages(app)[-1].startswith("Locked")
 
     def test_hold_transcribes_on_release(self, make_app, mods):
         app = make_app()

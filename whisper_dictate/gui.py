@@ -1248,7 +1248,7 @@ class App(Tk):
         self.asr.release()
         self._capture_asr_config()
         self._apply_idle_ttl()
-        self._set_status("ready", f"Recognizer: {self._asr_description()}")
+        self._set_status("ready", f"{self._asr_description()} ready")
 
     def _register_hotkey(self, quiet: bool = False) -> None:
         """Register the global hotkey.
@@ -1327,7 +1327,7 @@ class App(Tk):
         if not self.recorder.is_recording():
             return
         if time.monotonic() - self._press_at < TAP_SECONDS:
-            self._set_status("listening", "Recording (locked) - press again to stop")
+            self._set_status("listening", "Locked; press again to stop")
             return
         self._stop_and_transcribe()
 
@@ -1371,7 +1371,7 @@ class App(Tk):
         """Runs on the audio thread the instant capture is live."""
         # winsound.Beep blocks for its full duration; never on the audio thread.
         threading.Thread(target=self._beep_then_mute, daemon=True).start()
-        self._set_status("listening", "Recording - release to transcribe")
+        self._set_status("listening", "Recording; release to stop")
 
     def _beep_then_mute(self) -> None:
         """Muting first would silence the beep: the speakers are the beep's output."""
@@ -1601,11 +1601,11 @@ class App(Tk):
         except (OSError, RuntimeError, ValueError, ImportError) as e:
             # No cleanup model is a degraded dictation, not a lost one.
             self.after(0, self.var_cleanup_backend.set, "off")
-            self._set_status("warning", "Cleanup unavailable; using raw text")
+            self._set_status("warning", "No cleanup; used raw text")
             logger.warning(f"S1 cleanup failed, backend off for this session: {e}")
             return None
         if not cleaned:
-            self._set_status("warning", "Cleanup returned nothing, used raw text")
+            self._set_status("warning", "Cleanup empty; used raw text")
             return None
         logger.info(
             f"S1 cleanup on {'GPU' if cleaner.on_gpu else 'CPU'} "
@@ -1635,7 +1635,7 @@ class App(Tk):
             except clipboard.ClipboardError as e:
                 # Another app is holding the clipboard open. The text is still in the
                 # transcript box, so the dictation is not lost, only undelivered.
-                self._set_status("error", "Clipboard locked; text is in the transcript")
+                self._set_status("error", "Clipboard locked; see transcript")
                 logger.error(f"Clipboard write failed: {e}", exc_info=True)
                 return
 
