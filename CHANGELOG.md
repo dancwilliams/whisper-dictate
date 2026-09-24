@@ -65,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closed, and the popup tolerates the app going away underneath it.
 
 ### Changed
+- Text is rendered at the display's real density instead of being stretched
+  from 96 dpi, so it is sharp on a scaled monitor. The pill may sit in a
+  different spot once after the update: its saved position was in the old
+  coordinates. Drag it, or double-click to reset.
 - The status pill is a rounded capsule, dark or light to match the Windows
   app theme and following it live, instead of a square grey window.
 - Status messages fit the pill: 32 characters, with the six longer ones

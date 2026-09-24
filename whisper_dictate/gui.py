@@ -66,7 +66,7 @@ from whisper_dictate.config import (
     set_cuda_paths,
 )
 from whisper_dictate.glossary_dialog import GlossaryDialog
-from whisper_dictate.gui_components import PromptDialog, StatusIndicator
+from whisper_dictate.gui_components import PromptDialog, StatusIndicator, px
 from whisper_dictate.logging_config import LOG_FILE, setup_logging
 
 # Set up CUDA paths before importing other modules
@@ -148,7 +148,7 @@ class App(Tk):
     def __init__(self):
         super().__init__()
         self.title("Whisper Dictate + LLM")
-        self.geometry("980x680")
+        self.geometry(f"{px(self, 735)}x{px(self, 510)}")
         # Closing the window hides it; the app lives in the pill. Quitting is
         # deliberate, through the pill's menu, so a stray Alt+F4 on a
         # login-launched app does not end dictation for the day.
@@ -395,7 +395,7 @@ class App(Tk):
 
             # Description label for selected model
             desc_label = ttk.Label(
-                frame, text="", wraplength=380, foreground="gray", font=("Segoe UI", 9, "italic")
+                frame, text="", wraplength="285p", foreground="gray", font=("Segoe UI", 9, "italic")
             )
             desc_label.grid(row=3, column=1, sticky="w", padx=(12, 0), pady=(0, 8))
 
@@ -551,7 +551,7 @@ class App(Tk):
                     r"Transcripts and recordings are written to ~\.whisper_dictate. "
                     "They never leave this machine, and window titles are never stored."
                 ),
-                wraplength=420,
+                wraplength="315p",
                 foreground="#b8860b",
             ).grid(row=9, column=0, sticky="w", pady=(4, 0))
 
@@ -655,7 +655,7 @@ class App(Tk):
                 frame,
                 text="⚠ These are advanced settings. Defaults work well for most users.",
                 foreground="#cc6600",
-                wraplength=440,
+                wraplength="330p",
                 justify="left",
                 font=("Segoe UI", 9, "italic"),
             ).grid(row=next(rows), column=0, columnspan=2, sticky="w", pady=(8, 0))
@@ -748,7 +748,7 @@ class App(Tk):
                     "active window title to disk"
                 ),
                 foreground="#cc6600",
-                wraplength=440,
+                wraplength="330p",
                 justify="left",
                 font=("Segoe UI", 9, "italic"),
             ).grid(row=8, column=0, columnspan=2, sticky="w", padx=(20, 0))
@@ -758,13 +758,13 @@ class App(Tk):
             ttk.Label(
                 frame,
                 text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
-                wraplength=440,
+                wraplength="330p",
                 justify="left",
             ).grid(row=10, column=0, columnspan=2, sticky="w", pady=(8, 0))
             ttk.Label(
                 frame,
                 text=f"Glossary saved to {glossary.GLOSSARY_FILE} (Edit → Glossary…)",
-                wraplength=440,
+                wraplength="330p",
                 justify="left",
             ).grid(row=11, column=0, columnspan=2, sticky="w")
 
@@ -782,7 +782,7 @@ class App(Tk):
 
         def build(window: Toplevel) -> None:
             # Set a reasonable default size
-            window.geometry("900x600")
+            window.geometry(f"{px(window, 675)}x{px(window, 450)}")
 
             frame = ttk.Frame(window, padding=12)
             frame.pack(fill="both", expand=True)
@@ -796,7 +796,7 @@ class App(Tk):
             ttk.Label(
                 header,
                 text=f"Logs are written to {LOG_FILE}",
-                wraplength=600,
+                wraplength="450p",
                 justify="left",
             ).grid(row=0, column=0, sticky="w")
 
@@ -1711,6 +1711,9 @@ def main() -> None:
         logger.info("Another instance is already running; exiting")
         return
 
+    # Render at the monitor's real density instead of letting Windows stretch a
+    # 96 dpi bitmap. Must precede the first window; Tk then sets its own scaling.
+    ctypes.windll.user32.SetProcessDPIAware()
     app = App()
     try:
         app.mainloop()

@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import StringVar, Toplevel, messagebox, ttk
 
 from whisper_dictate import app_prompts, s1
+from whisper_dictate.gui_components import px
 
 
 class AppPromptDialog(Toplevel):
@@ -34,7 +35,7 @@ class AppPromptDialog(Toplevel):
                 "Add prompts tailored to specific applications. "
                 "Optional window title patterns (regex) help pick prompts for certain tabs."
             ),
-            wraplength=520,
+            wraplength="390p",
             justify="left",
         ).grid(row=0, column=0, columnspan=2, sticky="we", padx=12, pady=(12, 8))
 
@@ -50,12 +51,12 @@ class AppPromptDialog(Toplevel):
             height=8,
         )
         for col, heading, width in (
-            ("process", "Process", 160),
-            ("window_regex", "Window title regex", 180),
-            ("prompt", "Prompt", 220),
+            ("process", "Process", 120),
+            ("window_regex", "Window title regex", 135),
+            ("prompt", "Prompt", 165),
         ):
             self.tree.heading(col, text=heading)
-            self.tree.column(col, width=width, anchor="w")
+            self.tree.column(col, width=px(self, width), anchor="w")
         self.tree.grid(row=0, column=0, sticky="nsew")
 
         recent_frame = ttk.Labelframe(content, text="Recent apps")
