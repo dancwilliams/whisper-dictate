@@ -390,7 +390,7 @@ to touch this (grill, decision 4). With `f = tkfont.nametofont("TkDefaultFont")`
 
 ```python
 line = f.metrics("linespace")
-HEIGHT = line + 2 * PAD_Y            # PAD_Y = 6, in the same units Tk pads the ttk pill today
+HEIGHT = line + 2 * PAD_Y            # PAD_Y = 8: 31 px tall today, same as the ttk pill was
 RADIUS = HEIGHT // 2
 DOT = max(8, line * 2 // 3)
 WIDTH = RADIUS + DOT + f.measure("0") * self.MAX_CHARS + RADIUS
@@ -460,9 +460,9 @@ grabbable. That is the correct behaviour for a capsule.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
       `uv run mypy whisper_dictate` all exit 0
-- [ ] CI green
+- [x] CI green
 
 #### Manual Verification
 - [ ] Over a busy desktop the corners show desktop, not grey. Outline hides the stair-step
