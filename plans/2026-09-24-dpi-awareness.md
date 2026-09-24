@@ -230,7 +230,7 @@ Nothing else in the capsule changes: it was sized from the font for this.
 - [x] `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy whisper_dictate` exit 0
 - [x] `git grep -n "wraplength=[0-9]" whisper_dictate` returns nothing
 - [x] `git grep -n 'geometry("[0-9]' whisper_dictate` returns nothing
-- [ ] CI green
+- [x] CI green
 
 #### Manual Verification (dev box, primary at 150 %)
 - [x] Launch. Text in the main window is sharp, not soft. The window is the same apparent
