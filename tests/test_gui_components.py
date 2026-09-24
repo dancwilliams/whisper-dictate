@@ -208,9 +208,55 @@ class TestSize:
     def test_long_messages_are_truncated(self, root):
         indicator = StatusIndicator(root)
         indicator.update("ready", "x" * 60)
-        shown = indicator.label.cget("text")
+        shown = indicator.canvas.itemcget(indicator.text, "text")
         assert len(shown) == StatusIndicator.MAX_CHARS
         assert shown.endswith("…")
+
+    def test_update_changes_the_dot_and_text(self, root):
+        indicator = StatusIndicator(root)
+        indicator.update("error", "Boom")
+        assert (
+            indicator.canvas.itemcget(indicator.dot_oval, "fill") == StatusIndicator.COLORS["error"]
+        )
+        assert indicator.canvas.itemcget(indicator.text, "text") == "Boom"
+
+
+class TestTheme:
+    def test_dark_when_windows_says_so(self, monkeypatch):
+        winreg = pytest.importorskip("winreg")
+        monkeypatch.setattr(winreg, "QueryValueEx", lambda key, name: (0, 4))
+        assert gui_components._apps_use_light_theme() is False
+
+    def test_light_when_the_key_is_unreadable(self, monkeypatch):
+        winreg = pytest.importorskip("winreg")
+
+        def missing(*_args):
+            raise OSError("no such key")
+
+        monkeypatch.setattr(winreg, "OpenKey", missing)
+        assert gui_components._apps_use_light_theme() is True
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="-transparentcolor is Windows only")
+    def test_the_window_background_is_keyed_out(self, root):
+        indicator = StatusIndicator(root)
+        assert indicator.window.attributes("-transparentcolor") == gui_components.KEY
+
+    def test_the_theme_follows_windows(self, root, monkeypatch):
+        """Read on the topmost timer: a pill that stays light on a desktop that
+        just went dark looks broken."""
+        monkeypatch.setattr(gui_components, "_apps_use_light_theme", lambda: True)
+        indicator = StatusIndicator(root)
+        light = gui_components.THEMES["light"]
+        assert indicator.canvas.itemcget(indicator._fill[0], "fill") == light["fill"]
+
+        monkeypatch.setattr(gui_components, "_apps_use_light_theme", lambda: False)
+        indicator._ensure_topmost()
+
+        dark = gui_components.THEMES["dark"]
+        assert indicator.canvas.itemcget(indicator._fill[0], "fill") == dark["fill"]
+        assert indicator.canvas.itemcget(indicator._edge[0], "outline") == dark["edge"]
+        assert indicator.canvas.itemcget(indicator._edge[2], "fill") == dark["edge"]
+        assert indicator.canvas.itemcget(indicator.text, "fill") == dark["text"]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="real Win32 monitor query")

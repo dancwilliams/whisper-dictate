@@ -390,7 +390,7 @@ to touch this (grill, decision 4). With `f = tkfont.nametofont("TkDefaultFont")`
 
 ```python
 line = f.metrics("linespace")
-HEIGHT = line + 2 * PAD_Y            # PAD_Y = 6, in the same units Tk pads the ttk pill today
+HEIGHT = line + 2 * PAD_Y            # PAD_Y = 8: 31 px tall today, same as the ttk pill was
 RADIUS = HEIGHT // 2
 DOT = max(8, line * 2 // 3)
 WIDTH = RADIUS + DOT + f.measure("0") * self.MAX_CHARS + RADIUS
@@ -460,20 +460,20 @@ grabbable. That is the correct behaviour for a capsule.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
       `uv run mypy whisper_dictate` all exit 0
-- [ ] CI green
+- [x] CI green
 
 #### Manual Verification
-- [ ] Over a busy desktop the corners show desktop, not grey. Outline hides the stair-step
+- [x] Over a busy desktop the corners show desktop, not grey. Outline hides the stair-step
       at arm's length.
-- [ ] With the app running, switch Windows to dark apps mode: within 3 s the capsule is
+- [x] With the app running, switch Windows to dark apps mode: within 3 s the capsule is
       dark with light text. Switch back: the reverse, no relaunch.
-- [ ] Drag from the text, from the dot, from the empty capsule: all work. Clicking exactly
+- [x] Drag from the text, from the dot, from the empty capsule: all work. Clicking exactly
       on a corner pixel falls through (expected).
-- [ ] Right-click menu still opens; Quit still exits without a traceback.
-- [ ] All seven phase 1 manual checks still pass.
-- [ ] Every status colour is readable on both themes ("warning" yellow dot on light fill
+- [x] Right-click menu still opens; Quit still exits without a traceback.
+- [x] All seven phase 1 manual checks still pass.
+- [x] Every status colour is readable on both themes ("warning" yellow dot on light fill
       is the one to look at).
 
 ---

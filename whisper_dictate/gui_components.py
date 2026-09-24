@@ -3,6 +3,7 @@
 import ctypes
 import ctypes.wintypes
 import platform
+import tkinter.font as tkfont
 from collections.abc import Callable, Sequence
 from functools import partial
 from tkinter import END, Canvas, Menu, TclError, Text, Tk, Toplevel, ttk
@@ -46,6 +47,32 @@ def work_area(master: Tk, x: int, y: int) -> tuple[int, int, int, int]:
             r = info.rcWork
             return r.left, r.top, r.right, r.bottom
     return 0, 0, master.winfo_screenwidth(), master.winfo_screenheight()
+
+
+# Keyed out by -transparentcolor so the window is the capsule's shape and
+# nothing else. No visible element may use this colour.
+KEY = "#010203"
+
+THEMES = {
+    "light": {"fill": "#f3f3f3", "edge": "#c8c8c8", "text": "#1b1b1b"},
+    "dark": {"fill": "#2b2b2b", "edge": "#3f3f3f", "text": "#f0f0f0"},
+}
+
+
+def _apps_use_light_theme() -> bool:
+    """Windows' app theme. Light when off Windows or when the key is unreadable."""
+    if platform.system() != "Windows":
+        return True
+    import winreg
+
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            return bool(winreg.QueryValueEx(key, "AppsUseLightTheme")[0])
+    except OSError:
+        return True
 
 
 class PromptDialog(Toplevel):
@@ -101,6 +128,7 @@ class StatusIndicator:
     }
     MAX_CHARS = 32
     MARGIN = 24
+    PAD_Y = 8
 
     def __init__(
         self,
@@ -128,26 +156,65 @@ class StatusIndicator:
         self._dragging = False
         self._drag_offset = (0, 0)
 
-        frame = ttk.Frame(self.window, padding=(8, 6))
-        frame.pack()
+        # One canvas drawing a capsule, over a window background that Windows
+        # keys out: the pill is its own shape, not a grey box. Sizes come from
+        # the font so a DPI change scales the capsule with the text.
+        font = tkfont.nametofont("TkDefaultFont")
+        line = font.metrics("linespace")
+        height = line + 2 * self.PAD_Y
+        radius = height // 2
+        dot = max(8, line * 2 // 3)
+        # Fixed width: a pill that grew with the message moved its right edge,
+        # and near a screen edge the clamp then jerked it about.
+        width = radius + dot + font.measure("0") * self.MAX_CHARS + radius
 
-        bg = self.window.cget("background")
-        self.dot = Canvas(frame, width=14, height=14, highlightthickness=0, bg=bg, borderwidth=0)
-        self.dot.grid(row=0, column=0, padx=(0, 6))
-        self.dot_oval = self.dot.create_oval(2, 2, 12, 12, fill=self.COLORS["idle"], outline="")
+        self.window.configure(background=KEY)
+        try:
+            self.window.attributes("-transparentcolor", KEY)
+        except TclError:  # pragma: no cover - not Windows; a square pill, still usable
+            pass
+        self.canvas = Canvas(
+            self.window, width=width, height=height, bg=KEY, highlightthickness=0, borderwidth=0
+        )
+        self.canvas.pack()
 
-        # Fixed width: a label that grows with the message moved the pill's
-        # right edge, and near a screen edge the clamp then jerked it about.
-        self.label = ttk.Label(frame, text="Idle", anchor="w", width=self.MAX_CHARS)
-        self.label.grid(row=0, column=1, sticky="w")
-
-        frame.columnconfigure(1, weight=1)
+        # The fill as two ovals and a rectangle, the edge as two arcs and two
+        # lines: no seams, and the 1 px edge hides the 1-bit stair-step that
+        # -transparentcolor leaves on the corners.
+        y0, y1 = 1, height - 2
+        left = (1, y0, height - 2, y1)
+        right = (width - height + 1, y0, width - 2, y1)
+        self._fill = [
+            self.canvas.create_oval(*left, outline=""),
+            self.canvas.create_oval(*right, outline=""),
+            self.canvas.create_rectangle(radius, y0, width - radius, y1, outline=""),
+        ]
+        self._edge = [
+            self.canvas.create_arc(*left, start=90, extent=180, style="arc"),
+            self.canvas.create_arc(*right, start=270, extent=180, style="arc"),
+            self.canvas.create_line(radius, y0, width - radius, y0),
+            self.canvas.create_line(radius, y1, width - radius, y1),
+        ]
+        cy = height / 2
+        self.dot_oval = self.canvas.create_oval(
+            radius - dot / 2,
+            cy - dot / 2,
+            radius + dot / 2,
+            cy + dot / 2,
+            fill=self.COLORS["idle"],
+            outline="",
+        )
+        self.text = self.canvas.create_text(
+            radius + dot, cy, anchor="w", text="Idle", font="TkDefaultFont"
+        )
+        self._theme: str | None = None
+        self._follow_theme()
 
         # Reposition when master changes size or placement
         master.bind("<Configure>", self._reposition, add="+")
 
         # Bind mouse events to allow dragging from anywhere on the small UI
-        for w in (self.window, frame, self.label, self.dot):
+        for w in (self.window, self.canvas):
             w.bind("<ButtonPress-1>", self._start_drag, add="+")
             w.bind("<B1-Motion>", self._on_drag, add="+")
             w.bind("<ButtonRelease-1>", self._end_drag, add="+")
@@ -164,7 +231,7 @@ class StatusIndicator:
                     # interpreter, and doing that while the menu is still posted
                     # unwinds into a dead Tk.
                     self.menu.add_command(label=label, command=partial(self._defer, command))
-            for w in (self.window, frame, self.label, self.dot):
+            for w in (self.window, self.canvas):
                 w.bind("<Button-3>", self._show_menu, add="+")
 
         # Keep the floating window pinned above everything else
@@ -277,11 +344,34 @@ class StatusIndicator:
             pass
 
     def _ensure_topmost(self) -> None:
-        """Re-assert topmost state on an interval."""
+        """Re-assert topmost state on an interval, and follow the Windows theme."""
         if not self.window.winfo_exists():
             return
         self._raise()
+        self._follow_theme()
         self.window.after(3000, self._ensure_topmost)
+
+    def _follow_theme(self) -> None:
+        """Match Windows' light or dark app theme, live.
+
+        Read on the topmost timer, which already ticks every 3 s: a pill that
+        stays light on a desktop that just went dark looks broken, and a
+        registry read costs nothing.
+        """
+        name = "light" if _apps_use_light_theme() else "dark"
+        if name == self._theme:
+            return
+        self._theme = name
+        theme = THEMES[name]
+        for item in self._fill:
+            self.canvas.itemconfigure(item, fill=theme["fill"])
+        for item in self._edge:
+            # A line's colour is its fill; an arc's is its outline.
+            if self.canvas.type(item) == "line":
+                self.canvas.itemconfigure(item, fill=theme["edge"])
+            else:
+                self.canvas.itemconfigure(item, outline=theme["edge"])
+        self.canvas.itemconfigure(self.text, fill=theme["text"])
 
     def show(self) -> None:
         """Make the indicator visible.
@@ -300,10 +390,10 @@ class StatusIndicator:
     def update(self, state: str, message: str) -> None:
         """Update the indicator with new state and message."""
         color = self.COLORS.get(state, self.COLORS["idle"])
-        self.dot.itemconfigure(self.dot_oval, fill=color)
+        self.canvas.itemconfigure(self.dot_oval, fill=color)
         limit = self.MAX_CHARS
         display = message if len(message) <= limit else message[: limit - 1] + "…"
-        self.label.config(text=display)
+        self.canvas.itemconfigure(self.text, text=display)
         if not self.window.winfo_viewable():
             self.window.deiconify()
         self.window.update_idletasks()
