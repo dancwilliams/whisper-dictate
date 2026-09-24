@@ -200,6 +200,10 @@ make test          # Pytest test suite
 ### Dev Dependencies
 Declared in the `dev` [dependency group](https://peps.python.org/pep-0735/), not an extra;
 `uv sync` installs it by default (there is no `--all-extras` to pass).
+
+A running Whisper Dictate holds `.venv/Scripts/whisper-dictate.exe`, so a `uv sync` that
+changes packages fails to replace it. Ask Dan to quit the app (pill right-click, Quit)
+before running one.
 - `pytest`, `pytest-cov`, `pytest-mock` — Testing
 - `ruff` — Linting and formatting
 - `mypy` — Type checking
