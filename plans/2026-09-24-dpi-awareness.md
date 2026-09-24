@@ -274,7 +274,7 @@ Mapping: 4 → `"3p"`, 6 → `"4.5p"`, 8 → `"6p"`, 10 → `"7.5p"`, 12 → `"9
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `git grep -nE "(padding|padx|pady)=\(?[1-9]" whisper_dictate` returns nothing
+- [x] `git grep -nE "(padding|padx|pady)=\(?[1-9]" whisper_dictate` returns nothing
 - [ ] Four gates exit 0; CI green
 
 #### Manual Verification

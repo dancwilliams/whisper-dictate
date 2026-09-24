@@ -158,7 +158,7 @@ class App(Tk):
 
         self.option_add("*Font", ("Segoe UI", 10))
         style = ttk.Style(self)
-        style.configure("Section.TLabelframe", padding=(12, 10))
+        style.configure("Section.TLabelframe", padding=("9p", "7.5p"))
         style.configure("Section.TLabelframe.Label", font=("Segoe UI", 9, "bold"))
 
         # Load saved prompt
@@ -292,23 +292,23 @@ class App(Tk):
         self._refresh_glossary_cache()
 
         # Controls
-        ctrl = ttk.Frame(self, padding=(12, 0, 12, 12))
+        ctrl = ttk.Frame(self, padding=("9p", 0, "9p", "9p"))
         ctrl.pack(fill="x")
         self.btn_load = ttk.Button(ctrl, text="Load model", command=self._load_model)
-        self.btn_load.grid(row=0, column=0, padx=(0, 8))
+        self.btn_load.grid(row=0, column=0, padx=(0, "6p"))
         self.btn_hotkey = ttk.Button(
             ctrl, text="Register hotkey", command=self._register_hotkey, state="disabled"
         )
-        self.btn_hotkey.grid(row=0, column=1, padx=(0, 8))
+        self.btn_hotkey.grid(row=0, column=1, padx=(0, "6p"))
         self.btn_toggle = ttk.Button(
             ctrl, text="Start recording", command=self._toggle_record, state="disabled"
         )
-        self.btn_toggle.grid(row=0, column=2, padx=(0, 8))
+        self.btn_toggle.grid(row=0, column=2, padx=(0, "6p"))
         self.lbl_status = ttk.Label(ctrl, text="Idle")
         self.lbl_status.grid(row=0, column=3, sticky="w")
 
         # Transcript box
-        out = ttk.Frame(self, padding=8)
+        out = ttk.Frame(self, padding="6p")
         out.pack(fill="both", expand=True)
         ttk.Label(out, text="Transcript").pack(anchor="w")
         self.txt_out = Text(out, wrap="word")
@@ -363,7 +363,7 @@ class App(Tk):
         """Open speech recognition settings window."""
 
         def build(window: Toplevel) -> None:
-            frame = ttk.Frame(window, padding=12)
+            frame = ttk.Frame(window, padding="9p")
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(1, weight=1)
 
@@ -397,11 +397,11 @@ class App(Tk):
             desc_label = ttk.Label(
                 frame, text="", wraplength="285p", foreground="gray", font=("Segoe UI", 9, "italic")
             )
-            desc_label.grid(row=3, column=1, sticky="w", padx=(12, 0), pady=(0, 8))
+            desc_label.grid(row=3, column=1, sticky="w", padx=("9p", 0), pady=(0, "6p"))
 
             # Compute type display (read-only, auto-configured)
             compute_label = ttk.Label(frame, text=f"Compute type: {self.var_compute.get()} (auto)")
-            compute_label.grid(row=4, column=0, columnspan=2, sticky="w", pady=(8, 4))
+            compute_label.grid(row=4, column=0, columnspan=2, sticky="w", pady=("6p", "3p"))
 
             # Input device dropdown
             input_device_names = self._get_input_device_names()
@@ -464,7 +464,7 @@ class App(Tk):
         """Open automation settings window."""
 
         def build(window: Toplevel) -> None:
-            frame = ttk.Frame(window, padding=12)
+            frame = ttk.Frame(window, padding="9p")
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(0, weight=1)
 
@@ -472,7 +472,7 @@ class App(Tk):
                 row=0, column=0, sticky="w"
             )
             ttk.Entry(frame, textvariable=self.var_hotkey, width=16).grid(
-                row=1, column=0, sticky="we", pady=(0, 8)
+                row=1, column=0, sticky="we", pady=(0, "6p")
             )
             checks = ttk.Frame(frame)
             checks.grid(row=2, column=0, sticky="w")
@@ -481,10 +481,10 @@ class App(Tk):
             ).pack(side="left")
             ttk.Checkbutton(
                 checks, text="Mute speakers while recording", variable=self.var_mute_speakers
-            ).pack(side="left", padx=(16, 0))
+            ).pack(side="left", padx=("12p", 0))
 
             paste_row = ttk.Frame(frame)
-            paste_row.grid(row=3, column=0, sticky="we", pady=(4, 0))
+            paste_row.grid(row=3, column=0, sticky="we", pady=("3p", 0))
             ttk.Label(paste_row, text="Paste delay (s)").pack(side="left")
             ttk.Spinbox(
                 paste_row,
@@ -493,8 +493,10 @@ class App(Tk):
                 increment=0.05,
                 textvariable=self.var_paste_delay,
                 width=6,
-            ).pack(side="left", padx=(8, 0))
-            ttk.Label(paste_row, text="Clipboard restore delay (s)").pack(side="left", padx=(16, 0))
+            ).pack(side="left", padx=("6p", 0))
+            ttk.Label(paste_row, text="Clipboard restore delay (s)").pack(
+                side="left", padx=("12p", 0)
+            )
             ttk.Spinbox(
                 paste_row,
                 from_=0.0,
@@ -502,10 +504,10 @@ class App(Tk):
                 increment=0.05,
                 textvariable=self.var_restore_delay,
                 width=6,
-            ).pack(side="left", padx=(8, 0))
+            ).pack(side="left", padx=("6p", 0))
 
             ttl_row = ttk.Frame(frame)
-            ttl_row.grid(row=4, column=0, sticky="we", pady=(8, 0))
+            ttl_row.grid(row=4, column=0, sticky="we", pady=("6p", 0))
             ttk.Label(ttl_row, text="Unload the model after (minutes idle)").pack(side="left")
             ttk.Spinbox(
                 ttl_row,
@@ -515,11 +517,13 @@ class App(Tk):
                 textvariable=self.var_idle_ttl_minutes,
                 width=6,
                 command=self._apply_idle_ttl,
-            ).pack(side="left", padx=(8, 0))
-            ttk.Label(ttl_row, text="0 = never", foreground="gray").pack(side="left", padx=(8, 0))
+            ).pack(side="left", padx=("6p", 0))
+            ttk.Label(ttl_row, text="0 = never", foreground="gray").pack(
+                side="left", padx=("6p", 0)
+            )
 
             ttk.Separator(frame, orient="horizontal").grid(
-                row=5, column=0, sticky="we", pady=(12, 8)
+                row=5, column=0, sticky="we", pady=("9p", "6p")
             )
             ttk.Label(frame, text="History", font=("Segoe UI", 9, "bold")).grid(
                 row=6, column=0, sticky="w"
@@ -528,7 +532,7 @@ class App(Tk):
                 frame,
                 text="Keep a local record of every dictation",
                 variable=self.var_history_enable,
-            ).grid(row=7, column=0, sticky="w", pady=(4, 0))
+            ).grid(row=7, column=0, sticky="w", pady=("3p", 0))
             hist_row = ttk.Frame(frame)
             hist_row.grid(row=8, column=0, sticky="we")
             ttk.Label(hist_row, text="Keep the audio for (days)").pack(side="left")
@@ -539,9 +543,9 @@ class App(Tk):
                 increment=1,
                 textvariable=self.var_history_audio_days,
                 width=6,
-            ).pack(side="left", padx=(8, 0))
+            ).pack(side="left", padx=("6p", 0))
             ttk.Label(hist_row, text="0 = text only", foreground="gray").pack(
-                side="left", padx=(8, 0)
+                side="left", padx=("6p", 0)
             )
             # The same warning the debug-logging option carries, for the same
             # reason: this writes what you said to disk.
@@ -553,18 +557,18 @@ class App(Tk):
                 ),
                 wraplength="315p",
                 foreground="#b8860b",
-            ).grid(row=9, column=0, sticky="w", pady=(4, 0))
+            ).grid(row=9, column=0, sticky="w", pady=("3p", 0))
 
             # Auto-startup options
             ttk.Separator(frame, orient="horizontal").grid(
-                row=10, column=0, sticky="we", pady=(12, 8)
+                row=10, column=0, sticky="we", pady=("9p", "6p")
             )
             ttk.Label(frame, text="Startup", font=("Segoe UI", 9, "bold")).grid(
                 row=11, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame, text="Auto-load model on startup", variable=self.var_auto_load_model
-            ).grid(row=12, column=0, sticky="w", pady=(4, 0))
+            ).grid(row=12, column=0, sticky="w", pady=("3p", 0))
             ttk.Checkbutton(
                 frame,
                 text="Auto-register hotkey after model loads",
@@ -577,7 +581,7 @@ class App(Tk):
         """Open advanced transcription settings window."""
 
         def build(window: Toplevel) -> None:
-            frame = ttk.Frame(window, padding=12)
+            frame = ttk.Frame(window, padding="9p")
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(1, weight=1)
 
@@ -587,11 +591,11 @@ class App(Tk):
                 row = next(rows)
                 if row:
                     ttk.Separator(frame, orient="horizontal").grid(
-                        row=row, column=0, columnspan=2, sticky="we", pady=(12, 8)
+                        row=row, column=0, columnspan=2, sticky="we", pady=("9p", "6p")
                     )
                     row = next(rows)
                 ttk.Label(frame, text=text, font=("Segoe UI", 9, "bold")).grid(
-                    row=row, column=0, columnspan=2, sticky="w", pady=(0, 8)
+                    row=row, column=0, columnspan=2, sticky="w", pady=(0, "6p")
                 )
 
             def spinboxes(*specs: tuple[str, DoubleVar, float, float, float]) -> None:
@@ -638,10 +642,10 @@ class App(Tk):
             # Initial prompt
             row = next(rows)
             ttk.Label(frame, text="Initial prompt (optional)").grid(
-                row=row, column=0, sticky="nw", pady=4
+                row=row, column=0, sticky="nw", pady="3p"
             )
             initial_prompt_text = Text(frame, height=3, width=40, wrap="word")
-            initial_prompt_text.grid(row=row, column=1, sticky="we", pady=4, padx=(12, 0))
+            initial_prompt_text.grid(row=row, column=1, sticky="we", pady="3p", padx=("9p", 0))
             initial_prompt_text.insert("1.0", self.var_initial_prompt.get())
 
             # Save initial prompt on text change
@@ -658,7 +662,7 @@ class App(Tk):
                 wraplength="330p",
                 justify="left",
                 font=("Segoe UI", 9, "italic"),
-            ).grid(row=next(rows), column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=next(rows), column=0, columnspan=2, sticky="w", pady=("6p", 0))
 
         self._open_window(
             "_advanced_transcription_window", "Advanced Transcription (Whisper only)", build
@@ -668,12 +672,12 @@ class App(Tk):
         """Open cleanup settings window."""
 
         def build(window: Toplevel) -> None:
-            frame = ttk.Frame(window, padding=12)
+            frame = ttk.Frame(window, padding="9p")
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(1, weight=1)
 
             backend_row = ttk.Frame(frame)
-            backend_row.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            backend_row.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, "6p"))
             ttk.Label(backend_row, text="Cleanup").pack(side="left")
             ttk.Combobox(
                 backend_row,
@@ -681,15 +685,15 @@ class App(Tk):
                 values=list(CLEANUP_BACKENDS),
                 width=10,
                 state="readonly",
-            ).pack(side="left", padx=(8, 0))
+            ).pack(side="left", padx=("6p", 0))
             ttk.Label(
                 backend_row,
                 text="s1 = built in, endpoint = OpenAI compatible",
                 foreground="gray",
-            ).pack(side="left", padx=(8, 0))
+            ).pack(side="left", padx=("6p", 0))
 
             style_row = ttk.Frame(frame)
-            style_row.grid(row=1, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            style_row.grid(row=1, column=0, columnspan=2, sticky="we", pady=(0, "6p"))
             # The three settings S1-mini's control line accepts; per-app rules
             # override these for a given window.
             for label, var, values in (
@@ -697,24 +701,24 @@ class App(Tk):
                 ("Structure", self.var_s1_structure, s1.STRUCTURE),
                 ("Context", self.var_s1_context, s1.CONTEXT),
             ):
-                ttk.Label(style_row, text=label).pack(side="left", padx=(0, 4))
+                ttk.Label(style_row, text=label).pack(side="left", padx=(0, "3p"))
                 ttk.Combobox(
                     style_row,
                     textvariable=var,
                     values=list(values),
                     width=12,
                     state="readonly",
-                ).pack(side="left", padx=(0, 12))
+                ).pack(side="left", padx=(0, "9p"))
 
             ttk.Separator(frame, orient="horizontal").grid(
-                row=2, column=0, columnspan=2, sticky="we", pady=(0, 8)
+                row=2, column=0, columnspan=2, sticky="we", pady=(0, "6p")
             )
             self._add_labeled_widget(
                 frame, "Endpoint", 3, ttk.Entry(frame, textvariable=self.var_llm_endpoint)
             )
-            ttk.Label(frame, text="Model").grid(row=4, column=0, sticky="w", pady=4)
+            ttk.Label(frame, text="Model").grid(row=4, column=0, sticky="w", pady="3p")
             model_row = ttk.Frame(frame)
-            model_row.grid(row=4, column=1, sticky="we", pady=4, padx=(12, 0))
+            model_row.grid(row=4, column=1, sticky="we", pady="3p", padx=("9p", 0))
             model_row.columnconfigure(0, weight=1)
             self.cmb_llm_model = ttk.Combobox(
                 model_row, textvariable=self.var_llm_model, values=self.llm_models
@@ -723,7 +727,7 @@ class App(Tk):
             self.btn_llm_refresh = ttk.Button(
                 model_row, text="Refresh", command=self._refresh_llm_models
             )
-            self.btn_llm_refresh.grid(row=0, column=1, padx=(8, 0))
+            self.btn_llm_refresh.grid(row=0, column=1, padx=("6p", 0))
             self._add_labeled_widget(
                 frame,
                 "API key (optional)",
@@ -751,7 +755,7 @@ class App(Tk):
                 wraplength="330p",
                 justify="left",
                 font=("Segoe UI", 9, "italic"),
-            ).grid(row=8, column=0, columnspan=2, sticky="w", padx=(20, 0))
+            ).grid(row=8, column=0, columnspan=2, sticky="w", padx=("15p", 0))
             ttk.Checkbutton(
                 frame, text="Use glossary before prompt", variable=self.var_glossary_enable
             ).grid(row=9, column=0, columnspan=2, sticky="w")
@@ -760,7 +764,7 @@ class App(Tk):
                 text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
                 wraplength="330p",
                 justify="left",
-            ).grid(row=10, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            ).grid(row=10, column=0, columnspan=2, sticky="w", pady=("6p", 0))
             ttk.Label(
                 frame,
                 text=f"Glossary saved to {glossary.GLOSSARY_FILE} (Edit → Glossary…)",
@@ -784,14 +788,14 @@ class App(Tk):
             # Set a reasonable default size
             window.geometry(f"{px(window, 675)}x{px(window, 450)}")
 
-            frame = ttk.Frame(window, padding=12)
+            frame = ttk.Frame(window, padding="9p")
             frame.pack(fill="both", expand=True)
             frame.columnconfigure(0, weight=1)
             frame.rowconfigure(1, weight=1)
 
             # Header with controls
             header = ttk.Frame(frame)
-            header.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 8))
+            header.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, "6p"))
             header.columnconfigure(0, weight=1)
             ttk.Label(
                 header,
@@ -807,10 +811,10 @@ class App(Tk):
                 text="Wrap text",
                 variable=wrap_var,
                 command=lambda: text.configure(wrap="word" if wrap_var.get() else "none"),
-            ).grid(row=0, column=1, padx=(12, 0))
+            ).grid(row=0, column=1, padx=("9p", 0))
 
             ttk.Button(header, text="Refresh", command=lambda: load_logs()).grid(
-                row=0, column=2, padx=(12, 0)
+                row=0, column=2, padx=("9p", 0)
             )
 
             # Text widget with scrollbars
@@ -897,9 +901,11 @@ class App(Tk):
     ) -> None:
         """Helper to add a labeled widget."""
         ttk.Label(parent, text=label).grid(
-            row=row, column=0, sticky="w", pady=4 if row > 0 else (0, 4)
+            row=row, column=0, sticky="w", pady="3p" if row > 0 else (0, "3p")
         )
-        widget.grid(row=row, column=1, sticky="we", pady=4 if row > 0 else (0, 4), padx=(12, 0))
+        widget.grid(
+            row=row, column=1, sticky="we", pady="3p" if row > 0 else (0, "3p"), padx=("9p", 0)
+        )
 
     def _setup_status_indicator(self) -> None:
         """Set up the floating status indicator, which is the app's real face."""

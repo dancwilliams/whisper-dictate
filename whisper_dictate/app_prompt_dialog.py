@@ -37,10 +37,10 @@ class AppPromptDialog(Toplevel):
             ),
             wraplength="390p",
             justify="left",
-        ).grid(row=0, column=0, columnspan=2, sticky="we", padx=12, pady=(12, 8))
+        ).grid(row=0, column=0, columnspan=2, sticky="we", padx="9p", pady=("9p", "6p"))
 
         content = ttk.Frame(self)
-        content.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=12)
+        content.grid(row=1, column=0, columnspan=2, sticky="nsew", padx="9p")
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
 
@@ -60,33 +60,33 @@ class AppPromptDialog(Toplevel):
         self.tree.grid(row=0, column=0, sticky="nsew")
 
         recent_frame = ttk.Labelframe(content, text="Recent apps")
-        recent_frame.grid(row=0, column=1, sticky="nsw", padx=(12, 0))
+        recent_frame.grid(row=0, column=1, sticky="nsw", padx=("9p", 0))
         self.lst_recent = tk.Listbox(recent_frame, height=8, width=18, exportselection=False)
         for entry in self._recent_entries:
             label = entry["process_name"] or ""
             if entry.get("window_title"):
                 label = f"{label} — {entry['window_title']}"
             self.lst_recent.insert("end", label)
-        self.lst_recent.grid(row=0, column=0, sticky="nsew", padx=8, pady=(6, 4))
+        self.lst_recent.grid(row=0, column=0, sticky="nsew", padx="6p", pady=("4.5p", "3p"))
         self.lst_recent.bind("<Double-Button-1>", lambda event: self._on_add_from_recent())
         ttk.Button(recent_frame, text="Add from recent", command=self._on_add_from_recent).grid(
-            row=1, column=0, padx=8, pady=(0, 8)
+            row=1, column=0, padx="6p", pady=(0, "6p")
         )
         recent_frame.columnconfigure(0, weight=1)
         recent_frame.rowconfigure(0, weight=1)
 
         btns = ttk.Frame(self)
-        btns.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=10)
+        btns.grid(row=2, column=0, columnspan=2, sticky="ew", padx="9p", pady="7.5p")
         btns.columnconfigure(0, weight=1)
 
-        ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, 6))
-        ttk.Button(btns, text="Edit", command=self._on_edit).grid(row=0, column=1, padx=(0, 6))
+        ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, "4.5p"))
+        ttk.Button(btns, text="Edit", command=self._on_edit).grid(row=0, column=1, padx=(0, "4.5p"))
         ttk.Button(btns, text="Delete", command=self._on_delete).grid(row=0, column=2)
 
         actions = ttk.Frame(self)
-        actions.grid(row=3, column=0, columnspan=2, sticky="e", padx=12, pady=(0, 12))
+        actions.grid(row=3, column=0, columnspan=2, sticky="e", padx="9p", pady=(0, "9p"))
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
-            row=0, column=0, padx=(0, 8)
+            row=0, column=0, padx=(0, "6p")
         )
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
@@ -218,23 +218,23 @@ class AppPromptEntryDialog(Toplevel):
             for key in ("styling", "structure", "context")
         }
 
-        frame = ttk.Frame(self, padding=12)
+        frame = ttk.Frame(self, padding="9p")
         frame.grid(row=0, column=0, sticky="nsew")
         frame.columnconfigure(1, weight=1)
 
         ttk.Label(frame, text="Process name (e.g., chrome.exe)").grid(row=0, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_process, width=30).grid(
-            row=0, column=1, sticky="we", pady=(0, 8), padx=(12, 0)
+            row=0, column=1, sticky="we", pady=(0, "6p"), padx=("9p", 0)
         )
 
         ttk.Label(frame, text="Window title regex (optional)").grid(row=1, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_window_regex, width=30).grid(
-            row=1, column=1, sticky="we", pady=(0, 8), padx=(12, 0)
+            row=1, column=1, sticky="we", pady=(0, "6p"), padx=("9p", 0)
         )
 
         ttk.Label(frame, text="Cleanup style (blank = global)").grid(row=2, column=0, sticky="w")
         style_row = ttk.Frame(frame)
-        style_row.grid(row=2, column=1, sticky="we", pady=(0, 8), padx=(12, 0))
+        style_row.grid(row=2, column=1, sticky="we", pady=(0, "6p"), padx=("9p", 0))
         for key, values in (
             ("styling", s1.STYLING),
             ("structure", s1.STRUCTURE),
@@ -246,18 +246,18 @@ class AppPromptEntryDialog(Toplevel):
                 values=["", *values],
                 width=12,
                 state="readonly",
-            ).pack(side="left", padx=(0, 8))
+            ).pack(side="left", padx=(0, "6p"))
 
-        ttk.Label(frame, text="Prompt").grid(row=3, column=0, sticky="nw", pady=(4, 0))
+        ttk.Label(frame, text="Prompt").grid(row=3, column=0, sticky="nw", pady=("3p", 0))
         self.txt_prompt = tk.Text(frame, width=50, height=8, wrap="word")
         if entry and entry.get("prompt"):
             self.txt_prompt.insert("1.0", entry["prompt"])
-        self.txt_prompt.grid(row=3, column=1, sticky="we", padx=(12, 0))
+        self.txt_prompt.grid(row=3, column=1, sticky="we", padx=("9p", 0))
 
         actions = ttk.Frame(frame)
-        actions.grid(row=4, column=1, sticky="e", pady=(10, 0))
+        actions.grid(row=4, column=1, sticky="e", pady=("7.5p", 0))
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
-            row=0, column=0, padx=(0, 8)
+            row=0, column=0, padx=(0, "6p")
         )
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
