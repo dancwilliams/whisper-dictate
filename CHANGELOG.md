@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- A glossary rule that could not be applied was named in the log and nowhere
+  else. The first dictation that skips it now shows a warning naming the
+  rule; later ones stay quiet.
 - The status pill could not be kept on a second monitor: it was clamped to
   the primary screen on every status change, and the top of a taller monitor
   was out of reach. It now clamps to the monitor it is on, and its default

@@ -74,6 +74,7 @@ def mods(mocker):
     m.glossary.hotwords_for_app.return_value = ""
     m.glossary.apply_glossary.side_effect = lambda text, _manager: text
     m.glossary.load_glossary_manager.return_value.rules = []
+    m.glossary.load_glossary_manager.return_value.skipped = []
     m.clipboard.snapshot.return_value = "SAVED"
     m.clipboard.send_paste.return_value = True
     return m
@@ -106,6 +107,7 @@ def make_app(mods):
         app.prompt_content = ""
         app._press_at = 0.0
         app._status_state = "ready"
+        app._reported_bad_rules = set()
         app._deliver_lock = threading.Lock()
         app._settings_saved = False
         app._defaults = {
@@ -127,6 +129,34 @@ def states(app) -> list[str]:
 
 def messages(app) -> list[str]:
     return [call.args[1] for call in app.indicator.update.call_args_list]
+
+
+class TestGlossarySkips:
+    """A rule that silently stops working looks like the app broke, and a
+    regular user never opens the log. Say so once per session."""
+
+    def test_the_first_dictation_warns_and_names_the_rule(self, make_app, mods):
+        app = make_app(var_glossary_enable=True)
+        mods.glossary.load_glossary_manager.return_value.rules = [object()]
+        mods.glossary.load_glossary_manager.return_value.skipped = ["(unclosed"]
+
+        run(app)
+
+        assert states(app)[-1] == "warning"
+        assert messages(app)[-1] == "Glossary rule skipped: (unclosed"
+
+    def test_the_second_dictation_stays_quiet(self, make_app, mods):
+        app = make_app(var_glossary_enable=True)
+        mods.glossary.load_glossary_manager.return_value.rules = [object()]
+        mods.glossary.load_glossary_manager.return_value.skipped = ["(unclosed"]
+        run(app)
+        app.indicator.update.reset_mock()
+        app._status_state = "ready"
+
+        run(app)
+
+        assert "warning" not in states(app)
+        assert states(app)[-1] == "ready"
 
 
 class TestDeliver:

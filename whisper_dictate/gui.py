@@ -179,6 +179,8 @@ class App(Tk):
         self.hotkey_manager: hotkeys.HotkeyManager | None = None
         self._press_at = 0.0
         self._status_state = "ready"
+        # Glossary rules already reported as skipped: once per session, not per dictation.
+        self._reported_bad_rules: set[str] = set()
         self._deliver_lock = threading.Lock()
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
@@ -1507,6 +1509,12 @@ class App(Tk):
         normalized_text = glossary.apply_glossary(
             text, self.glossary_manager if glossary_enabled else None
         )
+        # A rule that silently stops working looks like the app broke, and the
+        # log is not where a user looks. Say so once; the log has it every time.
+        for trigger in self.glossary_manager.skipped:
+            if trigger not in self._reported_bad_rules:
+                self._reported_bad_rules.add(trigger)
+                self._set_status("warning", f"Glossary rule skipped: {trigger}")
         final_text = normalized_text
 
         cleanup_started = time.monotonic()

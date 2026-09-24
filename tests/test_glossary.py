@@ -80,6 +80,15 @@ class TestGlossaryApplication:
         )
         assert apply_glossary("an epic (unclosed story", manager) == "an EPIC (unclosed story"
         assert "Skipping glossary rule '(unclosed'" in caplog.text
+        assert manager.skipped == ["(unclosed"]
+
+    def test_skipped_is_per_call(self) -> None:
+        """The GUI reads it after each apply; a stale entry would warn again."""
+        manager = GlossaryManager(
+            [GlossaryRule(trigger="epic", replacement="EPIC", match_type="word")]
+        )
+        apply_glossary("epic", manager)
+        assert manager.skipped == []
 
     def test_a_replacement_with_a_missing_group_is_skipped(self, caplog) -> None:
         manager = GlossaryManager(
@@ -87,6 +96,7 @@ class TestGlossaryApplication:
         )
         assert apply_glossary("gpt-4", manager) == "gpt-4"
         assert "Skipping glossary rule" in caplog.text
+        assert manager.skipped == [r"gpt-(\d)"]
 
 
 class TestGlossaryRuleManipulation:
