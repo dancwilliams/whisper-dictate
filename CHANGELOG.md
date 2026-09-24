@@ -65,6 +65,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closed, and the popup tolerates the app going away underneath it.
 
 ### Changed
+- torch comes from the CUDA 13.0 index (2.14.0+cu130) instead of CUDA 12.8
+  (2.11.0+cu128), which also frees setuptools from the `<82` pin the old
+  wheel carried. Verified on the dev box in both import orders and with the
+  Cohere recognizer: torch's CUDA 13 cuDNN and ctranslate2's CUDA 12 cuDNN
+  load side by side, since Windows keys a loaded DLL by its full path. The
+  faster-whisper CUDA 12.4 wheels are unchanged.
 - Text is rendered at the display's real density instead of being stretched
   from 96 dpi, so it is sharp on a scaled monitor. The pill may sit in a
   different spot once after the update: its saved position was in the old
