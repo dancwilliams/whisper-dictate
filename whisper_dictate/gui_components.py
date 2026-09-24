@@ -99,13 +99,17 @@ class PromptDialog(Toplevel):
         self.rowconfigure(0, weight=1)
 
         self.txt_prompt = Text(self, height=16, wrap="word")
-        self.txt_prompt.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=12, pady=(12, 6))
+        self.txt_prompt.grid(
+            row=0, column=0, columnspan=2, sticky="nsew", padx="9p", pady=("9p", "4.5p")
+        )
         self.txt_prompt.insert("1.0", prompt)
         self.txt_prompt.focus_set()
 
         btns = ttk.Frame(self)
-        btns.grid(row=1, column=0, columnspan=2, pady=(0, 12))
-        ttk.Button(btns, text="Cancel", command=self.on_cancel).grid(row=0, column=0, padx=(0, 8))
+        btns.grid(row=1, column=0, columnspan=2, pady=(0, "9p"))
+        ttk.Button(btns, text="Cancel", command=self.on_cancel).grid(
+            row=0, column=0, padx=(0, "6p")
+        )
         ttk.Button(btns, text="Save", command=self.on_save).grid(row=0, column=1)
 
         self.bind("<Escape>", lambda event: self.on_cancel())

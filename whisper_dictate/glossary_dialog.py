@@ -41,7 +41,7 @@ class GlossaryDialog(Toplevel):
             ),
             wraplength="390p",
             justify="left",
-        ).grid(row=0, column=0, sticky="we", padx=12, pady=(12, 8))
+        ).grid(row=0, column=0, sticky="we", padx="9p", pady=("9p", "6p"))
 
         self.tree = ttk.Treeview(
             self,
@@ -58,24 +58,26 @@ class GlossaryDialog(Toplevel):
         ):
             self.tree.heading(col, text=heading)
             self.tree.column(col, width=px(self, width), anchor="w")
-        self.tree.grid(row=1, column=0, sticky="nsew", padx=12)
+        self.tree.grid(row=1, column=0, sticky="nsew", padx="9p")
 
         btns = ttk.Frame(self)
-        btns.grid(row=2, column=0, sticky="ew", padx=12, pady=10)
+        btns.grid(row=2, column=0, sticky="ew", padx="9p", pady="7.5p")
         btns.columnconfigure(0, weight=1)
 
-        ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, 6))
-        ttk.Button(btns, text="Edit", command=self._on_edit).grid(row=0, column=1, padx=(0, 6))
-        ttk.Button(btns, text="Delete", command=self._on_delete).grid(row=0, column=2, padx=(0, 6))
+        ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, "4.5p"))
+        ttk.Button(btns, text="Edit", command=self._on_edit).grid(row=0, column=1, padx=(0, "4.5p"))
+        ttk.Button(btns, text="Delete", command=self._on_delete).grid(
+            row=0, column=2, padx=(0, "4.5p")
+        )
         ttk.Button(btns, text="Import CSV", command=self._on_import).grid(
-            row=0, column=3, padx=(0, 6)
+            row=0, column=3, padx=(0, "4.5p")
         )
         ttk.Button(btns, text="Export CSV", command=self._on_export).grid(row=0, column=4)
 
         actions = ttk.Frame(self)
-        actions.grid(row=3, column=0, sticky="e", padx=12, pady=(0, 12))
+        actions.grid(row=3, column=0, sticky="e", padx="9p", pady=(0, "9p"))
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
-            row=0, column=0, padx=(0, 8)
+            row=0, column=0, padx=(0, "6p")
         )
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
@@ -210,21 +212,21 @@ class GlossaryRuleDialog(Toplevel):
             value=rule.description if rule and rule.description else ""
         )
 
-        frame = ttk.Frame(self, padding=12)
+        frame = ttk.Frame(self, padding="9p")
         frame.grid(row=0, column=0, sticky="nsew")
 
         ttk.Label(frame, text="Trigger (what you say or see)").grid(row=0, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_trigger, width=46).grid(
-            row=1, column=0, sticky="we", pady=(0, 8)
+            row=1, column=0, sticky="we", pady=(0, "6p")
         )
 
         ttk.Label(frame, text="Replacement (what should appear)").grid(row=2, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_replacement, width=46).grid(
-            row=3, column=0, sticky="we", pady=(0, 8)
+            row=3, column=0, sticky="we", pady=(0, "6p")
         )
 
         opts = ttk.Frame(frame)
-        opts.grid(row=4, column=0, sticky="we", pady=(4, 4))
+        opts.grid(row=4, column=0, sticky="we", pady=("3p", "3p"))
         ttk.Label(opts, text="Match type:").grid(row=0, column=0, sticky="w")
         cmb = ttk.Combobox(
             opts,
@@ -233,9 +235,9 @@ class GlossaryRuleDialog(Toplevel):
             state="readonly",
             width=10,
         )
-        cmb.grid(row=0, column=1, padx=(6, 18))
+        cmb.grid(row=0, column=1, padx=("4.5p", "13.5p"))
         ttk.Checkbutton(opts, text="Case sensitive", variable=self.var_case_sensitive).grid(
-            row=0, column=2, padx=(0, 12)
+            row=0, column=2, padx=(0, "9p")
         )
         ttk.Checkbutton(opts, text="Whole words only", variable=self.var_word_boundary).grid(
             row=0, column=3
@@ -243,20 +245,20 @@ class GlossaryRuleDialog(Toplevel):
 
         # A phonetic rule matches on sound, so the spelling options do not apply.
         self.lbl_phonetic = ttk.Label(frame, text="", wraplength="322.5p", foreground="gray")
-        self.lbl_phonetic.grid(row=7, column=0, sticky="w", pady=(0, 6))
+        self.lbl_phonetic.grid(row=7, column=0, sticky="w", pady=(0, "4.5p"))
         self.var_match_type.trace_add("write", lambda *_a: self._describe_phonetic())
         self.var_trigger.trace_add("write", lambda *_a: self._describe_phonetic())
         self._describe_phonetic()
 
         ttk.Label(frame, text="Description (optional)").grid(row=5, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.var_description, width=46).grid(
-            row=6, column=0, sticky="we", pady=(0, 10)
+            row=6, column=0, sticky="we", pady=(0, "7.5p")
         )
 
         actions = ttk.Frame(frame)
         actions.grid(row=8, column=0, sticky="e")
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
-            row=0, column=0, padx=(0, 8)
+            row=0, column=0, padx=(0, "6p")
         )
         ttk.Button(actions, text="Save", command=self._on_save).grid(row=0, column=1)
 
