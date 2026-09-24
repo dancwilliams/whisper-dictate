@@ -136,7 +136,10 @@ class TestGlossarySkips:
     regular user never opens the log. Say so once per session."""
 
     def test_the_first_dictation_warns_and_names_the_rule(self, make_app, mods):
-        app = make_app(var_glossary_enable=True)
+        """With cleanup on: raised before it, the warning lasted a split second
+        until "Cleaned by LLM" replaced it."""
+        mods.llm_cleanup.clean_with_llm.return_value = "Hello world."
+        app = make_app(var_glossary_enable=True, var_cleanup_backend="endpoint")
         mods.glossary.load_glossary_manager.return_value.rules = [object()]
         mods.glossary.load_glossary_manager.return_value.skipped = ["(unclosed"]
 
@@ -146,7 +149,8 @@ class TestGlossarySkips:
         assert messages(app)[-1] == "Glossary rule skipped: (unclosed"
 
     def test_the_second_dictation_stays_quiet(self, make_app, mods):
-        app = make_app(var_glossary_enable=True)
+        mods.llm_cleanup.clean_with_llm.return_value = "Hello world."
+        app = make_app(var_glossary_enable=True, var_cleanup_backend="endpoint")
         mods.glossary.load_glossary_manager.return_value.rules = [object()]
         mods.glossary.load_glossary_manager.return_value.skipped = ["(unclosed"]
         run(app)

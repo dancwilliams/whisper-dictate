@@ -1509,12 +1509,6 @@ class App(Tk):
         normalized_text = glossary.apply_glossary(
             text, self.glossary_manager if glossary_enabled else None
         )
-        # A rule that silently stops working looks like the app broke, and the
-        # log is not where a user looks. Say so once; the log has it every time.
-        for trigger in self.glossary_manager.skipped:
-            if trigger not in self._reported_bad_rules:
-                self._reported_bad_rules.add(trigger)
-                self._set_status("warning", f"Glossary rule skipped: {trigger}")
         final_text = normalized_text
 
         cleanup_started = time.monotonic()
@@ -1571,6 +1565,15 @@ class App(Tk):
         # Display and copy result
         ts = time.strftime("%H:%M:%S")
         self.after(0, self._append_transcript, f"[{ts}] {final_text}\n")
+
+        # A rule that silently stops working looks like the app broke, and the
+        # log is not where a user looks. Say so once; the log has it every time.
+        # Raised here, after cleanup's own "Cleaned" status, so it stands: only
+        # a warning that is current when delivery starts survives it.
+        for trigger in self.glossary_manager.skipped:
+            if trigger not in self._reported_bad_rules:
+                self._reported_bad_rules.add(trigger)
+                self._set_status("warning", f"Glossary rule skipped: {trigger}")
 
         self._deliver(final_text, cfg)
 
