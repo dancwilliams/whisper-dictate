@@ -95,6 +95,20 @@ class TestChordFeed:
         c.feed(LCTRL, True)
         assert c.feed(LWIN, True) is None
 
+    def test_resync_forgets_releases_the_lock_screen_ate(self):
+        c = chord("CTRL+WIN")
+        c.feed(LWIN, True)
+        c.feed(ord("L"), True)  # Win+L: both key-ups go to the lock screen
+        c.resync(lambda vk: False)
+        assert c.feed(LCTRL, True) is None
+        assert c.feed(LWIN, True) == "press"
+
+    def test_resync_keeps_keys_still_held(self):
+        c = chord("CTRL+WIN")
+        c.feed(LCTRL, True)
+        c.resync(lambda vk: vk == LCTRL)
+        assert c.feed(LWIN, True) == "press"
+
 
 class TestChordSwallows:
     """Test which keys are eaten rather than passed to the focused app."""
@@ -150,7 +164,18 @@ class TestHotkeyManager:
         with pytest.raises(HotkeyError, match="Failed to install the keyboard hook"):
             manager.register("CTRL+WIN")
 
-    def test_handle_dispatches_press_release_and_cancel(self):
+    def _keyboard(self, monkeypatch, manager):
+        """A fake keyboard: Windows' physical key state, then the hook event."""
+        held: set[int] = set()
+        monkeypatch.setattr(hotkeys, "key_held", held.__contains__)
+
+        def key(vk, is_down):
+            (held.add if is_down else held.discard)(vk)
+            manager._handle(vk, is_down)
+
+        return key
+
+    def test_handle_dispatches_press_release_and_cancel(self, monkeypatch):
         events = []
         manager = HotkeyManager(
             lambda: events.append("press"),
@@ -158,17 +183,29 @@ class TestHotkeyManager:
             lambda: events.append("cancel"),
         )
         manager.chord = chord("CTRL+WIN")
+        key = self._keyboard(monkeypatch, manager)
 
-        manager._handle(LCTRL, True)
-        manager._handle(LWIN, True)
-        manager._handle(RIGHT_ARROW, True)
-        manager._handle(LWIN, False)
-        manager._handle(LCTRL, False)
-        manager._handle(LCTRL, True)
-        manager._handle(LWIN, True)
-        manager._handle(LWIN, False)
+        key(LCTRL, True)
+        key(LWIN, True)
+        key(RIGHT_ARROW, True)
+        key(LWIN, False)
+        key(LCTRL, False)
+        key(LCTRL, True)
+        key(LWIN, True)
+        key(LWIN, False)
 
         assert events == ["press", "cancel", "press", "release"]
+
+    def test_handle_resyncs_against_windows_first(self, monkeypatch):
+        events = []
+        manager = HotkeyManager(lambda: events.append("press"))
+        manager.chord = chord("CTRL+WIN")
+        key = self._keyboard(monkeypatch, manager)
+        manager.chord.down, manager.chord.blocked = {LWIN}, True  # stale, from Win+L
+
+        key(LCTRL, True)
+        key(LWIN, True)
+        assert events == ["press"]
 
     def test_optional_callbacks_may_be_omitted(self):
         """A manager with only on_press must not blow up on a release."""
