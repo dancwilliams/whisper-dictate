@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import difflib
 import json
 import logging
 import re
@@ -454,6 +455,30 @@ def apply_glossary(text: str, manager: GlossaryManager | None) -> str:
 # ----------------------------------------------------------------------
 # Parsing helpers
 # ----------------------------------------------------------------------
+def propose_rules(heard: str, typed: str) -> list[GlossaryRule]:
+    """Turn a user's corrections to a dictation into candidate glossary rules.
+
+    Each run of words the user replaced becomes one phrase rule, heard on the
+    left, typed on the right. Words only added or only removed make no rule:
+    there is nothing to trigger on. Surrounding punctuation is ignored, so
+    fixing a comma proposes nothing.
+    """
+    a = [w.strip(_EDGE_PUNCT) for w in heard.split()]
+    b = [w.strip(_EDGE_PUNCT) for w in typed.split()]
+    rules: list[GlossaryRule] = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(a=a, b=b, autojunk=False).get_opcodes():
+        if op != "replace":
+            continue
+        trigger = " ".join(w for w in a[i1:i2] if w)
+        replacement = " ".join(w for w in b[j1:j2] if w)
+        if trigger and replacement:
+            rules.append(GlossaryRule(trigger=trigger, replacement=replacement))
+    return rules
+
+
+_EDGE_PUNCT = ".,;:!?\"'()[]{}"
+
+
 def _parse_legacy_rules(text: str) -> list[GlossaryRule]:
     """Parse simple `trigger => replacement` lines into rules."""
 
