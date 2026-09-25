@@ -103,6 +103,17 @@ class Chord:
             return "release"
         return None
 
+    def resync(self, held: Callable[[int], bool]) -> None:
+        """Forget tracked keys that are physically up.
+
+        Key-ups can go missing: Win+L sends its releases to the lock screen, a
+        separate desktop this hook never sees. Left alone, the phantom WIN keeps
+        the tracker blocked and the first chord after unlock does nothing.
+        """
+        self.down = {vk for vk in self.down if held(vk)}
+        if not self.down & self.keys:
+            self.blocked = False
+
     def swallows(self, vk: int) -> bool:
         """Whether this key should be eaten rather than passed to the focused app.
 
@@ -154,6 +165,11 @@ user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
 user32.GetAsyncKeyState.restype = ctypes.c_short
 
 
+def key_held(vk: int) -> bool:
+    """True while the key is physically down, according to Windows."""
+    return bool(user32.GetAsyncKeyState(vk) & 0x8000)
+
+
 def modifiers_held() -> bool:
     """True while any modifier key is physically down, according to Windows.
 
@@ -161,7 +177,7 @@ def modifiers_held() -> bool:
     be folded into a keystroke we inject, and it also catches modifiers the
     user is holding that are no part of the chord.
     """
-    return any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in MODIFIER_STATE_VKS)
+    return any(key_held(vk) for vk in MODIFIER_STATE_VKS)
 
 
 class HotkeyManager:
@@ -246,6 +262,7 @@ class HotkeyManager:
         """Feed one transition to the chord and dispatch the matching callback."""
         if not self.chord:
             return
+        self.chord.resync(key_held)
         event = self.chord.feed(vk, is_down)
         if event == "press":
             self.on_press()
