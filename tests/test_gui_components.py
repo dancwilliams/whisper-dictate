@@ -315,3 +315,18 @@ class TestMenu:
 
     def test_no_menu_without_items(self, root):
         assert StatusIndicator(root).menu is None
+
+
+class TestPillMenu:
+    def test_a_right_click_on_the_canvas_posts_the_menu_once(self, root):
+        # Both the toplevel and the canvas used to bind <Button-3>, and a click
+        # on the canvas reaches both through the bindtags. The second tk_popup
+        # left a phantom menu open under any window the first one's command
+        # opened, swallowing input until it was dismissed.
+        indicator = StatusIndicator(root, menu_items=(("Show", lambda: None),))
+        posted = []
+        indicator.menu.tk_popup = lambda x, y: posted.append((x, y))
+        root.update()
+        indicator.canvas.event_generate("<Button-3>", x=5, y=5)
+        root.update()
+        assert len(posted) == 1
