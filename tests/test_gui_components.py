@@ -326,6 +326,7 @@ class TestPillMenu:
         indicator = StatusIndicator(root, menu_items=(("Show", lambda: None),))
         posted = []
         indicator.menu.tk_popup = lambda x, y: posted.append((x, y))
+        indicator.show()
         root.update()
         indicator.canvas.event_generate("<Button-3>", x=5, y=5)
         root.update()
