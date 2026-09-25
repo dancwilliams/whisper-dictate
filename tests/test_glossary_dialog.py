@@ -88,3 +88,13 @@ class TestCorrectionDialog:
         assert dialog._choices == []
         assert str(dialog.add_button.cget("state")) == "disabled"
         dialog.destroy()
+
+    def test_shows_and_holds_no_grab_when_parent_hidden(self, root) -> None:
+        # Opened from the pill, the main window is withdrawn. A transient
+        # dialog with a grab would be invisible and lock the pill menu.
+        root.withdraw()
+        dialog = glossary_dialog.CorrectionDialog(root, "some text")
+        root.update()
+        assert dialog.winfo_viewable()
+        assert dialog.grab_current() is None
+        dialog.destroy()

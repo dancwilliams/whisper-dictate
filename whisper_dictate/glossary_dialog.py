@@ -321,8 +321,9 @@ class CorrectionDialog(Toplevel):
     def __init__(self, parent: tk.Tk | Toplevel, heard: str):
         super().__init__(parent)
         self.title("Fix last dictation")
-        self.transient(parent)
-        self.grab_set()
+        # Not transient and no grab: the main window is usually withdrawn when
+        # this opens from the pill, and Tk hides transients with their master
+        # while the grab lives on, which leaves the pill menu dead.
         self.heard = heard
         self.result: list[GlossaryRule] | None = None
         self._choices: list[tuple[BooleanVar, GlossaryRule]] = []
@@ -357,6 +358,8 @@ class CorrectionDialog(Toplevel):
         self.add_button.grid(row=0, column=1)
 
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+        self.lift()
+        self.focus_force()
         self.text.focus_set()
 
     def _on_find(self) -> None:
