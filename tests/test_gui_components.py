@@ -240,7 +240,8 @@ class TestTheme:
     @pytest.mark.skipif(sys.platform != "win32", reason="-transparentcolor is Windows only")
     def test_the_window_background_is_keyed_out(self, root):
         indicator = StatusIndicator(root)
-        assert indicator.window.attributes("-transparentcolor") == gui_components.KEY
+        # Python 3.11's Tk may return a Tcl_Obj here rather than a str.
+        assert str(indicator.window.attributes("-transparentcolor")) == gui_components.KEY
 
     def test_the_theme_follows_windows(self, root, monkeypatch):
         """Read on the topmost timer: a pill that stays light on a desktop that
