@@ -605,3 +605,24 @@ class TestHotwords:
             "code": ["Traefik"],
             "olk": ["Capobianco"],
         }
+
+
+class TestProposeRules:
+    """Corrections to a dictation become phrase rules."""
+
+    def test_replaced_words_become_rules(self) -> None:
+        heard = "We saw threat fax flag the host, and valida tech agreed."
+        typed = "We saw ThreatFox flag the host, and ValidaTek agreed."
+        rules = glossary.propose_rules(heard, typed)
+        assert [(r.trigger, r.replacement) for r in rules] == [
+            ("threat fax", "ThreatFox"),
+            ("valida tech", "ValidaTek"),
+        ]
+        assert all(r.match_type == "phrase" for r in rules)
+
+    def test_punctuation_and_pure_edits_make_no_rule(self) -> None:
+        heard = "hello world this is fine"
+        assert glossary.propose_rules(heard, "hello, world. this is fine") == []
+        assert glossary.propose_rules(heard, "hello world this is really fine") == []
+        assert glossary.propose_rules(heard, "hello this is fine") == []
+        assert glossary.propose_rules(heard, heard) == []

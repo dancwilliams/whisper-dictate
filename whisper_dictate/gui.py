@@ -65,7 +65,7 @@ from whisper_dictate.config import (
     get_model_choices,
     set_cuda_paths,
 )
-from whisper_dictate.glossary_dialog import GlossaryDialog
+from whisper_dictate.glossary_dialog import CorrectionDialog, GlossaryDialog
 from whisper_dictate.gui_components import PromptDialog, StatusIndicator, px
 from whisper_dictate.logging_config import LOG_FILE, setup_logging
 
@@ -181,6 +181,7 @@ class App(Tk):
         self._status_state = "ready"
         # Glossary rules already reported as skipped: once per session, not per dictation.
         self._reported_bad_rules: set[str] = set()
+        self._last_final = ""
         self._deliver_lock = threading.Lock()
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
@@ -215,6 +216,7 @@ class App(Tk):
         edit_menu = Menu(menubar, tearoff=False)
         edit_menu.add_command(label="Prompt...", command=self._open_prompt_dialog)
         edit_menu.add_command(label="Glossary...", command=self._open_glossary_dialog)
+        edit_menu.add_command(label="Fix last dictation...", command=self._open_correction_dialog)
         edit_menu.add_command(label="Per-app prompts...", command=self._open_app_prompt_dialog)
         menubar.add_cascade(label="Edit", menu=edit_menu)
 
@@ -914,6 +916,7 @@ class App(Tk):
             initial_position=self._indicator_position,
             menu_items=(
                 ("Show window", self.show_window),
+                ("Fix last dictation...", self._open_correction_dialog),
                 ("Cleanup settings...", self._open_llm_settings),
                 ("-", lambda: None),
                 ("Quit", self._on_close),
@@ -1108,6 +1111,22 @@ class App(Tk):
                 messagebox.showerror(
                     "Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}"
                 )
+
+    def _open_correction_dialog(self) -> None:
+        """Correct the last dictation by hand and add the fixes as glossary rules."""
+        if not self._last_final:
+            self._set_status("ready", "Nothing dictated yet")
+            return
+        dialog = CorrectionDialog(self, self._last_final)
+        self.wait_window(dialog)
+        if not dialog.result:
+            return
+        for rule in dialog.result:
+            self.glossary_manager.upsert_rule(rule)
+        if self.glossary_manager.save():
+            self._set_status("ready", f"Added {len(dialog.result)} glossary rule(s)")
+        else:
+            messagebox.showerror("Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}")
 
     def _open_app_prompt_dialog(self) -> None:
         """Open application-specific prompt dialog."""
@@ -1569,6 +1588,7 @@ class App(Tk):
             )
 
         # Display and copy result
+        self._last_final = final_text
         ts = time.strftime("%H:%M:%S")
         self.after(0, self._append_transcript, f"[{ts}] {final_text}\n")
 

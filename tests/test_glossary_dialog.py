@@ -69,3 +69,22 @@ class TestSave:
         assert dialog.result.trigger == r"gpt-?4"
         assert dialog.result.match_type == "regex"
         assert not dialog.winfo_exists()
+
+
+class TestCorrectionDialog:
+    def test_find_then_add_returns_ticked_rules(self, root) -> None:
+        dialog = glossary_dialog.CorrectionDialog(root, "meet me at valida tech, near git hub")
+        dialog.text.delete("1.0", "end")
+        dialog.text.insert("1.0", "meet me at ValidaTek, near GitHub")
+        dialog._on_find()
+        assert [r.replacement for _, r in dialog._choices] == ["ValidaTek", "GitHub"]
+        dialog._choices[1][0].set(False)
+        dialog._on_add()
+        assert [(r.trigger, r.replacement) for r in dialog.result] == [("valida tech", "ValidaTek")]
+
+    def test_no_changes_disables_add(self, root) -> None:
+        dialog = glossary_dialog.CorrectionDialog(root, "nothing to fix")
+        dialog._on_find()
+        assert dialog._choices == []
+        assert str(dialog.add_button.cget("state")) == "disabled"
+        dialog.destroy()

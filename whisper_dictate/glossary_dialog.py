@@ -13,6 +13,7 @@ from whisper_dictate.glossary import (
     as_match_type,
     phonetic_code,
     phonetic_rejection,
+    propose_rules,
 )
 from whisper_dictate.gui_components import px
 
@@ -307,6 +308,74 @@ class GlossaryRuleDialog(Toplevel):
             word_boundary=bool(self.var_word_boundary.get()),
             description=self.var_description.get().strip() or None,
         )
+        self.destroy()
+
+    def _on_cancel(self) -> None:
+        self.result = None
+        self.destroy()
+
+
+class CorrectionDialog(Toplevel):
+    """Fix the last dictation by hand and turn the fixes into glossary rules."""
+
+    def __init__(self, parent: tk.Tk | Toplevel, heard: str):
+        super().__init__(parent)
+        self.title("Fix last dictation")
+        self.transient(parent)
+        self.grab_set()
+        self.heard = heard
+        self.result: list[GlossaryRule] | None = None
+        self._choices: list[tuple[BooleanVar, GlossaryRule]] = []
+
+        self.columnconfigure(0, weight=1)
+        ttk.Label(
+            self,
+            text="Correct the words below, then find the fixes to add as glossary rules.",
+            wraplength="390p",
+            justify="left",
+        ).grid(row=0, column=0, sticky="we", padx="9p", pady=("9p", "6p"))
+
+        self.text = tk.Text(self, width=60, height=6, wrap="word")
+        self.text.insert("1.0", heard)
+        self.text.grid(row=1, column=0, sticky="nsew", padx="9p")
+
+        ttk.Button(self, text="Find corrections", command=self._on_find).grid(
+            row=2, column=0, sticky="w", padx="9p", pady="7.5p"
+        )
+
+        self.choices = ttk.Frame(self)
+        self.choices.grid(row=3, column=0, sticky="we", padx="9p")
+
+        actions = ttk.Frame(self)
+        actions.grid(row=4, column=0, sticky="e", padx="9p", pady="9p")
+        ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
+            row=0, column=0, padx=(0, "6p")
+        )
+        self.add_button = ttk.Button(
+            actions, text="Add to glossary", command=self._on_add, state="disabled"
+        )
+        self.add_button.grid(row=0, column=1)
+
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+        self.text.focus_set()
+
+    def _on_find(self) -> None:
+        for child in self.choices.winfo_children():
+            child.destroy()
+        self._choices = []
+        typed = self.text.get("1.0", "end").strip()
+        for rule in propose_rules(self.heard, typed):
+            var = BooleanVar(value=True)
+            ttk.Checkbutton(
+                self.choices, text=f"{rule.trigger}  →  {rule.replacement}", variable=var
+            ).pack(anchor="w")
+            self._choices.append((var, rule))
+        if not self._choices:
+            ttk.Label(self.choices, text="No word changes found.").pack(anchor="w")
+        self.add_button.configure(state="normal" if self._choices else "disabled")
+
+    def _on_add(self) -> None:
+        self.result = [rule for var, rule in self._choices if var.get()]
         self.destroy()
 
     def _on_cancel(self) -> None:

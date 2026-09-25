@@ -49,7 +49,8 @@ Or use Task Manager → Startup apps to disable it without deleting it.
 
 - A small pill, by default near the bottom-right. Drag it anywhere; double-click
   resets it. Its position is remembered.
-- **Right-click the pill** for Show window, Cleanup settings and Quit. With the
+- **Right-click the pill** for Show window, Fix last dictation, Cleanup settings
+  and Quit. With the
   main window hidden this menu is the only way into the app, and Quit is the
   only way out — closing the main window just hides it again.
 - Exactly one instance. Launching a second time does nothing: the app takes a
