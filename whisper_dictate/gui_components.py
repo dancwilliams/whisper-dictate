@@ -228,11 +228,12 @@ class StatusIndicator:
         master.bind("<Configure>", self._reposition, add="+")
 
         # Bind mouse events to allow dragging from anywhere on the small UI
-        for w in (self.window, self.canvas):
-            w.bind("<ButtonPress-1>", self._start_drag, add="+")
-            w.bind("<B1-Motion>", self._on_drag, add="+")
-            w.bind("<ButtonRelease-1>", self._end_drag, add="+")
-            w.bind("<Double-Button-1>", self._reset_position, add="+")
+        # Bound on the toplevel only: an event on the canvas reaches it through
+        # the bindtags, so binding both fires every handler twice.
+        self.window.bind("<ButtonPress-1>", self._start_drag, add="+")
+        self.window.bind("<B1-Motion>", self._on_drag, add="+")
+        self.window.bind("<ButtonRelease-1>", self._end_drag, add="+")
+        self.window.bind("<Double-Button-1>", self._reset_position, add="+")
 
         self.menu: Menu | None = None
         if menu_items:
@@ -245,8 +246,10 @@ class StatusIndicator:
                     # interpreter, and doing that while the menu is still posted
                     # unwinds into a dead Tk.
                     self.menu.add_command(label=label, command=partial(self._defer, command))
-            for w in (self.window, self.canvas):
-                w.bind("<Button-3>", self._show_menu, add="+")
+            # Once, or a right-click posts the menu twice and the chosen command
+            # runs inside the second, phantom menu, which then eats every click
+            # and keystroke until something dismisses it.
+            self.window.bind("<Button-3>", self._show_menu, add="+")
 
         # Keep the floating window pinned above everything else
         self.window.after(1500, self._ensure_topmost)
