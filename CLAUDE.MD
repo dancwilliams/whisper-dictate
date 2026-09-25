@@ -7,7 +7,7 @@ This file provides context about the Whisper Dictate project for AI assistants w
 Whisper Dictate is a privacy-first, local speech-to-text and AI cleanup tool for Windows. It uses faster-whisper for offline transcription and can optionally send text to an OpenAI-compatible endpoint for cleanup/rewriting.
 
 **Key Technologies:**
-- Python 3.11+
+- Python 3.13+
 - faster-whisper (SYSTRAN) for local speech-to-text
 - OpenAI API client for optional LLM cleanup
 - tkinter for GUI
@@ -19,7 +19,7 @@ Whisper Dictate is a privacy-first, local speech-to-text and AI cleanup tool for
 
 ### General Guidelines
 - Line length: 100 characters (enforced by ruff)
-- Python version: 3.11+
+- Python version: 3.13+
 - Use type hints where practical (mypy configured but not strict)
 - Keep solutions simple and focused - avoid over-engineering
 - Don't add features, refactors, or "improvements" beyond what's requested
@@ -160,7 +160,7 @@ make check
 ### Continuous Integration
 - CI runs on every push to `main` and all pull requests
 - Workflow: `.github/workflows/ci.yml`
-- Jobs: lint (ruff), typecheck (mypy), test (pytest on Python 3.11/3.12/3.13)
+- Jobs: lint (ruff), typecheck (mypy), test (pytest on Python 3.13, the pinned version)
 - All jobs must pass for PR to be considered ready
 
 ### Running CI Checks Locally

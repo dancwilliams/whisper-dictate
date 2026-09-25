@@ -3,7 +3,7 @@ name = "whisper-dictate"
 version = "0.1.0"
 description = "A privacy-first, local speech-to-text and AI cleanup tool for Windows using faster-whisper and optional LLM cleanup"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "faster-whisper>=1.2.1",
     "keyring>=25.7.0",
@@ -78,7 +78,7 @@ addopts = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 # Ruff >= 0.16 also formats Python blocks inside Markdown; docs and plans are prose.
 extend-exclude = ["*.md"]
 
@@ -91,7 +91,7 @@ ignore = ["E501"]  # Line too long handled by formatter
 "tests/test_clipboard.py" = ["N802"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
