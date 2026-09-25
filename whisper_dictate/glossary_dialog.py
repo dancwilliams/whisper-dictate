@@ -358,6 +358,14 @@ class CorrectionDialog(Toplevel):
         self.add_button.grid(row=0, column=1)
 
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+        # Only once the window is mapped. Forcing focus before that leaves Tk
+        # thinking it has focus while Windows disagrees, and the dialog then
+        # ignores clicks until focus leaves and comes back.
+        self.after(100, self._take_focus)
+
+    def _take_focus(self) -> None:
+        if not self.winfo_exists():
+            return
         self.lift()
         self.focus_force()
         self.text.focus_set()
