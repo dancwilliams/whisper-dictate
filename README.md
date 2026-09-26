@@ -36,6 +36,8 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
 
 ### 1. Clone and install
 
+Requires Python 3.13 or newer; `uv` fetches it if needed.
+
 ```powershell
 git clone https://github.com/yourusername/whisper-dictate.git
 cd whisper-dictate
@@ -141,25 +143,29 @@ whisper-dictate/
 │   ├─ app_prompt_dialog.py  # GUI dialog for managing per-app prompt overrides
 │   ├─ audio.py              # Audio recording functionality
 │   ├─ transcription.py      # Whisper transcription logic
+│   ├─ asr.py                # Recognizer backends and GPU residency (idle unload)
 │   ├─ llm_cleanup.py        # LLM text cleanup functionality
-│   ├─ glossary.py           # Glossary persistence used during LLM cleanup
-│   ├─ glossary_dialog.py    # GUI dialog for managing glossary rules
+│   ├─ s1.py                 # Built-in cleanup with S1-mini (llama.cpp)
+│   ├─ glossary.py           # Glossary persistence, phonetic rules, per-app hotwords
+│   ├─ glossary_dialog.py    # GUI dialogs for glossary rules and Fix last dictation
+│   ├─ history.py            # Local dictation record and audio pruning
 │   ├─ hotkeys.py            # Windows global hotkey management
+│   ├─ clipboard.py          # Clipboard snapshot/restore and Shift+Insert paste
+│   ├─ speaker.py            # Mute the default playback device while recording
+│   ├─ credentials.py        # API key storage in Windows Credential Manager
 │   ├─ gui_components.py     # Reusable GUI components
 │   ├─ logging_config.py     # Centralized logging setup
 │   ├─ settings_store.py     # Persistent settings load/save helpers
 │   └─ gui.py                # Main GUI application
 │
-├─ tests/                    # Comprehensive test suite
-│   ├─ test_app_context.py
-│   ├─ test_app_prompts.py
-│   ├─ test_config.py
-│   ├─ test_prompt.py
-│   ├─ test_hotkeys.py
-│   ├─ test_llm_cleanup.py
-│   ├─ test_glossary.py
-│   ├─ test_transcription.py
-│   └─ test_audio.py
+├─ tests/                    # One test_<module>.py per module, plus
+│   ├─ test_integration.py   # context, prompts, glossary and cleanup together
+│   └─ test_gui_pipeline.py  # the dictation pipeline and delivery
+│
+├─ docs/
+│   ├─ architecture.md
+│   ├─ startup.md
+│   └─ transcription-optimization.md
 │
 ├─ pyproject.toml
 └─ README.md
