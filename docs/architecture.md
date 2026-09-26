@@ -14,9 +14,13 @@ graph TB
 
     subgraph "Core Processing Pipeline"
         Audio[Audio Recorder<br/>audio.py]
-        Transcription[Whisper Model<br/>transcription.py]
+        ASR[Recognizer + GPU residency<br/>asr.py, transcription.py]
         Glossary[Glossary Application<br/>glossary.py]
+        S1[Built-in Cleanup<br/>s1.py]
         LLM[LLM Cleanup<br/>llm_cleanup.py]
+        History[Dictation History<br/>history.py]
+        ClipMod[Clipboard + Paste<br/>clipboard.py]
+        Speaker[Speaker Mute<br/>speaker.py]
     end
 
     subgraph "Context & Configuration"
@@ -24,6 +28,7 @@ graph TB
         AppPrompts[App-Specific Prompts<br/>app_prompts.py]
         Settings[Settings Store<br/>settings_store.py]
         Prompt[Prompt Manager<br/>prompt.py]
+        Credentials[Credential Store<br/>credentials.py]
     end
 
     subgraph "External Systems"
@@ -31,31 +36,40 @@ graph TB
         Clipboard[System Clipboard]
         LLMEndpoint[LLM API Endpoint<br/>OpenAI-compatible]
         WindowsAPI[Windows API<br/>Active Window]
+        Playback[Default Playback Device]
+        CredMgr[Windows Credential Manager]
     end
 
     subgraph "Storage"
         SettingsFile[~/.whisper_dictate/<br/>settings.json]
         PromptFile[~/.whisper_dictate/<br/>prompt.txt]
         GlossaryFile[~/.whisper_dictate/<br/>glossary.json]
+        HistoryFile[~/.whisper_dictate/<br/>history.jsonl + audio/]
         LogFile[~/.whisper_dictate/logs/<br/>whisper_dictate.log]
     end
 
     User -->|Presses| Hotkey
     Hotkey -->|Event| GUI
+    GUI -->|Mute while recording| Speaker
+    Speaker -->|SetMute| Playback
     GUI -->|Start Recording| Audio
     Audio -->|Capture| Microphone
-    Audio -->|Raw Audio| Transcription
-    Transcription -->|Text| GUI
+    Audio -->|Raw Audio| ASR
+    ASR -->|Text| GUI
     GUI -->|Apply?| Glossary
     Glossary -->|Normalized Text| GUI
     GUI -->|Get Context| AppContext
     AppContext -->|Query| WindowsAPI
     AppContext -->|Window Info| AppPrompts
     AppPrompts -->|Resolve Prompt| Prompt
-    GUI -->|Cleanup?| LLM
+    GUI -->|Cleanup: s1| S1
+    S1 -->|Cleaned Text| GUI
+    GUI -->|Cleanup: llm| LLM
     LLM -->|API Request| LLMEndpoint
     LLM -->|Cleaned Text| GUI
-    GUI -->|Auto Paste?| Clipboard
+    GUI -->|Record| History
+    GUI -->|Auto Paste?| ClipMod
+    ClipMod -->|Snapshot, set, Shift+Insert, restore| Clipboard
 
     Settings -.->|Load| SettingsFile
     Settings -.->|Save| SettingsFile
@@ -63,19 +77,28 @@ graph TB
     Prompt -.->|Save| PromptFile
     Glossary -.->|Load| GlossaryFile
     Glossary -.->|Save| GlossaryFile
+    History -.->|Append| HistoryFile
+    Settings -->|API key| Credentials
+    Credentials -.->|keyring| CredMgr
     GUI -.->|Logs| LogFile
 
     style User fill:#e1f5ff
     style Hotkey fill:#fff3cd
     style GUI fill:#fff3cd
     style Audio fill:#d4edda
-    style Transcription fill:#d4edda
+    style ASR fill:#d4edda
     style Glossary fill:#d4edda
+    style S1 fill:#d4edda
     style LLM fill:#d4edda
+    style History fill:#d4edda
+    style ClipMod fill:#d4edda
+    style Speaker fill:#d4edda
     style Microphone fill:#f8d7da
     style Clipboard fill:#f8d7da
     style LLMEndpoint fill:#f8d7da
     style WindowsAPI fill:#f8d7da
+    style Playback fill:#f8d7da
+    style CredMgr fill:#f8d7da
 ```
 
 ## Data Flow
@@ -89,8 +112,11 @@ sequenceDiagram
     participant Audio
     participant Mic as Microphone
 
+    participant Speaker
+
     User->>Hotkey: Press Ctrl+Win+G
     Hotkey->>GUI: Post hotkey event
+    GUI->>Speaker: set_mute(True) if mute_speakers
     GUI->>Audio: recorder.start(device)
     Audio->>Mic: Open audio stream
     loop While recording
@@ -100,6 +126,7 @@ sequenceDiagram
     User->>Hotkey: Release hotkey
     Hotkey->>GUI: Post hotkey event
     GUI->>Audio: recorder.stop()
+    GUI->>Speaker: set_mute(False) unless it was already muted
     Audio->>GUI: Return buffered audio
 ```
 
@@ -107,16 +134,17 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant GUI
-    participant Trans as Transcription
-    participant Whisper as faster-whisper
+    participant Trans as asr.Resident
+    participant Whisper as WhisperBackend / CohereBackend
     participant Glos as Glossary
     participant GlosFile as glossary.json
 
-    GUI->>Trans: transcribe(audio, model, device)
-    Trans->>Whisper: Load model if needed
-    Trans->>Whisper: transcribe(audio)
+    GUI->>Trans: transcribe(audio, hotwords)
+    Trans->>Whisper: load_backend() if not resident
+    Trans->>Whisper: transcribe(audio, hotwords)
     Whisper-->>Trans: Raw transcript
     Trans-->>GUI: Transcript text
+    Note over Trans: unloads after idle_ttl_minutes
 
     alt Glossary enabled
         GUI->>Glos: apply_glossary(text)
@@ -129,17 +157,22 @@ sequenceDiagram
     end
 ```
 
-### 3. LLM Cleanup (Optional)
+### 3. Cleanup (Optional: S1-mini or LLM)
 ```mermaid
 sequenceDiagram
     participant GUI
     participant AppCtx as AppContext
     participant AppPr as AppPrompts
     participant Prompt
+    participant S1 as S1Cleaner
     participant LLM as LLMCleanup
     participant API as LLM Endpoint
 
-    alt LLM enabled
+    alt cleanup_backend = s1
+        GUI->>S1: clean(text, styling, structure, context)
+        S1->>S1: llama.cpp, in process
+        S1-->>GUI: Cleaned text
+    else cleanup_backend = llm
         GUI->>AppCtx: get_active_window_info()
         AppCtx->>AppCtx: Query Windows API
         AppCtx-->>GUI: WindowInfo(process, title)
@@ -161,22 +194,31 @@ sequenceDiagram
     end
 ```
 
-### 4. Output & Paste
+### 4. Output, Paste & History
 ```mermaid
 sequenceDiagram
     participant GUI
-    participant Clipboard
+    participant Clip as clipboard.py
     participant Target as Target Application
+    participant History as history.py
 
     GUI->>GUI: Display result in text widget
+    GUI->>History: record(text, audio, process name)
 
     alt Auto-paste enabled
-        GUI->>Clipboard: Copy text
+        GUI->>Clip: snapshot()
+        GUI->>Clip: set_text(text)
         GUI->>GUI: Wait paste_delay
-        GUI->>Target: Simulate Ctrl+V
-        Target->>Clipboard: Paste content
+        GUI->>Clip: send_paste() (Shift+Insert via SendInput)
+        Target->>Clip: Paste content
+        GUI->>GUI: Wait restore_delay
+        GUI->>Clip: restore(snapshot)
     end
 ```
+
+Shift+Insert rather than Ctrl+V because terminals and most editors honour it and
+Ctrl+V is bound elsewhere in several of them. The snapshot and restore keep whatever
+was on the clipboard before the dictation.
 
 ## Module Responsibilities
 
@@ -189,14 +231,20 @@ sequenceDiagram
 | `app_prompt_dialog.py` | GUI for per-app prompt management | tkinter |
 | `audio.py` | Audio recording with sounddevice | sounddevice, numpy |
 | `transcription.py` | Whisper model loading and transcription | faster-whisper, ctranslate2 |
+| `asr.py` | Recognizer backends (Whisper, Cohere) and `Resident` idle unload | numpy; torch, transformers (Cohere only) |
 | `llm_cleanup.py` | LLM text cleanup with OpenAI client | openai |
-| `glossary.py` | Glossary persistence and application | None |
-| `glossary_dialog.py` | GUI for glossary management | tkinter |
+| `s1.py` | Built-in cleanup with S1-mini | llama-cpp-python, huggingface_hub |
+| `glossary.py` | Glossary persistence, phonetic rules, per-app hotwords | None |
+| `glossary_dialog.py` | GUI for glossary rules and the Fix last dictation dialog | tkinter |
+| `history.py` | Dictation record (`history.jsonl`) and audio pruning | numpy, wave |
 | `hotkeys.py` | Windows global hotkey registration | ctypes (windll.user32) |
-| `gui_components.py` | Reusable GUI widgets | tkinter |
+| `clipboard.py` | Clipboard snapshot/restore and Shift+Insert paste | ctypes (windll.user32, kernel32) |
+| `speaker.py` | Mute the default playback device while recording | ctypes (Core Audio COM) |
+| `credentials.py` | API key storage in Windows Credential Manager | keyring |
+| `gui_components.py` | Reusable GUI widgets, floating status pill | tkinter |
 | `logging_config.py` | Centralized logging setup | logging |
-| `settings_store.py` | Settings persistence | json |
-| `gui.py` | Main GUI application | tkinter, ctypes (clipboard, paste) |
+| `settings_store.py` | Settings persistence; moves `llm_key` to `credentials.py` | json |
+| `gui.py` | Main GUI application | tkinter |
 
 ## Key Design Patterns
 
@@ -258,10 +306,16 @@ whisper_dictate/
 ├── app_prompt_dialog.py     # GUI for app prompts
 ├── audio.py                 # AudioRecorder class
 ├── transcription.py         # Whisper model interface
+├── asr.py                   # Recognizer backends and GPU residency
 ├── llm_cleanup.py           # OpenAI client wrapper
+├── s1.py                    # S1-mini cleanup (llama.cpp)
 ├── glossary.py              # Glossary logic
-├── glossary_dialog.py       # GUI for glossary
+├── glossary_dialog.py       # GUI for glossary and Fix last dictation
+├── history.py               # Dictation record and audio pruning
 ├── hotkeys.py               # Windows hotkey registration
+├── clipboard.py             # Clipboard snapshot/restore, Shift+Insert paste
+├── speaker.py               # Mute playback device while recording
+├── credentials.py           # Windows Credential Manager (keyring)
 ├── gui_components.py        # Reusable widgets
 ├── logging_config.py        # Logging configuration
 ├── settings_store.py        # Settings persistence
@@ -271,6 +325,8 @@ whisper_dictate/
 ├── whisper_dictate_settings.json   # User settings
 ├── whisper_dictate_prompt.txt      # Default LLM prompt
 ├── whisper_dictate_glossary.json   # Glossary entries
+├── history.jsonl                   # One line per dictation (process name, never window title)
+├── audio/                          # Dictation audio, pruned after history_audio_days
 └── logs/
     └── whisper_dictate.log          # Application logs
 ```
@@ -284,7 +340,7 @@ whisper_dictate/
 
 ## Performance Considerations
 
-- **Model Caching**: Whisper model loaded once and reused
+- **Model Residency**: `asr.Resident` loads the recognizer and cleanup model on demand and frees them after `idle_ttl_minutes`, since the GPU is shared with other services
 - **GPU Acceleration**: CUDA 12.4 wheels for faster-whisper and llama-cpp, CUDA 13.0 for torch
 - **Compute Types**: Configurable (int8_float16, float16, int8)
 - **Audio Buffering**: Background thread prevents blocking GUI
