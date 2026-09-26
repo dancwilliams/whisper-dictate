@@ -60,12 +60,13 @@ Ruff enforces import sorting with the "I" rule:
 | `s1.py` | Built-in cleanup with S1-mini (llama.cpp) | `S1Cleaner`, `build_prompt()` |
 | `glossary.py` | Glossary persistence, phonetic rules, per-app hotwords | `GlossaryManager`, `GlossaryRule`, `apply_glossary()`, `hotwords_for_app()` |
 | `history.py` | Local dictation record and audio pruning | `record()`, `prune_audio()` |
-| `glossary_dialog.py` | GUI for glossary management | `GlossaryDialog` |
+| `glossary_dialog.py` | GUI for glossary management and the Fix last dictation dialog | `GlossaryDialog`, `CorrectionDialog` |
 | `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_chord()` |
 | `clipboard.py` | Clipboard snapshot/restore (ctypes) | `snapshot()`, `restore()`, `set_text()` |
 | `speaker.py` | Mute default playback device while recording (Core Audio, ctypes) | `set_mute()` |
 | `gui_components.py` | Reusable GUI widgets | `PromptDialog`, `StatusIndicator` |
 | `logging_config.py` | Centralized logging setup | `setup_logging()` |
+| `credentials.py` | API key storage in Windows Credential Manager (keyring) | `store_credential()`, `retrieve_credential()`, `delete_credential()` |
 | `settings_store.py` | Settings persistence | `load_settings()`, `save_settings()` |
 | `gui.py` | Main GUI application | `App`, `main()` |
 
