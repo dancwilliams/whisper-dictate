@@ -28,14 +28,49 @@ SAMPLE_RATE = 16000
 BACKENDS = ("whisper", "cohere")
 
 
+# CTranslate2 keeps ~64 MB of VRAM for every model it builds, freed or not
+# (measured 2026-09-30: +64 MB per load/release cycle, 2.1 GB after two days).
+# So the last Whisper model is parked with its weights unloaded and reloaded on
+# the next build instead of built again. The lock matters: an unload just
+# before decoding fails the dictation, and one during decoding is ignored.
+_whisper_lock = threading.Lock()
+_parked: tuple[tuple[str, str, str], Any] | None = None
+
+
 class WhisperBackend:
     """faster-whisper. Supports hotword biasing."""
 
     def __init__(self, model_name: str, device: str, compute_type: str):
+        global _parked
+        self._key = (model_name, device, compute_type)
+        with _whisper_lock:
+            parked, _parked = _parked, None
+            if parked and parked[0] == self._key:
+                self.model = parked[1]
+                self.model.model.load_model()
+                return
         self.model = transcription.load_model(model_name, device, compute_type)
 
+    def unload(self) -> None:
+        """Hand the weights back to the GPU and park the model for the next build."""
+        global _parked
+        with _whisper_lock:
+            self.model.model.unload_model()
+            _parked = (self._key, self.model)
+
     def transcribe(self, audio: np.ndarray, hotwords: str | None = None, **kwargs: Any) -> str:
-        return transcription.transcribe_audio(self.model, audio, hotwords=hotwords, **kwargs)
+        with _whisper_lock:
+            # Released between get() and here: borrow the weights back for this one.
+            parked = not self.model.model.model_is_loaded
+            if parked:
+                self.model.model.load_model()
+            try:
+                return transcription.transcribe_audio(
+                    self.model, audio, hotwords=hotwords, **kwargs
+                )
+            finally:
+                if parked:
+                    self.model.model.unload_model()
 
 
 class CohereBackend:
@@ -172,6 +207,7 @@ class Resident:
                     break
             # Released while we were building: what we hold was made from settings
             # that have since changed. Drop it and build again.
+            _unload(obj)
             del obj
             _free_gpu_memory()
         self._settled.set()
@@ -203,14 +239,15 @@ class Resident:
             if self._timer:
                 self._timer.cancel()
                 self._timer = None
-            had = self._obj is not None
-            self._obj = None
+            obj, self._obj = self._obj, None
             self._generation += 1
             # Only a load in flight will set the event again. With none, leave it
             # set: a get() already waiting wakes, finds nothing, and reloads.
             if self._loading:
                 self._settled.clear()
-        if had:
+        if obj is not None:
+            _unload(obj)
+            del obj
             _free_gpu_memory()
 
     def _restart_timer(self) -> None:
@@ -226,6 +263,13 @@ class Resident:
     def _expire(self) -> None:
         logger.info(f"Releasing {self.factory} after {self.ttl}s idle")
         self.release()
+
+
+def _unload(obj: Any) -> None:
+    """Call obj.unload() if it has one; everything else is freed by dropping it."""
+    unload = getattr(obj, "unload", None)
+    if unload:
+        unload()
 
 
 def _free_gpu_memory() -> None:

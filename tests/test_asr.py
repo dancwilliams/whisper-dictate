@@ -24,6 +24,51 @@ class TestWhisperBackend:
         assert kwargs["hotwords"] == "Traefik"
         assert kwargs["beam_size"] == 3
 
+    @pytest.fixture(autouse=True)
+    def _no_parked_model(self, monkeypatch):
+        monkeypatch.setattr(asr, "_parked", None)
+
+    @patch("whisper_dictate.asr.transcription")
+    def test_a_released_model_is_reloaded_not_rebuilt(self, mock_transcription):
+        """Every CTranslate2 build leaks VRAM, so the same settings reuse the model."""
+        first = WhisperBackend("large-v3-turbo", "cuda", "float16")
+        first.unload()
+        first.model.model.unload_model.assert_called_once()
+
+        second = WhisperBackend("large-v3-turbo", "cuda", "float16")
+
+        assert second.model is first.model
+        second.model.model.load_model.assert_called_once()
+        mock_transcription.load_model.assert_called_once()
+
+    @patch("whisper_dictate.asr.transcription")
+    def test_different_settings_build_a_new_model(self, mock_transcription):
+        mock_transcription.load_model.side_effect = [MagicMock(), MagicMock()]
+        WhisperBackend("large-v3-turbo", "cuda", "float16").unload()
+
+        second = WhisperBackend("small", "cuda", "float16")
+
+        assert mock_transcription.load_model.call_count == 2
+        second.model.model.load_model.assert_not_called()
+
+    @patch("whisper_dictate.asr.transcription")
+    def test_transcribe_after_unload_borrows_the_weights_back(self, mock_transcription):
+        backend = WhisperBackend("large-v3-turbo", "cuda", "float16")
+        backend.unload()
+        backend.model.model.model_is_loaded = False
+
+        backend.transcribe(np.zeros(16000, dtype=np.float32))
+
+        backend.model.model.load_model.assert_called_once()
+        assert backend.model.model.unload_model.call_count == 2
+
+    def test_resident_release_unloads_the_object(self):
+        obj = MagicMock()
+        resident = Resident(lambda: obj, ttl=0)
+        resident.get()
+        resident.release()
+        obj.unload.assert_called_once()
+
 
 class TestCohereBackend:
     def _install(self, monkeypatch, generated="the transcript"):
