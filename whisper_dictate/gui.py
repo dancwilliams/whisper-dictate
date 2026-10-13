@@ -181,7 +181,7 @@ class App(Tk):
         self._status_state = "ready"
         # Glossary rules already reported as skipped: once per session, not per dictation.
         self._reported_bad_rules: set[str] = set()
-        self._last_final = ""
+        self._last_entry: dict | None = None
         self._deliver_lock = threading.Lock()
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
@@ -1113,20 +1113,25 @@ class App(Tk):
                 )
 
     def _open_correction_dialog(self) -> None:
-        """Correct the last dictation by hand and add the fixes as glossary rules."""
-        if not self._last_final:
+        """Correct the last dictation by hand. The fix is banked as a training
+        label; any changed words can also become glossary rules."""
+        entry = self._last_entry
+        if not entry:
             self._set_status("ready", "Nothing dictated yet")
             return
-        dialog = CorrectionDialog(self, self._last_final)
+        dialog = CorrectionDialog(self, entry["raw"], entry["final"])
         self.wait_window(dialog)
-        if not dialog.result:
+        if dialog.result is None:
             return
-        for rule in dialog.result:
+        corrected, rules, cleanup_wrong = dialog.result
+        # Banked first: a glossary failure must never lose the label.
+        history.record_correction(entry, corrected, cleanup_wrong)
+        for rule in rules:
             self.glossary_manager.upsert_rule(rule)
-        if self.glossary_manager.save():
-            self._set_status("ready", f"Added {len(dialog.result)} glossary rule(s)")
-        else:
+        if rules and not self.glossary_manager.save():
             messagebox.showerror("Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}")
+            return
+        self._set_status("ready", f"Correction saved, {len(rules)} glossary rule(s) added")
 
     def _open_app_prompt_dialog(self) -> None:
         """Open application-specific prompt dialog."""
@@ -1572,8 +1577,9 @@ class App(Tk):
         if glossary_enabled:
             final_text = glossary.apply_glossary(final_text, self.glossary_manager)
 
+        entry = None
         if cfg["history_enable"]:
-            history.record(
+            entry = history.record(
                 raw=text,
                 cleaned=cleaned_text,
                 final=final_text,
@@ -1587,8 +1593,10 @@ class App(Tk):
                 audio_days=cfg["history_audio_days"],
             )
 
+        # The Fix dialog needs the raw text and the clip name, history or not.
+        self._last_entry = entry or {"raw": text, "final": final_text, "audio_file": None}
+
         # Display and copy result
-        self._last_final = final_text
         ts = time.strftime("%H:%M:%S")
         self.after(0, self._append_transcript, f"[{ts}] {final_text}\n")
 

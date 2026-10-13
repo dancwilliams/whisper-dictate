@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Fixing a dictation now keeps the correction and its recording as training
+  data under `~/.whisper_dictate`. The Fix last dictation dialog edits what
+  Whisper heard, shows the pasted text under it, saves without a glossary
+  rule, and offers proposed rules unticked.
+
 ### Fixed
 - A glossary rule that could not be applied was named in the log and nowhere
   else. The first dictation that skips it now shows a warning naming the

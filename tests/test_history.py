@@ -158,3 +158,63 @@ class TestPruneAudio:
 
     def test_missing_directory_is_fine(self, tmp_path):
         assert history.prune_audio(14, tmp_path / "absent") == 0
+
+
+class TestRecordCorrection:
+    def _bank(self, tmp_path, entry, **kw):
+        kw.setdefault("path", tmp_path / "corrections.jsonl")
+        kw.setdefault("audio_dir", tmp_path / "audio")
+        kw.setdefault("training_dir", tmp_path / "training")
+        return history.record_correction(entry, **kw)
+
+    def _rows(self, tmp_path):
+        lines = (tmp_path / "corrections.jsonl").read_text(encoding="utf-8").splitlines()
+        return [json.loads(line) for line in lines]
+
+    def test_writes_one_line_with_only_the_label_fields(self, tmp_path):
+        entry = {
+            "raw": "threat fax",
+            "final": "Threatfax.",
+            "audio_file": None,
+            "app": "olk.exe",
+            "title": "Secret document",
+        }
+        assert self._bank(tmp_path, entry, corrected="threatfax") is True
+
+        (row,) = self._rows(tmp_path)
+        assert set(row) == {"ts", "app", "audio_file", "raw", "final", "corrected", "cleanup_wrong"}
+        assert row["raw"] == "threat fax"
+        assert row["final"] == "Threatfax."
+        assert row["corrected"] == "threatfax"
+        assert row["app"] == "olk.exe"
+        assert row["cleanup_wrong"] is False
+        assert "title" not in row
+
+    def test_cleanup_wrong_flag_is_kept(self, tmp_path):
+        self._bank(tmp_path, {"raw": "a", "final": "b"}, corrected="a", cleanup_wrong=True)
+        assert self._rows(tmp_path)[0]["cleanup_wrong"] is True
+
+    def test_copies_the_wav_and_leaves_the_original(self, tmp_path):
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        (audio_dir / "clip.wav").write_bytes(b"RIFF")
+
+        self._bank(tmp_path, {"raw": "a", "final": "a", "audio_file": "clip.wav"}, corrected="b")
+
+        assert (tmp_path / "training" / "clip.wav").read_bytes() == b"RIFF"
+        assert (audio_dir / "clip.wav").exists()
+        assert self._rows(tmp_path)[0]["audio_file"] == "clip.wav"
+
+    def test_a_pruned_wav_still_banks_the_text(self, tmp_path):
+        assert self._bank(tmp_path, {"raw": "a", "audio_file": "gone.wav"}, corrected="b") is True
+        assert self._rows(tmp_path)[0]["audio_file"] is None
+
+    def test_prune_audio_leaves_the_training_copy(self, tmp_path):
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        TestPruneAudio._aged(None, audio_dir / "clip.wav", 20)
+        self._bank(tmp_path, {"raw": "a", "audio_file": "clip.wav"}, corrected="b")
+
+        assert history.prune_audio(14, audio_dir) == 1
+        assert not (audio_dir / "clip.wav").exists()
+        assert (tmp_path / "training" / "clip.wav").exists()

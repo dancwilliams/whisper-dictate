@@ -108,6 +108,7 @@ def make_app(mods):
         app._press_at = 0.0
         app._status_state = "ready"
         app._reported_bad_rules = set()
+        app._last_entry = None
         app._deliver_lock = threading.Lock()
         app._settings_saved = False
         app._defaults = {
@@ -315,6 +316,17 @@ class TestTranscribeAndClean:
         mods.clipboard.set_text.assert_called_once_with("Hello, world.")
         mods.history.record.assert_called_once()
         mods.clipboard.restore.assert_called_once_with("SAVED")
+
+    def test_last_entry_holds_raw_and_audio_file(self, make_app, mods):
+        """The Fix dialog needs the raw text and the clip name, not the pasted text."""
+        app = make_app(var_history_enable=True)
+        mods.history.record.return_value = {"raw": "r", "final": "f", "audio_file": "x.wav"}
+        run(app)
+        assert app._last_entry["audio_file"] == "x.wav"
+
+        app = make_app(var_history_enable=False)
+        run(app)
+        assert app._last_entry == {"raw": "hello world", "final": "hello world", "audio_file": None}
 
     def test_s1_failure_turns_cleanup_off_through_after(self, make_app, mods):
         app = make_app(var_cleanup_backend="s1")
