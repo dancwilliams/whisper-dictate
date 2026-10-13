@@ -7,6 +7,7 @@ check was covered by hand only until now.
 import pytest
 
 tkinter = pytest.importorskip("tkinter")
+ttk = pytest.importorskip("tkinter.ttk")
 
 from whisper_dictate import glossary_dialog  # noqa: E402
 from whisper_dictate.glossary_dialog import GlossaryRuleDialog  # noqa: E402
@@ -72,22 +73,73 @@ class TestSave:
 
 
 class TestCorrectionDialog:
-    def test_find_then_add_returns_ticked_rules(self, root) -> None:
+    def test_find_then_save_returns_ticked_rules(self, root) -> None:
         dialog = glossary_dialog.CorrectionDialog(root, "meet me at valida tech, near git hub")
         dialog.text.delete("1.0", "end")
         dialog.text.insert("1.0", "meet me at ValidaTek, near GitHub")
         dialog._on_find()
         assert [r.replacement for _, r in dialog._choices] == ["ValidaTek", "GitHub"]
-        dialog._choices[1][0].set(False)
-        dialog._on_add()
-        assert [(r.trigger, r.replacement) for r in dialog.result] == [("valida tech", "ValidaTek")]
+        dialog._choices[0][0].set(True)
+        dialog._on_save()
+        typed, rules, cleanup_wrong = dialog.result
+        assert typed == "meet me at ValidaTek, near GitHub"
+        assert [(r.trigger, r.replacement) for r in rules] == [("valida tech", "ValidaTek")]
+        assert cleanup_wrong is False
 
-    def test_no_changes_disables_add(self, root) -> None:
+    def test_proposed_rules_start_unticked(self, root) -> None:
+        dialog = glossary_dialog.CorrectionDialog(root, "valida tech")
+        dialog.text.delete("1.0", "end")
+        dialog.text.insert("1.0", "ValidaTek")
+        dialog._on_find()
+        assert dialog._choices and all(not var.get() for var, _ in dialog._choices)
+        dialog._on_save()
+        assert dialog.result[1] == []
+
+    def test_save_enabled_by_an_edit_without_find(self, root) -> None:
+        dialog = glossary_dialog.CorrectionDialog(root, "threat fax")
+        assert str(dialog.save_button.cget("state")) == "disabled"
+        dialog.text.delete("1.0", "end")
+        dialog.text.insert("1.0", "threatfax")
+        dialog._on_edit()
+        assert str(dialog.save_button.cget("state")) == "normal"
+        dialog._on_save()
+        assert dialog.result == ("threatfax", [], False)
+
+    def test_unchanged_text_keeps_save_disabled(self, root) -> None:
         dialog = glossary_dialog.CorrectionDialog(root, "nothing to fix")
+        dialog._on_edit()
         dialog._on_find()
         assert dialog._choices == []
-        assert str(dialog.add_button.cget("state")) == "disabled"
+        assert str(dialog.save_button.cget("state")) == "disabled"
         dialog.destroy()
+
+    def test_shows_final_when_it_differs(self, root) -> None:
+        def labels(dialog):
+            return [
+                str(w.cget("text")) for w in dialog.winfo_children() if isinstance(w, ttk.Label)
+            ]
+
+        def ticks(dialog):
+            return [w for w in dialog.winfo_children() if isinstance(w, ttk.Checkbutton)]
+
+        differs = glossary_dialog.CorrectionDialog(root, "raw", "Final.")
+        assert "Heard by Whisper" in labels(differs)
+        assert any(t.startswith("Pasted after cleanup: Final.") for t in labels(differs))
+        assert len(ticks(differs)) == 1
+        differs.destroy()
+
+        same = glossary_dialog.CorrectionDialog(root, "same", "same")
+        assert not any(t.startswith("Pasted after cleanup:") for t in labels(same))
+        assert ticks(same) == []
+        same.destroy()
+
+    def test_cleanup_tick_alone_enables_save(self, root) -> None:
+        dialog = glossary_dialog.CorrectionDialog(root, "heard", "Pasted.")
+        dialog.cleanup_wrong.set(True)
+        dialog._on_edit()
+        assert str(dialog.save_button.cget("state")) == "normal"
+        dialog._on_save()
+        assert dialog.result == ("heard", [], True)
 
     def test_shows_and_holds_no_grab_when_parent_hidden(self, root) -> None:
         # Opened from the pill, the main window is withdrawn. A transient

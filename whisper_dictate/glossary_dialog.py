@@ -316,46 +316,71 @@ class GlossaryRuleDialog(Toplevel):
 
 
 class CorrectionDialog(Toplevel):
-    """Fix the last dictation by hand and turn the fixes into glossary rules."""
+    """Fix the last dictation by hand. The fix is banked as a training label,
+    and the changed words can also become glossary rules."""
 
-    def __init__(self, parent: tk.Tk | Toplevel, heard: str):
+    def __init__(self, parent: tk.Tk | Toplevel, heard: str, final: str = ""):
         super().__init__(parent)
         self.title("Fix last dictation")
         # Not transient and no grab: the main window is usually withdrawn when
         # this opens from the pill, and Tk hides transients with their master
         # while the grab lives on, which leaves the pill menu dead.
         self.heard = heard
-        self.result: list[GlossaryRule] | None = None
+        self.result: tuple[str, list[GlossaryRule], bool] | None = None
         self._choices: list[tuple[BooleanVar, GlossaryRule]] = []
+        self.cleanup_wrong = BooleanVar(value=False)
 
         self.columnconfigure(0, weight=1)
         ttk.Label(
             self,
-            text="Correct the words below, then find the fixes to add as glossary rules.",
+            text=(
+                "Fix only the misheard words. Leave punctuation and filler as "
+                "Whisper wrote them; the fix is kept as training data."
+            ),
             wraplength="390p",
             justify="left",
         ).grid(row=0, column=0, sticky="we", padx="9p", pady=("9p", "6p"))
+        ttk.Label(self, text="Heard by Whisper").grid(row=1, column=0, sticky="w", padx="9p")
 
         self.text = tk.Text(self, width=60, height=6, wrap="word")
         self.text.insert("1.0", heard)
-        self.text.grid(row=1, column=0, sticky="nsew", padx="9p")
+        self.text.edit_modified(False)
+        self.text.bind("<<Modified>>", lambda _event: self._on_edit())
+        self.text.grid(row=2, column=0, sticky="nsew", padx="9p")
+
+        row = 3
+        # Wrong words in the box are Whisper's; a wrong gray line under a
+        # right box is the cleanup step's.
+        if final and final != heard:
+            ttk.Label(
+                self,
+                text=f"Pasted after cleanup: {final}",
+                wraplength="390p",
+                justify="left",
+                foreground="gray",
+            ).grid(row=row, column=0, sticky="we", padx="9p", pady=("6p", 0))
+            ttk.Checkbutton(
+                self,
+                text="Cleanup was wrong",
+                variable=self.cleanup_wrong,
+                command=self._on_edit,
+            ).grid(row=row + 1, column=0, sticky="w", padx="9p")
+            row += 2
 
         ttk.Button(self, text="Find corrections", command=self._on_find).grid(
-            row=2, column=0, sticky="w", padx="9p", pady="7.5p"
+            row=row, column=0, sticky="w", padx="9p", pady="7.5p"
         )
 
         self.choices = ttk.Frame(self)
-        self.choices.grid(row=3, column=0, sticky="we", padx="9p")
+        self.choices.grid(row=row + 1, column=0, sticky="we", padx="9p")
 
         actions = ttk.Frame(self)
-        actions.grid(row=4, column=0, sticky="e", padx="9p", pady="9p")
+        actions.grid(row=row + 2, column=0, sticky="e", padx="9p", pady="9p")
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
             row=0, column=0, padx=(0, "6p")
         )
-        self.add_button = ttk.Button(
-            actions, text="Add to glossary", command=self._on_add, state="disabled"
-        )
-        self.add_button.grid(row=0, column=1)
+        self.save_button = ttk.Button(actions, text="Save", command=self._on_save, state="disabled")
+        self.save_button.grid(row=0, column=1)
 
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
         # Only once the window is mapped. Forcing focus before that leaves Tk
@@ -370,23 +395,35 @@ class CorrectionDialog(Toplevel):
         self.focus_force()
         self.text.focus_set()
 
+    def _typed(self) -> str:
+        return self.text.get("1.0", "end").strip()
+
+    def _on_edit(self) -> None:
+        changed = self._typed() != self.heard or self.cleanup_wrong.get()
+        self.save_button.configure(state="normal" if changed else "disabled")
+        self.text.edit_modified(False)
+
     def _on_find(self) -> None:
         for child in self.choices.winfo_children():
             child.destroy()
         self._choices = []
-        typed = self.text.get("1.0", "end").strip()
-        for rule in propose_rules(self.heard, typed):
-            var = BooleanVar(value=True)
+        for rule in propose_rules(self.heard, self._typed()):
+            # Unticked: most fixes are mishearings, and a rule made from one
+            # of those does more harm than the mishearing did.
+            var = BooleanVar(value=False)
             ttk.Checkbutton(
                 self.choices, text=f"{rule.trigger}  →  {rule.replacement}", variable=var
             ).pack(anchor="w")
             self._choices.append((var, rule))
         if not self._choices:
             ttk.Label(self.choices, text="No word changes found.").pack(anchor="w")
-        self.add_button.configure(state="normal" if self._choices else "disabled")
 
-    def _on_add(self) -> None:
-        self.result = [rule for var, rule in self._choices if var.get()]
+    def _on_save(self) -> None:
+        self.result = (
+            self._typed(),
+            [rule for var, rule in self._choices if var.get()],
+            self.cleanup_wrong.get(),
+        )
         self.destroy()
 
     def _on_cancel(self) -> None:

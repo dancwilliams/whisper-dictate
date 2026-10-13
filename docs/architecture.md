@@ -44,7 +44,7 @@ graph TB
         SettingsFile[~/.whisper_dictate/<br/>settings.json]
         PromptFile[~/.whisper_dictate/<br/>prompt.txt]
         GlossaryFile[~/.whisper_dictate/<br/>glossary.json]
-        HistoryFile[~/.whisper_dictate/<br/>history.jsonl + audio/]
+        HistoryFile[~/.whisper_dictate/<br/>history.jsonl + audio/ +<br/>corrections.jsonl + training/]
         LogFile[~/.whisper_dictate/logs/<br/>whisper_dictate.log]
     end
 

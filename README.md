@@ -120,8 +120,11 @@ Use the glossary to keep acronyms, brand names, or domain-specific terms intact 
   replacements are applied. Use **Add**, **Edit**, or **Delete** to maintain the list, or **Import CSV** / **Export CSV** to
   bulk-manage rules. An optional description can remind you why a term matters.
 - Entries are saved to `~/.whisper_dictate/whisper_dictate_glossary.json` and loaded automatically on startup.
-- **Edit → Fix last dictation…** (also on the pill's right-click menu) shows the last dictation in an editable box.
-  Correct the misheard words, press **Find corrections**, and each replaced phrase is offered as a rule to add.
+- **Edit → Fix last dictation…** (also on the pill's right-click menu) shows what Whisper heard in an editable box,
+  with the text that was pasted after cleanup in gray underneath. Fix only the misheard words and press **Save**: the
+  correction is kept in `~/.whisper_dictate/corrections.jsonl` with a copy of the recording in `training/`, as data
+  for tuning the recognizer. **Find corrections** still offers each replaced phrase as a glossary rule (unticked by
+  default), and **Cleanup was wrong** records a case where the cleanup step, not Whisper, changed the meaning.
 - In **Settings → LLM cleanup…**, enable **Use glossary before prompt** to apply the glossary to transcripts and prepend the
   rules to the LLM system prompt so it takes priority over the general cleanup prompt.
 

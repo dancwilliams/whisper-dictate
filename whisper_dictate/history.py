@@ -3,7 +3,8 @@
 One JSON line per dictation, and the audio beside it for a fortnight. The text
 is what the next round of glossary mining and the next recognizer benchmark run
 on; the audio is what makes a benchmark possible at all, and it is the part
-worth expiring.
+worth expiring. A hand correction and its clip go to `corrections.jsonl` and
+`training/`, which are never pruned: they are the only labelled data there is.
 
 Privacy: the process name is recorded, never the window title and never a URL.
 A window title is the document you had open, the message you were reading, the
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 import wave
 from pathlib import Path
@@ -26,6 +28,8 @@ logger = logging.getLogger("whisper_dictate")
 HISTORY_DIR = Path.home() / ".whisper_dictate"
 HISTORY_FILE = HISTORY_DIR / "history.jsonl"
 AUDIO_DIR = HISTORY_DIR / "audio"
+CORRECTIONS_FILE = HISTORY_DIR / "corrections.jsonl"
+TRAINING_DIR = HISTORY_DIR / "training"
 
 SAMPLE_RATE = 16000
 DEFAULT_AUDIO_DAYS = 14
@@ -110,6 +114,47 @@ def record(
     }
     append(entry, path)
     return entry
+
+
+def record_correction(
+    entry: dict[str, Any],
+    corrected: str,
+    cleanup_wrong: bool = False,
+    path: Path | None = None,
+    audio_dir: Path | None = None,
+    training_dir: Path | None = None,
+) -> bool:
+    """Bank a hand correction as a training label.
+
+    The clip is copied into the training folder, which prune_audio never
+    touches: a corrected recording is the one kind worth keeping for good.
+    Raises nothing, like record().
+    """
+    path = path or CORRECTIONS_FILE
+    audio_dir = audio_dir or AUDIO_DIR
+    training_dir = training_dir or TRAINING_DIR
+    name = entry.get("audio_file")
+    if name:
+        try:
+            training_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(audio_dir / name, training_dir / name)
+        except OSError as e:
+            logger.warning(f"Could not keep the corrected recording: {e}")
+            name = None
+    return append(
+        {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "app": entry.get("app", ""),
+            "audio_file": name,
+            "raw": entry.get("raw", ""),
+            "final": entry.get("final", ""),
+            "corrected": corrected,
+            # S1 changed the meaning while Whisper was right. Not consumed by
+            # anything yet; it is the seed of a cleanup dataset.
+            "cleanup_wrong": cleanup_wrong,
+        },
+        path,
+    )
 
 
 def prune_audio(days: int = DEFAULT_AUDIO_DAYS, audio_dir: Path | None = None) -> int:

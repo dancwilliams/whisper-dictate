@@ -59,7 +59,7 @@ Ruff enforces import sorting with the "I" rule:
 | `llm_cleanup.py` | LLM text cleanup with OpenAI client | `clean_with_llm()`, `list_llm_models()` |
 | `s1.py` | Built-in cleanup with S1-mini (llama.cpp) | `S1Cleaner`, `build_prompt()` |
 | `glossary.py` | Glossary persistence, phonetic rules, per-app hotwords | `GlossaryManager`, `GlossaryRule`, `apply_glossary()`, `hotwords_for_app()` |
-| `history.py` | Local dictation record and audio pruning | `record()`, `prune_audio()` |
+| `history.py` | Local dictation record, correction bank and audio pruning | `record()`, `record_correction()`, `prune_audio()` |
 | `glossary_dialog.py` | GUI for glossary management and the Fix last dictation dialog | `GlossaryDialog`, `CorrectionDialog` |
 | `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_chord()` |
 | `clipboard.py` | Clipboard snapshot/restore (ctypes) | `snapshot()`, `restore()`, `set_text()` |
@@ -259,6 +259,7 @@ save_settings(settings)
 - Settings directory: `~/.whisper_dictate/` (expands to `C:\Users\<username>\.whisper_dictate\`)
 - Prompt file: `~/.whisper_dictate/whisper_dictate_prompt.txt`
 - Glossary: `~/.whisper_dictate/whisper_dictate_glossary.json`
+- Corrections: `~/.whisper_dictate/corrections.jsonl`, with their clips in `~/.whisper_dictate/training/` (never pruned)
 - Logs: `~/.whisper_dictate/logs/whisper_dictate.log`
 
 ### Threading
