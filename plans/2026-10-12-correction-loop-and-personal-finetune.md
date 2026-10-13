@@ -351,7 +351,7 @@ training label, and the changed words can also become glossary rules."
 - [x] `uv run pytest` passes with the new tests
 - [x] `uv run ruff check .` and `uv run ruff format --check .` exit 0
 - [x] `uv run mypy whisper_dictate` exits 0
-- [ ] CI green on the PR
+- [x] CI green on the PR
 
 #### Manual Verification
 - [ ] Dictate once, open Fix last dictation from the pill: the box is headed "Heard by
