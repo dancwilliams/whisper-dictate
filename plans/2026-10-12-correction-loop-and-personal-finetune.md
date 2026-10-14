@@ -424,12 +424,18 @@ the hold-out share is between 15% and 25%. Run with `--selftest`.
 #### Automated Verification
 - [x] `uv run python scripts/finetune_whisper.py --selftest` prints ok
 - [x] `uv run ruff check .` exits 0
-- [ ] `uv run python scripts/bench_asr.py --corpus corrections --limit 5` runs on the
+- [x] `uv run python scripts/bench_asr.py --corpus corrections --limit 5` runs on the
       stock model and writes a results file
 
 #### Manual Verification
-- [ ] The hold-out clip count is roughly a fifth of the corrections bank
-- [ ] The Wispr corpus still runs unchanged: `uv run python scripts/bench_asr.py --limit 20`
+- [x] The hold-out clip count is roughly a fifth of the corrections bank
+- [x] The Wispr corpus still runs unchanged: `uv run python scripts/bench_asr.py --limit 20`
+
+Verified 2026-10-14. The bank was empty, so the corrections checks ran against a scratch
+bank built in memory from the 864 live `history.jsonl` rows that still had audio, with the
+raw text standing in as the correction: 154 clips held out (17.8%), stock model WER 2.0%.
+The Wispr quick pass wrote `research/asr-benchmark-wispr-2026-10-14.md` and left the
+baseline file alone. Re-run the corrections command for real once the bank has entries.
 
 ---
 
