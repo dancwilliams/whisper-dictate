@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data under `~/.whisper_dictate`. The Fix last dictation dialog edits what
   Whisper heard, shows the pasted text under it, saves without a glossary
   rule, and offers proposed rules unticked.
+- Fine-tuned Whisper models under `~/.whisper_dictate/models` appear in the
+  model list; unused ones expire after 30 days.
 
 ### Fixed
 - A glossary rule that could not be applied was named in the log and nowhere

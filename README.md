@@ -150,6 +150,9 @@ base on the hold-out and stay within one WER point of base on ordinary speech. I
 corrections, not more epochs. Expect under 12 GB of VRAM. Benchmark any model later with
 `uv run python scripts/bench_asr.py --corpus corrections --model large-v3-turbo --model <folder>`.
 
+The result shows up as **Tuned: personal-<date>** in **Settings → Speech recognition**, under the built-in
+sizes. Tuned models that are not the selected one are removed after 30 days.
+
 ---
 
 ## 🧩 Project Layout

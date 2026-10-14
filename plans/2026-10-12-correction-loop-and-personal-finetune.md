@@ -644,16 +644,19 @@ package today, so there is no cycle.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
       `uv run mypy whisper_dictate` all exit 0
 
 #### Manual Verification
-- [ ] "Tuned: <name>" appears in the dropdown, selecting it loads without a warning, and
+- [x] "Tuned: <name>" appears in the dropdown, selecting it loads without a warning, and
       a dictation goes through
-- [ ] Flip device to CPU and back: the selection is kept
-- [ ] Restart the app: the tuned model is still selected and the pill reports it loading
-- [ ] Back-date a second tuned folder's `model.bin` by 31 days, restart: it is gone, the
+- [x] Flip device to CPU and back: the selection is kept
+- [x] Restart the app: the tuned model is still selected and the pill reports it loading
+- [x] Back-date a second tuned folder's `model.bin` by 31 days, restart: it is gone, the
       selected one is not
+
+Verified by Dan 2026-10-14 against the phase 3 `smoke` folder: listed, loaded, dictated,
+survived a device flip and a restart, and a 31-day-old sibling folder was removed.
 
 ---
 
