@@ -37,6 +37,7 @@ ml = [
     # source. Not optional, despite audio.py already yielding 16 kHz float32.
     "librosa",
     "llama-cpp-python>=0.3.35",
+    "peft>=0.21.2",
 ]
 
 [project.scripts]

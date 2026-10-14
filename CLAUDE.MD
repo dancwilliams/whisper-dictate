@@ -209,6 +209,12 @@ before running one.
 - `ruff` — Linting and formatting
 - `mypy` — Type checking
 
+### ML Dependencies
+The `ml` group holds the heavy wheels CI skips (`uv sync --no-group ml`): `torch`, `transformers`,
+`llama-cpp-python`, `librosa`, and `peft` for `scripts/finetune_whisper.py`. `peft` is imported
+inside `main()` only; the `whisper_dictate` package never imports it. The quit-the-app note
+above applies to the `uv sync` that adds or changes any of them.
+
 ## Common Tasks
 
 ### Adding a New Feature

@@ -132,6 +132,26 @@ Glossary usage is optional; turn it off from **Settings → LLM cleanup…** if 
 
 ---
 
+## 🎙 Tuning Whisper to Your Voice
+
+Every **Fix last dictation** you save is a training label: the corrected text goes to
+`~/.whisper_dictate/corrections.jsonl` and the recording is copied to `training/`, where it is never pruned. Once
+a hundred or so have piled up, train a personal model on them:
+
+```powershell
+uv run python scripts/finetune_whisper.py
+```
+
+This trains a LoRA on large-v3-turbo using your corrections plus a sample of uncorrected clips from the live
+window (so the model is not taught that every clip is hard), merges it, and converts it to a CTranslate2 folder
+under `~/.whisper_dictate/models/personal-<date>/`. One clip in five is held out and never trained on; the run
+ends with base-vs-tuned tables on that hold-out and on the Wispr export, and a gate: the tuned model must beat
+base on the hold-out and stay within one WER point of base on ordinary speech. If it fails, the answer is more
+corrections, not more epochs. Expect under 12 GB of VRAM. Benchmark any model later with
+`uv run python scripts/bench_asr.py --corpus corrections --model large-v3-turbo --model <folder>`.
+
+---
+
 ## 🧩 Project Layout
 
 ```
