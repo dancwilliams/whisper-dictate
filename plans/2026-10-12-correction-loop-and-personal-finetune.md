@@ -354,14 +354,14 @@ training label, and the changed words can also become glossary rules."
 - [x] CI green on the PR
 
 #### Manual Verification
-- [ ] Dictate once, open Fix last dictation from the pill: the box is headed "Heard by
+- [x] Dictate once, open Fix last dictation from the pill: the box is headed "Heard by
       Whisper" and a gray "Pasted after cleanup:" line shows the cleaned text
-- [ ] Tick "Cleanup was wrong" without editing and press Save: a line with
+- [x] Tick "Cleanup was wrong" without editing and press Save: a line with
       `cleanup_wrong: true` lands in `corrections.jsonl`
-- [ ] Change one word and press Save without Find: a line lands in `corrections.jsonl`
+- [x] Change one word and press Save without Find: a line lands in `corrections.jsonl`
       and the WAV appears in `training/`, status reads "Correction saved, 0 glossary rule(s) added"
-- [ ] Find corrections shows every swap unticked; ticking one and pressing Save adds just that rule
-- [ ] With "Keep a local record" off, the dialog still opens and saves a text-only line
+- [x] Find corrections shows every swap unticked; ticking one and pressing Save adds just that rule
+- [x] With "Keep a local record" off, the dialog still opens and saves a text-only line
 
 **Implementation Note**: pause here for Dan's manual check before phase 2. Phases 2 to
 4 need a stock of corrections to be meaningful; a couple of weeks of use is fine.
