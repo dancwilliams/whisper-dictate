@@ -167,13 +167,28 @@ class TestModelInfo:
         name = get_model_display_name("unknown-model", "cuda")
         assert name == "unknown-model"
 
-    def test_get_model_choices_returns_all_models(self):
+    def test_get_model_choices_returns_all_models(self, tmp_path):
         """get_model_choices should return all models."""
-        choices = get_model_choices("cuda")
+        choices = get_model_choices("cuda", models_dir=tmp_path / "absent")
         assert len(choices) == len(MODEL_INFO)
         for model_id, display in choices:
             assert model_id in MODEL_INFO
             assert display != model_id  # Should be formatted
+
+    def test_get_model_choices_lists_tuned_folders(self, tmp_path):
+        """A folder with model.bin is offered by path; an empty one is not."""
+        (tmp_path / "personal-2026-10-26").mkdir()
+        (tmp_path / "personal-2026-10-26" / "model.bin").write_bytes(b"")
+        (tmp_path / "half-converted").mkdir()
+
+        choices = get_model_choices("cuda", models_dir=tmp_path)
+        assert choices[: len(MODEL_INFO)] == get_model_choices("cuda", models_dir=tmp_path / "x")
+        assert choices[len(MODEL_INFO) :] == [
+            (str(tmp_path / "personal-2026-10-26"), "Tuned: personal-2026-10-26")
+        ]
+
+    def test_get_model_choices_without_a_models_dir(self, tmp_path):
+        assert len(get_model_choices("cuda", models_dir=tmp_path / "absent")) == len(MODEL_INFO)
 
     def test_device_compute_defaults(self):
         """DEVICE_COMPUTE_DEFAULTS should have entries for cpu and cuda."""

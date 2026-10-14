@@ -941,6 +941,9 @@ class App(Tk):
         if self.var_history_enable.get():
             days = int(self.var_history_audio_days.get())
             threading.Thread(target=history.prune_audio, args=(days,), daemon=True).start()
+        threading.Thread(
+            target=history.prune_models, args=(self.var_model.get(),), daemon=True
+        ).start()
 
         # Open and close one input stream now so the first press is not a cold open.
         device_id = self._parse_input_device_id(self.var_input.get().strip())

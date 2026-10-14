@@ -218,3 +218,30 @@ class TestRecordCorrection:
         assert history.prune_audio(14, audio_dir) == 1
         assert not (audio_dir / "clip.wav").exists()
         assert (tmp_path / "training" / "clip.wav").exists()
+
+
+class TestPruneModels:
+    def _model(self, models_dir, name, days_old, weights=True):
+        folder = models_dir / name
+        folder.mkdir(parents=True)
+        if weights:
+            TestPruneAudio._aged(None, folder / "model.bin", days_old)
+        return folder
+
+    def test_removes_old_folders_and_keeps_fresh_and_selected(self, tmp_path):
+        old = self._model(tmp_path, "old", 31)
+        fresh = self._model(tmp_path, "fresh", 3)
+        selected = self._model(tmp_path, "selected", 90)
+
+        assert history.prune_models(str(selected), 30, tmp_path) == 1
+        assert not old.exists()
+        assert fresh.exists()
+        assert selected.exists()
+
+    def test_ignores_a_folder_without_weights(self, tmp_path):
+        stray = self._model(tmp_path, "notes", 99, weights=False)
+        assert history.prune_models("large-v3-turbo", 30, tmp_path) == 0
+        assert stray.exists()
+
+    def test_missing_directory_is_fine(self, tmp_path):
+        assert history.prune_models("small", 30, tmp_path / "absent") == 0

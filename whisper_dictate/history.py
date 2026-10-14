@@ -23,6 +23,8 @@ from typing import Any
 
 import numpy as np
 
+from whisper_dictate import config
+
 logger = logging.getLogger("whisper_dictate")
 
 HISTORY_DIR = Path.home() / ".whisper_dictate"
@@ -33,6 +35,7 @@ TRAINING_DIR = HISTORY_DIR / "training"
 
 SAMPLE_RATE = 16000
 DEFAULT_AUDIO_DAYS = 14
+MODEL_DAYS = 30
 
 
 def _stamp() -> str:
@@ -179,4 +182,27 @@ def prune_audio(days: int = DEFAULT_AUDIO_DAYS, audio_dir: Path | None = None) -
             logger.debug(f"Could not prune {wav.name}: {e}")
     if removed:
         logger.info(f"Pruned {removed} dictation recordings older than {days} days")
+    return removed
+
+
+def prune_models(keep: str, days: int = MODEL_DAYS, models_dir: Path | None = None) -> int:
+    """Delete tuned model folders older than `days`, never the one in use.
+
+    Each run leaves 1.6 GB behind and a person does not remember to clear them.
+    `keep` is the model setting as saved, so a built-in name matches nothing.
+    """
+    models_dir = models_dir or config.MODELS_DIR
+    if days <= 0 or not models_dir.is_dir():
+        return 0
+    cutoff = time.time() - days * 86400
+    removed = 0
+    for folder in models_dir.iterdir():
+        weights = folder / "model.bin"
+        if not weights.is_file() or str(folder) == keep:
+            continue
+        if weights.stat().st_mtime < cutoff:
+            shutil.rmtree(folder, ignore_errors=True)
+            removed += 1
+    if removed:
+        logger.info(f"Removed {removed} tuned model(s) older than {days} days")
     return removed

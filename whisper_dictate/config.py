@@ -47,6 +47,10 @@ CLEANUP_BACKENDS = ("s1", "endpoint", "off")
 DEFAULT_HISTORY_ENABLE = True
 DEFAULT_HISTORY_AUDIO_DAYS = 14.0
 
+# Fine-tuned models from scripts/finetune_whisper.py land here, one
+# CTranslate2 folder each, and are offered in the model dropdown by path.
+MODELS_DIR = Path.home() / ".whisper_dictate" / "models"
+
 # Default LLM prompt
 DEFAULT_LLM_PROMPT = """
 You are a specialized text reformatting assistant. Your ONLY job is to clean up and reformat the user's text input.
@@ -220,6 +224,15 @@ def get_model_display_name(model_id: str, device: str) -> str:
     return f"{info['display_name']} ({disk_str}, {req})"
 
 
-def get_model_choices(device: str) -> list[tuple[str, str]]:
-    """Get list of (model_id, display_name) tuples for dropdown."""
-    return [(model_id, get_model_display_name(model_id, device)) for model_id in MODEL_INFO.keys()]
+def get_model_choices(device: str, models_dir: Path | None = None) -> list[tuple[str, str]]:
+    """Get list of (model_id, display_name) tuples for dropdown.
+
+    Built-in sizes first, then every tuned model folder, keyed by its path so
+    faster-whisper loads it directly."""
+    choices = [(model_id, get_model_display_name(model_id, device)) for model_id in MODEL_INFO]
+    models_dir = models_dir or MODELS_DIR
+    if models_dir.is_dir():
+        for folder in sorted(models_dir.iterdir()):
+            if (folder / "model.bin").is_file():
+                choices.append((str(folder), f"Tuned: {folder.name}"))
+    return choices
