@@ -422,8 +422,8 @@ the hold-out share is between 15% and 25%. Run with `--selftest`.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run python scripts/finetune_whisper.py --selftest` prints ok
-- [ ] `uv run ruff check .` exits 0
+- [x] `uv run python scripts/finetune_whisper.py --selftest` prints ok
+- [x] `uv run ruff check .` exits 0
 - [ ] `uv run python scripts/bench_asr.py --corpus corrections --limit 5` runs on the
       stock model and writes a results file
 

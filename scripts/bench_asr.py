@@ -10,6 +10,14 @@ reload costs, and how often it emits garbage.
     uv run python scripts/bench_asr.py --candidates whisper,whisper-hotwords
     uv run python scripts/bench_asr.py --limit 20        # a quick pass
 
+The second corpus is your own corrections bank (Fix last dictation), scored on
+the hold-out split that finetune_whisper.py never trains on. --model takes a
+size name or a CTranslate2 folder, so a tuned model is benchmarked the same way:
+
+    uv run python scripts/bench_asr.py --corpus corrections
+    uv run python scripts/bench_asr.py --corpus corrections --model large-v3-turbo \\
+        --model ~/.whisper_dictate/models/personal-2026-11-01
+
 Stdlib + numpy; the candidates themselves are imported lazily, so a missing
 torch only costs you that candidate.
 """
@@ -28,8 +36,10 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 import numpy as np
+from finetune_whisper import CORRECTIONS, TRAINING, is_holdout
 
 EXPORT = Path(r"C:\Users\Dan Williams\wispr-flow-export")
+DEFAULT_MODEL = "large-v3-turbo"
 SAMPLE_RATE = 16000
 
 # Whisper encodes hotwords into its prompt context and truncates at
@@ -82,10 +92,19 @@ def reference_for(row: dict) -> str | None:
     return edited or formatted
 
 
-def load_clips(export: Path, limit: int | None = None) -> list[Clip]:
-    audio_dir = export / "audio"
+def load_clips(
+    export: Path, limit: int | None = None, corpus: str = "wispr", split: str = "holdout"
+) -> list[Clip]:
+    """The Wispr export, or the corrections bank where the reference is the
+    hand correction and `split` keeps only the clips training never sees."""
+    if corpus == "corrections":
+        source, audio_dir = CORRECTIONS, TRAINING
+    else:
+        source, audio_dir = export / "history.jsonl", export / "audio"
     clips: list[Clip] = []
-    with (export / "history.jsonl").open(encoding="utf-8") as fh:
+    if not source.exists():
+        return clips
+    with source.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if not line:
@@ -97,10 +116,12 @@ def load_clips(export: Path, limit: int | None = None) -> list[Clip]:
             name = row.get("audio_file")
             if not name:
                 continue
+            if corpus == "corrections" and split == "holdout" and not is_holdout(name):
+                continue
             path = audio_dir / Path(name).name
             if not path.exists():
                 continue
-            reference = reference_for(row)
+            reference = row.get("corrected") if corpus == "corrections" else reference_for(row)
             if not reference:
                 continue
             with wave.open(str(path), "rb") as wf:
@@ -111,13 +132,18 @@ def load_clips(export: Path, limit: int | None = None) -> list[Clip]:
     return clips
 
 
-def load_terms(export: Path) -> list[str]:
-    """Every mined domain term.
+def load_terms(export: Path, corpus: str = "wispr") -> list[str]:
+    """Every mined domain term, or for the corrections corpus the glossary's
+    replacements: the vocabulary Dan actually maintains.
 
     This is the scoring vocabulary, and it stays fixed however much of it a
     candidate is actually given - otherwise shrinking the hotword budget would
     shrink the denominator and flatter the result.
     """
+    if corpus == "corrections":
+        from whisper_dictate.glossary import GlossaryManager
+
+        return [rule.replacement for rule in GlossaryManager.load().rules]
     path = export / "mined" / "hotwords.txt"
     if not path.exists():
         return []
@@ -293,13 +319,13 @@ class CohereCandidate:
         self.model = self.processor = None
 
 
-def build(name: str, hotwords: str) -> object:
+def build(name: str, hotwords: str, model: str = DEFAULT_MODEL) -> object:
     if name == "cohere":
         return CohereCandidate()
     if name == "whisper":
-        return WhisperCandidate()
+        return WhisperCandidate(model_name=model)
     if name == "whisper-hotwords":
-        return WhisperCandidate(hotwords=hotwords)
+        return WhisperCandidate(model_name=model, hotwords=hotwords)
     raise SystemExit(f"unknown candidate: {name}")
 
 
@@ -320,9 +346,18 @@ def free_vram_bytes() -> int:
     return 0
 
 
-def run_candidate(name: str, clips: list[Clip], terms: list[str], hotwords: str) -> Result:
-    result = Result(name=name)
-    candidate = build(name, hotwords)
+def run_candidate(
+    name: str,
+    clips: list[Clip],
+    terms: list[str],
+    hotwords: str,
+    model: str = DEFAULT_MODEL,
+    label: str | None = None,
+) -> Result:
+    """Score one candidate. `label` names the row in the table; it defaults to
+    the candidate name, and a model comparison passes the model's name instead."""
+    result = Result(name=label or name)
+    candidate = build(name, hotwords, model)
 
     try:
         import torch
@@ -366,7 +401,7 @@ def run_candidate(name: str, clips: list[Clip], terms: list[str], hotwords: str)
         result.garbage += garbage
         result.rows.append(
             {
-                "candidate": name,
+                "candidate": result.name,
                 "clip": clip.path.name,
                 "seconds": round(clip.seconds, 2),
                 "latency": round(elapsed, 3),
@@ -386,12 +421,34 @@ def run_candidate(name: str, clips: list[Clip], terms: list[str], hotwords: str)
     return result
 
 
-def table(results: list[Result], clips: list[Clip]) -> str:
+def describe(corpus: str, split: str) -> str:
+    if corpus == "corrections":
+        which = "hold-out split" if split == "holdout" else "every clip"
+        return f"the corrections bank ({which})"
+    return "the Wispr Flow export"
+
+
+def table(
+    results: list[Result], clips: list[Clip], corpus: str = "wispr", split: str = "holdout"
+) -> str:
     total_audio = sum(c.seconds for c in clips)
+    if corpus == "corrections":
+        reference_note = [
+            "WER is word-level edit distance over lowercased, unpunctuated text, against the",
+            "hand correction made in Fix last dictation. Domain recall counts the glossary",
+            "replacements that appear in a reference and survive into the hypothesis.",
+        ]
+    else:
+        reference_note = [
+            "WER is word-level edit distance over lowercased, unpunctuated text, against the",
+            "user's own edit where it still resembles the dictation and the formatted text",
+            "otherwise. Domain recall counts the mined hotword terms that appear in a",
+            "reference and survive into the hypothesis.",
+        ]
     lines = [
         f"# ASR benchmark, {time.strftime('%Y-%m-%d')}",
         "",
-        f"{len(clips)} clips from the Wispr Flow export, "
+        f"{len(clips)} clips from {describe(corpus, split)}, "
         f"{total_audio / 60:.1f} minutes of speech "
         f"(median {statistics.median(c.seconds for c in clips):.1f}s).",
         "",
@@ -422,10 +479,7 @@ def table(results: list[Result], clips: list[Clip]) -> str:
         "domain recall or a cold reload more than 3 s faster - a 5-minute idle TTL starts",
         "35.5% of dictations cold. Any candidate with garbage on more than 2 clips is out.",
         "",
-        "WER is word-level edit distance over lowercased, unpunctuated text, against the",
-        "user's own edit where it still resembles the dictation and the formatted text",
-        "otherwise. Domain recall counts the mined hotword terms that appear in a",
-        "reference and survive into the hypothesis.",
+        *reference_note,
     ]
     return "\n".join(lines)
 
@@ -433,6 +487,23 @@ def table(results: list[Result], clips: list[Clip]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--export", type=Path, default=EXPORT)
+    parser.add_argument(
+        "--corpus",
+        choices=["wispr", "corrections"],
+        default="wispr",
+        help="the Wispr export, or your own corrections bank (one whisper run per --model)",
+    )
+    parser.add_argument(
+        "--split",
+        choices=["holdout", "all"],
+        default="holdout",
+        help="corrections corpus only: the clips training never sees, or every clip",
+    )
+    parser.add_argument(
+        "--model",
+        action="append",
+        help="Whisper size name or CTranslate2 folder; repeatable (default large-v3-turbo)",
+    )
     parser.add_argument("--candidates", default="cohere,whisper,whisper-hotwords")
     parser.add_argument("--limit", type=int, default=None, help="use only the first N clips")
     parser.add_argument(
@@ -441,25 +512,46 @@ def main() -> int:
         default=HOTWORD_CHAR_BUDGET,
         help="hotword budget; too large and a long clip has no decoding budget left",
     )
-    parser.add_argument("--out", type=Path, default=Path("research/asr-benchmark-2026.md"))
-    parser.add_argument("--csv", type=Path, default=Path("research/asr-benchmark-2026.csv"))
+    parser.add_argument(
+        "--out", type=Path, help="default research/asr-benchmark-<corpus>-<date>.md"
+    )
+    parser.add_argument("--csv", type=Path, help="default: beside --out")
     args = parser.parse_args()
+    models = args.model or [DEFAULT_MODEL]
+    # Dated so a quick pass never overwrites the recorded baseline.
+    out = args.out or Path(f"research/asr-benchmark-{args.corpus}-{time.strftime('%Y-%m-%d')}.md")
+    csv_path = args.csv or out.with_suffix(".csv")
 
-    clips = load_clips(args.export, args.limit)
+    clips = load_clips(args.export, args.limit, args.corpus, args.split)
     if not clips:
-        raise SystemExit(f"no clips found under {args.export}")
+        where = CORRECTIONS if args.corpus == "corrections" else args.export
+        raise SystemExit(f"no clips found under {where}")
     hotwords = load_hotwords(args.export, args.hotword_chars)
-    terms = load_terms(args.export)
-    print(f"{len(clips)} clips, {sum(c.seconds for c in clips) / 60:.1f} minutes of speech")
+    terms = load_terms(args.export, args.corpus)
+    print(
+        f"{len(clips)} clips from {describe(args.corpus, args.split)}, "
+        f"{sum(c.seconds for c in clips) / 60:.1f} minutes of speech"
+    )
     print(
         f"{len(terms)} domain terms scored; {len(hotwords)} chars of hotwords "
         f"given to the recognizer\n"
     )
 
+    # The corrections corpus compares models, so each row is named after its model.
+    if args.corpus == "corrections":
+        runs = [("whisper", model, Path(model).name) for model in models]
+    else:
+        candidates = [n.strip() for n in args.candidates.split(",") if n.strip()]
+        runs = [
+            (name, model, name if model == DEFAULT_MODEL else f"{name}:{Path(model).name}")
+            for name in candidates
+            for model in models
+        ]
+
     results = []
-    for name in [n.strip() for n in args.candidates.split(",") if n.strip()]:
-        print(f"{name}...")
-        result = run_candidate(name, clips, terms, hotwords)
+    for name, model, label in runs:
+        print(f"{label}...")
+        result = run_candidate(name, clips, terms, hotwords, model, label)
         results.append(result)
         if result.failed:
             print(f"  did not run: {result.failed}")
@@ -472,11 +564,11 @@ def main() -> int:
             if result.errored:
                 print(f"  {len(result.errored)} clips failed outright")
 
-    report = table(results, clips)
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(report + "\n", encoding="utf-8")
+    report = table(results, clips, args.corpus, args.split)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(report + "\n", encoding="utf-8")
 
-    with args.csv.open("w", encoding="utf-8", newline="") as fh:
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:
         writer = None
         for result in results:
             for row in result.rows:
@@ -487,7 +579,7 @@ def main() -> int:
 
     print()
     print(report)
-    print(f"\n-> {args.out} and {args.csv}")
+    print(f"\n-> {out} and {csv_path}")
     return 0
 
 
