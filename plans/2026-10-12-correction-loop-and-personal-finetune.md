@@ -535,11 +535,20 @@ upgrade (chunking long clips; k-fold) if the bank ever makes them matter.
       training clip
 
 #### Manual Verification
-- [ ] A real run on the bank prints hold-out and Wispr tables with base and tuned rows
+- [x] A real run on the bank prints hold-out and Wispr tables with base and tuned rows
 - [ ] The gate passes: tuned WER below base on the hold-out and within 1.0 point on
       Wispr. If it does not, the plan's answer is "more corrections", not more epochs;
       record the numbers in `research/asr-benchmark-corrections-<date>.md` either way
-- [ ] Peak VRAM during training stays well under the 32 GB (expect under 12 GB)
+- [x] Peak VRAM during training stays well under the 32 GB (expect under 12 GB)
+
+Mechanics verified 2026-10-14 on a scratch bank of 24 real clips labelled with their raw
+text (the real bank was empty): one epoch trained, merged, converted, and faster-whisper
+loaded the folder to score 6 hold-out and 198 Wispr clips, both tables printed. Peak
+VRAM 17.4 GB, above the 12 GB guess but well inside the card. The gate is meaningless on
+raw-text labels and stays open: run `uv run python scripts/finetune_whisper.py` once the
+bank passes 100 corrections and record the numbers then. The smoke folder was copied to
+`~/.whisper_dictate/models/smoke/` so phase 4 has a model to list; its 30-day pruning
+removes it.
 
 ---
 
