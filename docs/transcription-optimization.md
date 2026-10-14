@@ -62,6 +62,10 @@ Improve accuracy for specific domains:
 **For Speed**: small or medium
 **For Balance**: large-v3-turbo (recommended)
 
+**For your own voice**: save corrections with **Fix last dictation**, then run
+`uv run python scripts/finetune_whisper.py`. See "Tuning Whisper to Your Voice" in the
+README for what gets banked, the gate a tuned model must pass, and where the model lands.
+
 ## Troubleshooting
 
 **Hallucinations on silence**:

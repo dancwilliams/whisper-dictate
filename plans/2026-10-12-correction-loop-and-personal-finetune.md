@@ -526,10 +526,10 @@ upgrade (chunking long clips; k-fold) if the bank ever makes them matter.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run ruff check .` exits 0
-- [ ] `uv run python scripts/finetune_whisper.py --selftest` still prints ok with torch
+- [x] `uv run ruff check .` exits 0
+- [x] `uv run python scripts/finetune_whisper.py --selftest` still prints ok with torch
       not imported (assert `"torch" not in sys.modules` inside selftest)
-- [ ] `uv run python scripts/finetune_whisper.py --min-clips 1 --epochs 1 --name smoke`
+- [x] `uv run python scripts/finetune_whisper.py --min-clips 1 --epochs 1 --name smoke`
       finishes, produces `~/.whisper_dictate/models/smoke/model.bin`, and
       `WhisperModel(str(path), device="cuda", compute_type="float16")` transcribes one
       training clip
