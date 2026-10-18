@@ -72,3 +72,32 @@ jobs:
 
       - name: Run pytest with coverage
         run: uv run pytest
+
+  # uv bumps from Dependabot merge themselves once lint, typecheck and test
+  # are green. Majors and Actions bumps stay human-merged.
+  automerge:
+    name: auto-merge Dependabot uv bump
+    needs: [lint, typecheck, test]
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      startsWith(github.head_ref, 'dependabot/uv/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+      - if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        # Several bumps finishing together race on main ("Base branch was
+        # modified"), so retry before giving up.
+        run: |
+          for i in 1 2 3 4 5; do
+            gh pr merge --squash "$PR_URL" && exit 0
+            sleep 20
+          done
+          exit 1
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
