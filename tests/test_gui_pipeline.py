@@ -24,6 +24,7 @@ VAR_DEFAULTS = {
     "var_idle_ttl_minutes": 5.0,
     "var_history_enable": False,
     "var_history_audio_days": 0,
+    "var_readback_enable": True,
     "var_device": "cuda",
     "var_compute": "float16",
     "var_input": "",
@@ -62,7 +63,7 @@ VAR_DEFAULTS = {
 def mods(mocker):
     """The modules the pipeline reaches out through, mocked."""
     m = MagicMock()
-    for name in ("clipboard", "app_context", "history", "llm_cleanup", "glossary"):
+    for name in ("clipboard", "app_context", "history", "llm_cleanup", "glossary", "readback"):
         mocker.patch.object(gui, name, getattr(m, name))
     m.messagebox = mocker.patch.object(gui, "messagebox")
     mocker.patch.object(gui.time, "sleep")
@@ -110,6 +111,7 @@ def make_app(mods):
         app._reported_bad_rules = set()
         app._last_entry = None
         app._deliver_lock = threading.Lock()
+        app._readback_stop = None
         app._settings_saved = False
         app._defaults = {
             name: VAR_DEFAULTS[name] for _, name, cast in gui.SETTINGS if cast in (int, float)
@@ -253,6 +255,89 @@ class TestDeliver:
             "send_paste",
             "restore",
         ] * 2
+
+
+ENTRY = {"raw": "i met jon", "final": "I met Jon.", "app": "ms-teams.exe", "audio_file": None}
+
+
+class InlineThread:
+    """threading.Thread stand-in: start() runs the target on the spot."""
+
+    def __init__(self, target, args=(), daemon=False):
+        self.run = lambda: target(*args)
+
+    def start(self):
+        self.run()
+
+
+class TestReadback:
+    @pytest.fixture
+    def app(self, make_app, mods, mocker):
+        mocker.patch.object(gui.threading, "Thread", InlineThread)
+        mods.history.record.return_value = ENTRY
+        mods.readback.run.return_value = None
+
+        def _make(**var_overrides):
+            return make_app(**{"var_history_enable": True, **var_overrides})
+
+        return _make
+
+    def test_starts_after_a_paste(self, app, mods):
+        run(app())
+
+        pasted, stop, name = mods.readback.run.call_args.args
+        assert pasted == "hello world"
+        assert isinstance(stop, threading.Event)
+        assert name == "ms-teams.exe"
+
+    @pytest.mark.parametrize(
+        "overrides", [{"var_readback_enable": False}, {"var_history_enable": False}]
+    )
+    def test_skipped_when_off(self, app, mods, overrides):
+        run(app(**overrides))
+        mods.readback.run.assert_not_called()
+
+    def test_skipped_when_the_paste_failed(self, app, mods):
+        mods.clipboard.send_paste.return_value = False
+        run(app())
+        mods.readback.run.assert_not_called()
+
+    def test_banks_a_word_swap(self, app, mods):
+        mods.readback.run.return_value = "I met John."
+        mods.readback.map_to_raw.return_value = "i met John"
+        app()._readback_worker(ENTRY, "I met Jon.", threading.Event())
+
+        mods.readback.map_to_raw.assert_called_once_with("i met jon", "I met Jon.", "I met John.")
+        mods.history.record_correction.assert_called_once_with(
+            ENTRY, "i met John", source="auto", edited="I met John."
+        )
+
+    def test_banked_swap_shows_in_the_status(self, app, mods):
+        mods.readback.run.return_value = "I met John."
+        a = app()
+        a._readback_worker(ENTRY, "I met Jon.", threading.Event())
+        assert messages(a)[-1] == "Correction captured"
+
+    def test_ignores_non_swaps(self, app, mods):
+        mods.readback.run.return_value = "something else entirely"
+        mods.readback.map_to_raw.return_value = None
+        a = app()
+        a._readback_worker(ENTRY, "I met Jon.", threading.Event())
+
+        mods.history.record_correction.assert_not_called()
+        assert "Correction captured" not in messages(a)
+
+    def test_second_paste_stops_the_first_watch(self, app, mocker):
+        mocker.patch.object(gui.threading, "Thread")  # neither watch runs
+        a = app()
+        a._last_entry = ENTRY
+        cfg = a._capture_dictation_config()
+        a._start_readback("one", cfg)
+        first = a._readback_stop
+        a._start_readback("two", cfg)
+
+        assert first.is_set()
+        assert not a._readback_stop.is_set()
 
 
 class TestTranscribeAndClean:
