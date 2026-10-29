@@ -92,15 +92,59 @@ def fast(monkeypatch):
 class TestFind:
     def test_retries_until_the_paste_is_in_the_text(self, monkeypatch, fast):
         fake = FakeTarget([None, f"stuff {PASTED}"])
-        monkeypatch.setattr(readback, "_Target", lambda uia, element, iface: fake)
-        uia = type("Uia", (), {"GetFocusedElement": lambda self: object()})()
-        assert readback._find(uia, None, PASTED) is fake
+        monkeypatch.setattr(readback, "_focused", lambda uia, iface: fake)
+        assert readback._find(None, None, PASTED) is fake
 
     def test_gives_up_when_the_paste_never_appears(self, monkeypatch, fast):
         fake = FakeTarget(["not it"] * 5)
-        monkeypatch.setattr(readback, "_Target", lambda uia, element, iface: fake)
-        uia = type("Uia", (), {"GetFocusedElement": lambda self: object()})()
-        assert readback._find(uia, None, PASTED) is None
+        monkeypatch.setattr(readback, "_focused", lambda uia, iface: fake)
+        assert readback._find(None, None, PASTED) is None
+
+
+class TestFocused:
+    """UIA stand-ins: GetCurrentPattern returns a null pointer whose
+    QueryInterface raises, as the real client does for an unsupported pattern."""
+
+    class Null:
+        def QueryInterface(self, iface):
+            raise ValueError("NULL COM pointer access")
+
+    class Pattern:
+        def QueryInterface(self, iface):
+            return self
+
+    class Element:
+        def __init__(self, readable, inner=None):
+            self.readable, self.inner = readable, inner
+
+        def GetCurrentPattern(self, pid):
+            return TestFocused.Pattern() if self.readable else TestFocused.Null()
+
+        def FindFirst(self, scope, cond):
+            return self.inner
+
+    def _uia(self, focused):
+        return type(
+            "Uia",
+            (),
+            {
+                "GetFocusedElement": lambda self: focused,
+                "CreatePropertyCondition": lambda self, pid, value: (pid, value),
+            },
+        )()
+
+    def test_readable_focus_is_used_as_is(self):
+        element = self.Element(readable=True)
+        assert readback._focused(self._uia(element), None).element is element
+
+    def test_unreadable_host_pane_yields_its_focused_descendant(self):
+        inner = self.Element(readable=True)
+        host = self.Element(readable=False, inner=inner)
+        assert readback._focused(self._uia(host), None).element is inner
+
+    def test_unreadable_pane_with_nothing_inside_stays(self):
+        host = self.Element(readable=False)
+        assert readback._focused(self._uia(host), None).element is host
 
 
 class TestWatch:

@@ -37,6 +37,8 @@ SLACK = 5
 
 UIA_TEXT_PATTERN = 10014
 UIA_VALUE_PATTERN = 10002
+UIA_HAS_KEYBOARD_FOCUS = 30008
+TREE_SCOPE_DESCENDANTS = 4
 
 
 def edited_span(field: str, pasted: str) -> list[str] | None:
@@ -117,7 +119,7 @@ class _Target:
 
     def still_focused(self) -> bool:
         try:
-            return bool(self.uia.CompareElements(self.element, self.uia.GetFocusedElement()))
+            return bool(self.element.CurrentHasKeyboardFocus)
         except Exception:
             return False
 
@@ -134,9 +136,24 @@ def _client() -> tuple[Any, Any]:
     return uia, UIAutomationClient
 
 
+def _focused(uia: Any, iface: Any) -> _Target:
+    """The focused control. WinUI hosts (WhatsApp) report the pane around their
+    WebView2 as focused, and the page's tree appears only once asked for; so an
+    unreadable pane is searched, and only that pane, for the focused control."""
+    element = uia.GetFocusedElement()
+    target = _Target(uia, element, iface)
+    if target.text is None and target.value is None:
+        inner = element.FindFirst(
+            TREE_SCOPE_DESCENDANTS, uia.CreatePropertyCondition(UIA_HAS_KEYBOARD_FOCUS, True)
+        )
+        if inner is not None:
+            target = _Target(uia, inner, iface)
+    return target
+
+
 def _find(uia: Any, iface: Any, pasted: str) -> _Target | None:
     for _ in range(FIRST_READ_TRIES):
-        target = _Target(uia, uia.GetFocusedElement(), iface)
+        target = _focused(uia, iface)
         text = target.read()
         if text is not None and " ".join(pasted.split()) in " ".join(text.split()):
             return target
@@ -196,12 +213,13 @@ def main() -> None:
     try:
         uia, iface = _client()
         for _ in range(FIRST_READ_TRIES):  # same patience as _find
-            element = uia.GetFocusedElement()
-            text = _Target(uia, element, iface).read()
+            target = _focused(uia, iface)
+            text = target.read()
             if text is not None:
                 print(f"readable, {len(text)} chars")
                 return
             time.sleep(FIRST_READ_WAIT)
+        element = target.element
         print(
             f"not readable: focus was {element.CurrentName!r}, "
             f"control type {element.CurrentControlType}, class {element.CurrentClassName!r}"
