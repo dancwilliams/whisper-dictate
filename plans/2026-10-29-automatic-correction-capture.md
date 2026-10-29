@@ -630,7 +630,7 @@ keeps the pasted span and its edit, never the rest of the field."
 #### Automated Verification
 - [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
       `uv run mypy whisper_dictate` exit 0
-- [ ] CI green on the PR
+- [x] CI green on the PR
 
 #### Manual Verification
 - [ ] Dictate into Teams, change one word, press Send: status reads "Correction
