@@ -443,13 +443,19 @@ importing comtypes.
       ubuntu never imports it)
 
 #### Manual Verification
-- [ ] `uv run python -m whisper_dictate.readback 10`, click into a Teams message box
+- [x] `uv run python -m whisper_dictate.readback 10`, click into a Teams message box
       with a word in it: prints `readable, N chars`
-- [ ] Same with the Claude desktop prompt box, a WhatsApp message box, a Chrome text
+- [x] Same with the Claude desktop prompt box, a WhatsApp message box, a Chrome text
       area, and a Word document
-- [ ] Same with the VS Code editor: prints `readable, 99 chars` (the placeholder
+- [x] Same with the VS Code editor: prints `readable, 99 chars` (the placeholder
       sentence). This is why `_find` checks the paste is in the text rather than
       trusting "readable"
+
+Manual checks passed 2026-10-29 in all five apps and VS Code. WhatsApp needed a
+fallback: its WinUI host reports the WebView2 bridge pane as focused, so an
+unreadable pane is searched, scoped to itself, for the descendant with keyboard
+focus (`_focused`). Focus is checked on the element itself (`CurrentHasKeyboardFocus`)
+instead of `CompareElements`, which would name the pane again.
 
 **Implementation Note**: pause here for Dan's manual check before phase 2.
 
