@@ -34,6 +34,12 @@ FIRST_READ_WAIT = 0.5
 MIN_KEEP = 0.6
 # How far, in words, a matching run may drift from where the paste would sit.
 SLACK = 5
+# Polls in a row without the paste in the box before the watch ends: Teams
+# shows a placeholder after Send, so the box never reads as empty.
+GONE_POLLS = 2
+# Terminal exposes its screen buffer, not a field: the paste is in it, but
+# wrapped lines split words and would bank wrong labels.
+UNREADABLE_APPS = {"windowsterminal.exe"}
 
 UIA_TEXT_PATTERN = 10014
 UIA_VALUE_PATTERN = 10002
@@ -119,7 +125,11 @@ class _Target:
 
     def still_focused(self) -> bool:
         try:
-            return bool(self.element.CurrentHasKeyboardFocus)
+            # Chromium keeps reporting its focused node after the window goes to
+            # the background, so the system focus must still be in the process too.
+            return bool(self.element.CurrentHasKeyboardFocus) and (
+                self.uia.GetFocusedElement().CurrentProcessId == self.element.CurrentProcessId
+            )
         except Exception:
             return False
 
@@ -163,6 +173,7 @@ def _find(uia: Any, iface: Any, pasted: str) -> _Target | None:
 
 def _watch(target: _Target, pasted: str, stop: threading.Event) -> str | None:
     last = pasted.split()
+    gone = 0
     deadline = time.monotonic() + WATCH_SECONDS
     while not stop.wait(POLL_SECONDS) and time.monotonic() < deadline:
         if not target.still_focused():
@@ -171,8 +182,13 @@ def _watch(target: _Target, pasted: str, stop: threading.Event) -> str | None:
         if text is None or not text.strip():
             break  # sent, cleared, or gone: the last snapshot is the answer
         span = edited_span(text, pasted)
-        if span is not None:
-            last = span
+        if span is None:
+            gone += 1
+            if gone >= GONE_POLLS:
+                break  # sent or deleted; a single miss may be mid-edit
+            continue
+        gone = 0
+        last = span
     return None if last == pasted.split() else " ".join(last)
 
 
@@ -183,6 +199,9 @@ def run(pasted: str, stop: threading.Event, app: str = "") -> str | None:
     Call on its own thread; it blocks for up to WATCH_SECONDS. Never raises.
     """
     if sys.platform != "win32":
+        return None
+    if app.lower() in UNREADABLE_APPS:
+        logger.info(f"Read-back: {app} not readable")
         return None
     import comtypes
 

@@ -128,7 +128,7 @@ Use the glossary to keep acronyms, brand names, or domain-specific terms intact 
 - When **Learn from edits you make after a paste** is on (Settings → Automation → History), the app reads the box
   it pasted into, and if you change a word before sending or moving on, the fix is kept as a correction the same
   way. Only the pasted words are read back. Works in Teams, WhatsApp, Chrome, Claude desktop and Word; VS Code does
-  not expose its editor.
+  not expose its editor and Windows Terminal is skipped.
 - In **Settings → LLM cleanup…**, enable **Use glossary before prompt** to apply the glossary to transcripts and prepend the
   rules to the LLM system prompt so it takes priority over the general cleanup prompt.
 

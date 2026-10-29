@@ -163,8 +163,47 @@ class TestWatch:
         target = FakeTarget([PASTED.replace("mat", "rug")])
         assert readback._watch(target, PASTED, stop) is None
 
+    def test_paste_gone_twice_ends_the_watch(self, fast):
+        """Teams shows a placeholder after Send, so the box never reads as empty."""
+        edited = PASTED.replace("mat", "rug")
+        target = FakeTarget([edited, "Type a message", "Type a message", PASTED])
+        assert readback._watch(target, PASTED, threading.Event()) == edited
+        assert target.reads == [PASTED]  # the fourth read never happened
+
+    def test_one_miss_is_mid_edit_and_the_watch_goes_on(self, fast):
+        edited = PASTED.replace("mat", "rug")
+        target = FakeTarget([PASTED, "the cat", edited, ""])
+        assert readback._watch(target, PASTED, threading.Event()) == edited
+
+
+class TestStillFocused:
+    def _target(self, has_focus, own_pid, focused_pid):
+        element = type("E", (), {"CurrentHasKeyboardFocus": has_focus, "CurrentProcessId": own_pid})
+        focused = type("F", (), {"CurrentProcessId": focused_pid})
+        uia = type("Uia", (), {"GetFocusedElement": lambda self: focused})()
+        target = readback._Target.__new__(readback._Target)
+        target.uia, target.element = uia, element
+        return target
+
+    def test_focused_node_in_the_foreground_process(self):
+        assert self._target(True, 7, 7).still_focused() is True
+
+    def test_focused_node_in_a_background_window_is_not_focused(self):
+        """Chromium keeps reporting its focused node after the window loses focus."""
+        assert self._target(True, 7, 9).still_focused() is False
+
+    def test_focus_moved_within_the_process(self):
+        assert self._target(False, 7, 7).still_focused() is False
+
 
 def test_run_off_windows_returns_none_without_comtypes(monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setitem(sys.modules, "comtypes", None)  # any import would raise
     assert readback.run("hello", threading.Event()) is None
+
+
+def test_run_skips_a_terminal_without_comtypes(monkeypatch, caplog):
+    monkeypatch.setitem(sys.modules, "comtypes", None)  # any import would raise
+    with caplog.at_level("INFO", logger="whisper_dictate"):
+        assert readback.run("hello", threading.Event(), "WindowsTerminal.exe") is None
+    assert "Read-back: WindowsTerminal.exe not readable" in caplog.text
