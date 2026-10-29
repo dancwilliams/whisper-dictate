@@ -25,7 +25,8 @@ from whisper_dictate import glossary
 
 logger = logging.getLogger("whisper_dictate")
 
-POLL_SECONDS = 1.0
+# Half a second, so a pause that short before Send is enough to settle an edit.
+POLL_SECONDS = 0.5
 WATCH_SECONDS = 120.0
 # Chromium builds its accessibility tree after the first ask; give it a moment.
 FIRST_READ_TRIES = 3
@@ -34,6 +35,12 @@ FIRST_READ_WAIT = 0.5
 MIN_KEEP = 0.6
 # How far, in words, a matching run may drift from where the paste would sit.
 SLACK = 5
+# Polls in a row without the paste in the box before the watch ends: Teams
+# shows a placeholder after Send, so the box never reads as empty.
+GONE_POLLS = 2
+# Terminal exposes its screen buffer, not a field: the paste is in it, but
+# wrapped lines split words and would bank wrong labels.
+UNREADABLE_APPS = {"windowsterminal.exe"}
 
 UIA_TEXT_PATTERN = 10014
 UIA_VALUE_PATTERN = 10002
@@ -80,6 +87,11 @@ def map_to_raw(raw: str, final: str, edited: str) -> str | None:
         return None
     out = raw
     for rule in rules:
+        trigger, replacement = rule.trigger.lower(), rule.replacement.lower()
+        if replacement != trigger and (
+            trigger.startswith(replacement) or trigger.endswith(replacement)
+        ):
+            return None  # a half-deleted word, not a correction
         pattern = re.compile(rf"(?<!\w){re.escape(rule.trigger)}(?!\w)", re.IGNORECASE)
         out, n = pattern.subn(rule.replacement, out, count=1)
         if n == 0:
@@ -119,7 +131,11 @@ class _Target:
 
     def still_focused(self) -> bool:
         try:
-            return bool(self.element.CurrentHasKeyboardFocus)
+            # Chromium keeps reporting its focused node after the window goes to
+            # the background, so the system focus must still be in the process too.
+            return bool(self.element.CurrentHasKeyboardFocus) and (
+                self.uia.GetFocusedElement().CurrentProcessId == self.element.CurrentProcessId
+            )
         except Exception:
             return False
 
@@ -162,18 +178,29 @@ def _find(uia: Any, iface: Any, pasted: str) -> _Target | None:
 
 
 def _watch(target: _Target, pasted: str, stop: threading.Event) -> str | None:
-    last = pasted.split()
+    # A span counts once two polls in a row agree on it: a single poll can land
+    # mid-keystroke, and a half-typed word is a legal swap to the differ.
+    settled = pasted.split()
+    last: list[str] | None = None
+    gone = 0
     deadline = time.monotonic() + WATCH_SECONDS
     while not stop.wait(POLL_SECONDS) and time.monotonic() < deadline:
         if not target.still_focused():
             break
         text = target.read()
         if text is None or not text.strip():
-            break  # sent, cleared, or gone: the last snapshot is the answer
+            break  # sent, cleared, or gone: the settled snapshot is the answer
         span = edited_span(text, pasted)
-        if span is not None:
-            last = span
-    return None if last == pasted.split() else " ".join(last)
+        if span is None:
+            gone += 1
+            if gone >= GONE_POLLS:
+                break  # sent or deleted; a single miss may be mid-edit
+            continue
+        gone = 0
+        if span == last:
+            settled = span
+        last = span
+    return None if settled == pasted.split() else " ".join(settled)
 
 
 def run(pasted: str, stop: threading.Event, app: str = "") -> str | None:
@@ -183,6 +210,9 @@ def run(pasted: str, stop: threading.Event, app: str = "") -> str | None:
     Call on its own thread; it blocks for up to WATCH_SECONDS. Never raises.
     """
     if sys.platform != "win32":
+        return None
+    if app.lower() in UNREADABLE_APPS:
+        logger.info(f"Read-back: {app} not readable")
         return None
     import comtypes
 

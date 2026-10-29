@@ -628,25 +628,33 @@ keeps the pasted span and its edit, never the rest of the field."
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
       `uv run mypy whisper_dictate` exit 0
-- [ ] CI green on the PR
+- [x] CI green on the PR
 
 #### Manual Verification
-- [ ] Dictate into Teams, change one word, press Send: status reads "Correction
+- [x] Dictate into Teams, change one word, press Send: status reads "Correction
       captured", `corrections.jsonl` gains a line with `source: "auto"`, `edited` holds
       the sentence as sent, `corrected` is the raw text with the swap, and the WAV is in
       `training/`
-- [ ] Same in WhatsApp, the Claude desktop prompt, a Chrome text area, and Word (in
+- [x] Same in WhatsApp, the Claude desktop prompt, a Chrome text area, and Word (in
       Word, click elsewhere in the document to end the watch)
-- [ ] Dictate and send unchanged: nothing banked, no status change
-- [ ] Dictate, delete the whole message, type something else: log says "not a word
+- [x] Dictate and send unchanged: nothing banked, no status change
+- [x] Dictate, delete the whole message, type something else: log says "not a word
       swap", nothing banked
-- [ ] Dictate into VS Code: log says `Read-back: Code.exe not readable`, nothing else
+- [x] Dictate into VS Code: log says `Read-back: Code.exe not readable`, nothing else
       happens, VS Code shows no accessibility notice
-- [ ] Untick the setting: no `Read-back:` lines in the log
-- [ ] Fix last dictation still works on a dictation that was also captured
+- [x] Untick the setting: no `Read-back:` lines in the log
+- [x] Fix last dictation still works on a dictation that was also captured
       automatically (two lines for one clip; training keeps the later one)
+
+Manual checks passed 2026-10-29 in all five apps, VS Code, Terminal, setting off and
+the Fix dialog. Two fixes came out of them, both in `readback.py`: the watch ends when
+system focus leaves the process (Chromium keeps reporting its focused node in the
+background) or two polls find the paste gone (Teams shows a placeholder after Send),
+and a span is banked only when two half-second polls agree on it, never a prefix or
+suffix of the original word (a poll mid-backspace banked "rewrite" -> "rewrit").
+Windows Terminal reads back its screen buffer, so it is skipped by name.
 
 ---
 
