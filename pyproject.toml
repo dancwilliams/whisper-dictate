@@ -16,6 +16,8 @@ dependencies = [
     "nvidia-cublas-cu12==12.4.5.8",
     "nvidia-cuda-runtime-cu12==12.4.127",
     "openai>=3.16",
+    # UI Automation client for reading back the control a dictation was pasted into.
+    "comtypes>=1.4.17; sys_platform == 'win32'",
     "sounddevice>=0.5.6",
 ]
 
