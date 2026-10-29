@@ -439,7 +439,7 @@ importing comtypes.
 - [x] `uv run pytest tests/test_readback.py` passes
 - [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`,
       `uv run mypy whisper_dictate` exit 0
-- [ ] CI green on the PR (comtypes resolves on `windows-latest`; the lint job on
+- [x] CI green on the PR (comtypes resolves on `windows-latest`; the lint job on
       ubuntu never imports it)
 
 #### Manual Verification
