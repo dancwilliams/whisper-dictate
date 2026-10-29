@@ -195,9 +195,17 @@ def main() -> None:
     comtypes.CoInitialize()
     try:
         uia, iface = _client()
-        target = _Target(uia, uia.GetFocusedElement(), iface)
-        text = target.read()
-        print("not readable" if text is None else f"readable, {len(text)} chars")
+        for _ in range(FIRST_READ_TRIES):  # same patience as _find
+            element = uia.GetFocusedElement()
+            text = _Target(uia, element, iface).read()
+            if text is not None:
+                print(f"readable, {len(text)} chars")
+                return
+            time.sleep(FIRST_READ_WAIT)
+        print(
+            f"not readable: focus was {element.CurrentName!r}, "
+            f"control type {element.CurrentControlType}, class {element.CurrentClassName!r}"
+        )
     finally:
         comtypes.CoUninitialize()
 
