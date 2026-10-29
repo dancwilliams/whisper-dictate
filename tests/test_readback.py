@@ -62,6 +62,14 @@ class TestMapToRaw:
     def test_insertion_only_returns_none(self):
         assert readback.map_to_raw("i met jon", "I met Jon.", "I met Jon again.") is None
 
+    def test_a_half_deleted_word_is_not_a_swap(self):
+        """Seen in Teams: a poll mid-backspace banked "rewrite" -> "rewrit"."""
+        assert readback.map_to_raw("a rewrite", "A rewrite.", "A rewrit") is None
+        assert readback.map_to_raw("a rewrite", "A rewrite.", "A write") is None
+
+    def test_a_longer_word_is_still_a_swap(self):
+        assert readback.map_to_raw("one test", "One test.", "One tests.") == "one tests"
+
     def test_two_swaps_both_land(self):
         assert (
             readback.map_to_raw("jon and sue left", "Jon and Sue left.", "John and Sal left.")
@@ -148,10 +156,16 @@ class TestFocused:
 
 
 class TestWatch:
-    def test_empty_read_ends_the_watch_and_the_last_snapshot_wins(self, fast):
+    def test_empty_read_ends_the_watch_and_the_settled_snapshot_wins(self, fast):
         edited = PASTED.replace("mat", "rug")
-        target = FakeTarget([PASTED, edited, ""])
+        target = FakeTarget([PASTED, edited, edited, ""])
         assert readback._watch(target, PASTED, threading.Event()) == edited
+
+    def test_a_span_seen_once_is_mid_keystroke_and_does_not_count(self, fast):
+        """Backspacing through the paste: each poll sees a shorter word, then
+        the paste is gone. None of those partial words may be banked."""
+        target = FakeTarget([PASTED, PASTED.replace("today", "toda"), "x", "x"])
+        assert readback._watch(target, PASTED, threading.Event()) is None
 
     def test_unchanged_then_focus_lost_returns_none(self, fast):
         target = FakeTarget([PASTED, PASTED], focused=[True, True, False])
@@ -166,13 +180,13 @@ class TestWatch:
     def test_paste_gone_twice_ends_the_watch(self, fast):
         """Teams shows a placeholder after Send, so the box never reads as empty."""
         edited = PASTED.replace("mat", "rug")
-        target = FakeTarget([edited, "Type a message", "Type a message", PASTED])
+        target = FakeTarget([edited, edited, "Type a message", "Type a message", PASTED])
         assert readback._watch(target, PASTED, threading.Event()) == edited
-        assert target.reads == [PASTED]  # the fourth read never happened
+        assert target.reads == [PASTED]  # the fifth read never happened
 
     def test_one_miss_is_mid_edit_and_the_watch_goes_on(self, fast):
         edited = PASTED.replace("mat", "rug")
-        target = FakeTarget([PASTED, "the cat", edited, ""])
+        target = FakeTarget([PASTED, "the cat", edited, edited, ""])
         assert readback._watch(target, PASTED, threading.Event()) == edited
 
 

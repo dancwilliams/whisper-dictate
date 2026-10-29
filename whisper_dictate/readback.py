@@ -25,7 +25,8 @@ from whisper_dictate import glossary
 
 logger = logging.getLogger("whisper_dictate")
 
-POLL_SECONDS = 1.0
+# Half a second, so a pause that short before Send is enough to settle an edit.
+POLL_SECONDS = 0.5
 WATCH_SECONDS = 120.0
 # Chromium builds its accessibility tree after the first ask; give it a moment.
 FIRST_READ_TRIES = 3
@@ -86,6 +87,11 @@ def map_to_raw(raw: str, final: str, edited: str) -> str | None:
         return None
     out = raw
     for rule in rules:
+        trigger, replacement = rule.trigger.lower(), rule.replacement.lower()
+        if replacement != trigger and (
+            trigger.startswith(replacement) or trigger.endswith(replacement)
+        ):
+            return None  # a half-deleted word, not a correction
         pattern = re.compile(rf"(?<!\w){re.escape(rule.trigger)}(?!\w)", re.IGNORECASE)
         out, n = pattern.subn(rule.replacement, out, count=1)
         if n == 0:
@@ -172,7 +178,10 @@ def _find(uia: Any, iface: Any, pasted: str) -> _Target | None:
 
 
 def _watch(target: _Target, pasted: str, stop: threading.Event) -> str | None:
-    last = pasted.split()
+    # A span counts once two polls in a row agree on it: a single poll can land
+    # mid-keystroke, and a half-typed word is a legal swap to the differ.
+    settled = pasted.split()
+    last: list[str] | None = None
     gone = 0
     deadline = time.monotonic() + WATCH_SECONDS
     while not stop.wait(POLL_SECONDS) and time.monotonic() < deadline:
@@ -180,7 +189,7 @@ def _watch(target: _Target, pasted: str, stop: threading.Event) -> str | None:
             break
         text = target.read()
         if text is None or not text.strip():
-            break  # sent, cleared, or gone: the last snapshot is the answer
+            break  # sent, cleared, or gone: the settled snapshot is the answer
         span = edited_span(text, pasted)
         if span is None:
             gone += 1
@@ -188,8 +197,10 @@ def _watch(target: _Target, pasted: str, stop: threading.Event) -> str | None:
                 break  # sent or deleted; a single miss may be mid-edit
             continue
         gone = 0
+        if span == last:
+            settled = span
         last = span
-    return None if last == pasted.split() else " ".join(last)
+    return None if settled == pasted.split() else " ".join(settled)
 
 
 def run(pasted: str, stop: threading.Event, app: str = "") -> str | None:
