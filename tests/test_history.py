@@ -182,17 +182,41 @@ class TestRecordCorrection:
         assert self._bank(tmp_path, entry, corrected="threatfax") is True
 
         (row,) = self._rows(tmp_path)
-        assert set(row) == {"ts", "app", "audio_file", "raw", "final", "corrected", "cleanup_wrong"}
+        assert set(row) == {
+            "ts",
+            "app",
+            "audio_file",
+            "raw",
+            "final",
+            "corrected",
+            "cleanup_wrong",
+            "source",
+            "edited",
+        }
         assert row["raw"] == "threat fax"
         assert row["final"] == "Threatfax."
         assert row["corrected"] == "threatfax"
         assert row["app"] == "olk.exe"
         assert row["cleanup_wrong"] is False
+        assert row["source"] == "manual"
+        assert row["edited"] is None
         assert "title" not in row
 
     def test_cleanup_wrong_flag_is_kept(self, tmp_path):
         self._bank(tmp_path, {"raw": "a", "final": "b"}, corrected="a", cleanup_wrong=True)
         assert self._rows(tmp_path)[0]["cleanup_wrong"] is True
+
+    def test_an_automatic_capture_keeps_its_source_and_edit(self, tmp_path):
+        self._bank(
+            tmp_path,
+            {"raw": "i met jon", "final": "I met Jon."},
+            corrected="i met John",
+            source="auto",
+            edited="I met John.",
+        )
+        row = self._rows(tmp_path)[0]
+        assert row["source"] == "auto"
+        assert row["edited"] == "I met John."
 
     def test_copies_the_wav_and_leaves_the_original(self, tmp_path):
         audio_dir = tmp_path / "audio"

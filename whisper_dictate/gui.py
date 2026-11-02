@@ -36,6 +36,7 @@ from whisper_dictate import (
     hotkeys,
     llm_cleanup,
     prompt,
+    readback,
     s1,
     settings_store,
     speaker,
@@ -60,6 +61,7 @@ from whisper_dictate.config import (
     DEFAULT_LLM_PROMPT,
     DEFAULT_LLM_TEMP,
     DEFAULT_MODEL,
+    DEFAULT_READBACK_ENABLE,
     DEVICE_COMPUTE_DEFAULTS,
     MODEL_INFO,
     get_model_choices,
@@ -103,6 +105,7 @@ SETTINGS: tuple[tuple[str, str, type], ...] = (
     ("idle_ttl_minutes", "var_idle_ttl_minutes", float),
     ("history_enable", "var_history_enable", bool),
     ("history_audio_days", "var_history_audio_days", int),
+    ("readback_enable", "var_readback_enable", bool),
     ("device", "var_device", str),
     ("compute", "var_compute", str),
     ("input", "var_input", str),
@@ -183,6 +186,7 @@ class App(Tk):
         self._reported_bad_rules: set[str] = set()
         self._last_entry: dict | None = None
         self._deliver_lock = threading.Lock()
+        self._readback_stop: threading.Event | None = None
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
         self.btn_llm_refresh: ttk.Button | None = None
@@ -247,6 +251,7 @@ class App(Tk):
         self.var_idle_ttl_minutes = DoubleVar(value=DEFAULT_IDLE_TTL_MINUTES)
         self.var_history_enable = BooleanVar(value=DEFAULT_HISTORY_ENABLE)
         self.var_history_audio_days = DoubleVar(value=DEFAULT_HISTORY_AUDIO_DAYS)
+        self.var_readback_enable = BooleanVar(value=DEFAULT_READBACK_ENABLE)
         self.var_model_display = StringVar(value="")  # For formatted model name in dropdown
         self.var_device = StringVar(value=DEFAULT_DEVICE)
         self.var_compute = StringVar(value=DEFAULT_COMPUTE)
@@ -549,33 +554,40 @@ class App(Tk):
             ttk.Label(hist_row, text="0 = text only", foreground="gray").pack(
                 side="left", padx=("6p", 0)
             )
+            ttk.Checkbutton(
+                frame,
+                text="Learn from edits you make after a paste",
+                variable=self.var_readback_enable,
+            ).grid(row=9, column=0, sticky="w")
             # The same warning the debug-logging option carries, for the same
             # reason: this writes what you said to disk.
             ttk.Label(
                 frame,
                 text=(
                     r"Transcripts and recordings are written to ~\.whisper_dictate. "
-                    "They never leave this machine, and window titles are never stored."
+                    "They never leave this machine, and window titles are never stored. "
+                    "After a paste, only the box the text landed in is read, and only "
+                    "the pasted words are kept."
                 ),
                 wraplength="315p",
                 foreground="#b8860b",
-            ).grid(row=9, column=0, sticky="w", pady=("3p", 0))
+            ).grid(row=10, column=0, sticky="w", pady=("3p", 0))
 
             # Auto-startup options
             ttk.Separator(frame, orient="horizontal").grid(
-                row=10, column=0, sticky="we", pady=("9p", "6p")
+                row=11, column=0, sticky="we", pady=("9p", "6p")
             )
             ttk.Label(frame, text="Startup", font=("Segoe UI", 9, "bold")).grid(
-                row=11, column=0, sticky="w"
+                row=12, column=0, sticky="w"
             )
             ttk.Checkbutton(
                 frame, text="Auto-load model on startup", variable=self.var_auto_load_model
-            ).grid(row=12, column=0, sticky="w", pady=("3p", 0))
+            ).grid(row=13, column=0, sticky="w", pady=("3p", 0))
             ttk.Checkbutton(
                 frame,
                 text="Auto-register hotkey after model loads",
                 variable=self.var_auto_register_hotkey,
-            ).grid(row=13, column=0, sticky="w")
+            ).grid(row=14, column=0, sticky="w")
 
         self._open_window("_automation_window", "Automation", build)
 
@@ -1670,6 +1682,7 @@ class App(Tk):
         Borrowing is only safe one borrower at a time, or the second saves the
         first one's dictation as the user's clipboard.
         """
+        pasted_ok = False
         with self._deliver_lock:
             try:
                 saved = clipboard.snapshot()
@@ -1694,7 +1707,8 @@ class App(Tk):
                     time.sleep(cfg["paste_delay"])
                     # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
                     # dictation apps use.
-                    if not clipboard.send_paste():
+                    pasted_ok = clipboard.send_paste()
+                    if not pasted_ok:
                         self._set_status("error", "Auto-paste failed")
                         logger.error("SendInput refused the paste keystroke")
                     elif self._status_state not in {"error", "warning"}:
@@ -1708,6 +1722,35 @@ class App(Tk):
                         clipboard.restore(saved)
                     except clipboard.ClipboardError as e:
                         logger.warning(f"Could not restore the clipboard: {e}")
+        # After the restore, so the watcher never overlaps the restore_delay sleep.
+        if pasted_ok:
+            self._start_readback(text, cfg)
+
+    def _start_readback(self, pasted: str, cfg: dict[str, Any]) -> None:
+        """Watch the pasted-into control for an edit, on its own thread. Worker thread."""
+        if not (cfg["readback_enable"] and cfg["history_enable"]):
+            return
+        entry = self._last_entry
+        if not entry or not entry.get("raw"):
+            return
+        if self._readback_stop is not None:
+            self._readback_stop.set()  # a new paste ends the last watch
+        stop = self._readback_stop = threading.Event()
+        threading.Thread(
+            target=self._readback_worker, args=(entry, pasted, stop), daemon=True
+        ).start()
+
+    def _readback_worker(self, entry: dict[str, Any], pasted: str, stop: threading.Event) -> None:
+        """Thread target. Blocks until Dan leaves the control; banks a word swap."""
+        edited = readback.run(pasted, stop, entry.get("app", ""))
+        if edited is None:
+            return
+        corrected = readback.map_to_raw(entry["raw"], pasted, edited)
+        if corrected is None:
+            logger.info("Read-back: edit was not a word swap, nothing banked")
+            return
+        history.record_correction(entry, corrected, source="auto", edited=edited)
+        self._set_status("ready", "Correction captured")
 
     def _wait_for_modifiers_up(self, timeout: float = MODIFIER_WAIT_SECONDS) -> None:
         """Block until every modifier key is released.

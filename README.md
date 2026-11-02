@@ -125,6 +125,10 @@ Use the glossary to keep acronyms, brand names, or domain-specific terms intact 
   correction is kept in `~/.whisper_dictate/corrections.jsonl` with a copy of the recording in `training/`, as data
   for tuning the recognizer. **Find corrections** still offers each replaced phrase as a glossary rule (unticked by
   default), and **Cleanup was wrong** records a case where the cleanup step, not Whisper, changed the meaning.
+- When **Learn from edits you make after a paste** is on (Settings → Automation → History), the app reads the box
+  it pasted into, and if you change a word before sending or moving on, the fix is kept as a correction the same
+  way. Only the pasted words are read back. Works in Teams, WhatsApp, Chrome, Claude desktop and Word; VS Code does
+  not expose its editor and Windows Terminal is skipped.
 - In **Settings → LLM cleanup…**, enable **Use glossary before prompt** to apply the glossary to transcripts and prepend the
   rules to the LLM system prompt so it takes priority over the general cleanup prompt.
 
@@ -134,7 +138,7 @@ Glossary usage is optional; turn it off from **Settings → LLM cleanup…** if 
 
 ## 🎙 Tuning Whisper to Your Voice
 
-Every **Fix last dictation** you save is a training label: the corrected text goes to
+Every **Fix last dictation** you save, and every edit the app captures after a paste, is a training label: the corrected text goes to
 `~/.whisper_dictate/corrections.jsonl` and the recording is copied to `training/`, where it is never pruned. Once
 a hundred or so have piled up, train a personal model on them:
 

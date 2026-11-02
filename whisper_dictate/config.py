@@ -47,6 +47,10 @@ CLEANUP_BACKENDS = ("s1", "endpoint", "off")
 DEFAULT_HISTORY_ENABLE = True
 DEFAULT_HISTORY_AUDIO_DAYS = 14.0
 
+# After an auto-paste, read the box the text landed in and bank a changed
+# word as a correction. Only the pasted span is kept; see readback.py.
+DEFAULT_READBACK_ENABLE = True
+
 # Fine-tuned models from scripts/finetune_whisper.py land here, one
 # CTranslate2 folder each, and are offered in the model dropdown by path.
 MODELS_DIR = Path.home() / ".whisper_dictate" / "models"

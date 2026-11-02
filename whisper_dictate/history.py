@@ -8,7 +8,9 @@ worth expiring. A hand correction and its clip go to `corrections.jsonl` and
 
 Privacy: the process name is recorded, never the window title and never a URL.
 A window title is the document you had open, the message you were reading, the
-site you were on - none of which is needed to improve a recognizer.
+site you were on - none of which is needed to improve a recognizer. An
+automatic capture keeps the pasted span and its edit, never the rest of the
+field.
 """
 
 from __future__ import annotations
@@ -126,6 +128,9 @@ def record_correction(
     path: Path | None = None,
     audio_dir: Path | None = None,
     training_dir: Path | None = None,
+    *,
+    source: str = "manual",
+    edited: str | None = None,
 ) -> bool:
     """Bank a hand correction as a training label.
 
@@ -155,6 +160,11 @@ def record_correction(
             # S1 changed the meaning while Whisper was right. Not consumed by
             # anything yet; it is the seed of a cleanup dataset.
             "cleanup_wrong": cleanup_wrong,
+            # "manual" from the Fix dialog, "auto" from readback. `edited` is the
+            # pasted span as the user left it; `corrected` is that swap carried
+            # onto the raw text, which is what training reads.
+            "source": source,
+            "edited": edited,
         },
         path,
     )

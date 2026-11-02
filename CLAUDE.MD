@@ -61,6 +61,7 @@ Ruff enforces import sorting with the "I" rule:
 | `glossary.py` | Glossary persistence, phonetic rules, per-app hotwords | `GlossaryManager`, `GlossaryRule`, `apply_glossary()`, `hotwords_for_app()` |
 | `history.py` | Local dictation record, correction bank and audio pruning | `record()`, `record_correction()`, `prune_audio()` |
 | `glossary_dialog.py` | GUI for glossary management and the Fix last dictation dialog | `GlossaryDialog`, `CorrectionDialog` |
+| `readback.py` | Read back the pasted-into control via UI Automation and bank word swaps | `run()`, `edited_span()`, `map_to_raw()` |
 | `hotkeys.py` | Windows global hotkey registration | `HotkeyManager`, `parse_chord()` |
 | `clipboard.py` | Clipboard snapshot/restore (ctypes) | `snapshot()`, `restore()`, `set_text()` |
 | `speaker.py` | Mute default playback device while recording (Core Audio, ctypes) | `set_mute()` |
@@ -78,6 +79,7 @@ Ruff enforces import sorting with the "I" rule:
 4. **Glossary applied** (optional) → `glossary.py` normalizes transcript
 5. **LLM cleanup** (optional) → `llm_cleanup.py` sends to OpenAI-compatible endpoint
 6. **Result displayed**, clipboard snapshotted, text set, pasted with Shift+Insert (`SendInput`), clipboard restored
+7. **Edits watched** (optional) → `readback.py` polls the pasted-into control and banks a word swap with `history.record_correction`
 
 ### Settings Structure
 
@@ -90,6 +92,7 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "idle_ttl_minutes": 5.0,
   "history_enable": true,
   "history_audio_days": 14,
+  "readback_enable": true,
   "device": "cuda",
   "compute": "float16",
   "input": "",

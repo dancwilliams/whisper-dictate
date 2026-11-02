@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- After a paste, the app can read the box it pasted into and keep a changed
+  word as a correction (Settings → Automation → History).
 - Fixing a dictation now keeps the correction and its recording as training
   data under `~/.whisper_dictate`. The Fix last dictation dialog edits what
   Whisper heard, shows the pasted text under it, saves without a glossary

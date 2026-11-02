@@ -201,6 +201,7 @@ sequenceDiagram
     participant Clip as clipboard.py
     participant Target as Target Application
     participant History as history.py
+    participant Readback as readback.py
 
     GUI->>GUI: Display result in text widget
     GUI->>History: record(text, audio, process name)
@@ -213,6 +214,8 @@ sequenceDiagram
         Target->>Clip: Paste content
         GUI->>GUI: Wait restore_delay
         GUI->>Clip: restore(snapshot)
+        GUI->>Readback: run(text) on its own thread (readback_enable)
+        Readback-->>History: record_correction(source="auto") on a word swap
     end
 ```
 
@@ -237,6 +240,7 @@ was on the clipboard before the dictation.
 | `glossary.py` | Glossary persistence, phonetic rules, per-app hotwords | None |
 | `glossary_dialog.py` | GUI for glossary rules and the Fix last dictation dialog | tkinter |
 | `history.py` | Dictation record (`history.jsonl`) and audio pruning | numpy, wave |
+| `readback.py` | Read back the pasted-into control via UI Automation and bank word swaps | comtypes |
 | `hotkeys.py` | Windows global hotkey registration | ctypes (windll.user32) |
 | `clipboard.py` | Clipboard snapshot/restore and Shift+Insert paste | ctypes (windll.user32, kernel32) |
 | `speaker.py` | Mute the default playback device while recording | ctypes (Core Audio COM) |
@@ -312,6 +316,7 @@ whisper_dictate/
 ├── glossary.py              # Glossary logic
 ├── glossary_dialog.py       # GUI for glossary and Fix last dictation
 ├── history.py               # Dictation record and audio pruning
+├── readback.py              # UI Automation read-back of the pasted-into control
 ├── hotkeys.py               # Windows hotkey registration
 ├── clipboard.py             # Clipboard snapshot/restore, Shift+Insert paste
 ├── speaker.py               # Mute playback device while recording
