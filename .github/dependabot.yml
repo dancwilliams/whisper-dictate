@@ -1,7 +1,15 @@
 version: 2
+# Dependabot's update jobs reach only allowlisted hosts. Without this entry the
+# llama-cu124 index in pyproject.toml answers 403 ("egress not allowlisted"),
+# uv cannot re-lock, and every uv update (security ones too) fails.
+registries:
+  llama-cu124:
+    type: python-index
+    url: https://abetlen.github.io/llama-cpp-python/whl/cu124
 updates:
   - package-ecosystem: "uv"
     directory: "/"
+    registries: [llama-cu124]
     schedule: { interval: "weekly" }
     groups:
       # Majors stay out of the group so they arrive as their own PR and are
