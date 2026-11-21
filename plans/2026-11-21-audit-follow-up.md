@@ -393,10 +393,15 @@ goes by mtime.
 - [x] `uv run mypy whisper_dictate` passes
 
 #### Manual Verification
-- [ ] Dictate into Notepad: the `notepad.exe` rule's style applies
-- [ ] After the first launch, `~/.whisper_dictate/logs/` holds `whisper_dictate.log.1`
+- [x] Dictate into Notepad: the `notepad.exe` rule's style applies
+- [x] After the first launch, `~/.whisper_dictate/logs/` holds `whisper_dictate.log.1`
       and a small new log
-- [ ] A new clip in `~/.whisper_dictate/audio/` has an 18-character stem (three more digits than before)
+- [x] A new clip in `~/.whisper_dictate/audio/` has an 18-character stem (three more digits than before)
+
+Manual checks passed 2026-11-21: `whisper_dictate.log` (3.3 MB) rotated to
+`whisper_dictate.log.1` on launch beside a 2.3 KB active log, new clips saved
+with 18-character millisecond stems (`20261121T113325366.wav`), and dictating
+into `Notepad.exe` applied the lowercase `notepad.exe` rule's `email` context.
 
 **Implementation Note**: stop for Dan's confirmation before Phase 3.
 
