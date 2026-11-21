@@ -125,6 +125,16 @@ class TestSaveAudio:
             back = np.frombuffer(fh.readframes(2), dtype="<i2")
         assert back.tolist() == [32767, -32767]
 
+    def test_stamp_differs_within_the_same_second(self, monkeypatch):
+        times = iter([1_700_000_000.125, 1_700_000_000.875])
+        monkeypatch.setattr(history.time, "time", lambda: next(times))
+        first = history._stamp()
+        second = history._stamp()
+        assert first != second
+        assert len(first) == 18
+        assert first.endswith("125")
+        assert second.endswith("875")
+
 
 class TestPruneAudio:
     def _aged(self, path, days_old):

@@ -76,6 +76,12 @@ class TestMapToRaw:
             == "John and Sal left"
         )
 
+    def test_backslash_in_edited_word_is_literal(self):
+        assert (
+            readback.map_to_raw("open path now", "Open path now.", r"Open C:\new\1 now.")
+            == r"open C:\new\1 now"
+        )
+
 
 class FakeTarget:
     """Scripted reads and focus answers in place of a UI Automation element."""

@@ -93,7 +93,7 @@ def map_to_raw(raw: str, final: str, edited: str) -> str | None:
         ):
             return None  # a half-deleted word, not a correction
         pattern = re.compile(rf"(?<!\w){re.escape(rule.trigger)}(?!\w)", re.IGNORECASE)
-        out, n = pattern.subn(rule.replacement, out, count=1)
+        out, n = pattern.subn(lambda _m: rule.replacement, out, count=1)
         if n == 0:
             return None
     return out

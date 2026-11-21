@@ -132,13 +132,20 @@ def _title_matches(pattern: str, title: str) -> bool:
         return False
 
 
+def _rules_for(app_prompts: AppPromptMap, process_name: str) -> list[AppPromptRule] | None:
+    """Windows reports `Notepad.exe` and `WINWORD.EXE`; a rule typed by hand is
+    usually lower case. File names are not case-sensitive here, so neither is this."""
+    wanted = process_name.lower()
+    return next((rules for name, rules in app_prompts.items() if name.lower() == wanted), None)
+
+
 def resolve_app_prompt(app_prompts: AppPromptMap, context: ActiveContext | None) -> str | None:
     """Return the best-matching prompt for the given active context."""
 
     if context is None or not context.process_name:
         return None
 
-    rules = app_prompts.get(context.process_name)
+    rules = _rules_for(app_prompts, context.process_name)
     if not rules:
         return None
 
@@ -171,7 +178,7 @@ def resolve_app_style(app_prompts: AppPromptMap, context: ActiveContext | None) 
     if context is None or not context.process_name:
         return {}
 
-    rules = app_prompts.get(context.process_name)
+    rules = _rules_for(app_prompts, context.process_name)
     if not rules:
         return {}
 

@@ -98,6 +98,16 @@ class TestGlossaryApplication:
         assert "Skipping glossary rule" in caplog.text
         assert manager.skipped == [r"gpt-(\d)"]
 
+    def test_phrase_replacement_is_literal(self) -> None:
+        manager = GlossaryManager([GlossaryRule(trigger="my path", replacement=r"C:\new\1")])
+        assert apply_glossary("open my path now", manager) == r"open C:\new\1 now"
+
+    def test_regex_replacement_substitutes_groups(self) -> None:
+        manager = GlossaryManager(
+            [GlossaryRule(trigger=r"gpt-(\d)", replacement=r"GPT-\1", match_type="regex")]
+        )
+        assert apply_glossary("using gpt-4 today", manager) == "using GPT-4 today"
+
 
 class TestGlossaryRuleManipulation:
     """Test adding, updating, and removing rules."""

@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model list; unused ones expire after 30 days.
 
 ### Fixed
+- Per-app prompt and S1 style matching now compares process names case-insensitively, so a saved `notepad.exe` rule matches `Notepad.exe`.
+- Saved audio input devices are now matched by name when PortAudio indices shift between launches, falling back to the default input if the device is disconnected.
+- Non-regex glossary rules and read-back corrections now insert replacement text literally instead of expanding backslash escapes such as `\1` or `\n`.
+- The application log file now rotates at 2 MB (keeping 3 backups) instead of growing without bound.
+- Saved dictation audio filenames now include milliseconds so two dictations within the same second do not collide.
 - Hotkey callbacks no longer wait on the Tk thread: events leave the low-level
   keyboard hook on a queue so a busy UI cannot cause Windows to drop the hook.
 - Dictations now run one at a time in the order spoken on a single worker queue

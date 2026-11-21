@@ -1208,13 +1208,34 @@ class App(Tk):
         ):
             return None
 
+        index_text, _, name = device_string.partition(":")
+        name = name.strip()
         try:
-            # Extract device ID from "index: name" format
-            device_id = int(device_string.split(":", 1)[0].strip())
-            return device_id
-        except (ValueError, IndexError):
+            index = int(index_text.strip())
+        except ValueError:
             logger.warning(f"Could not parse device ID from: {device_string}")
             return None
+        try:
+            devices = sd.query_devices()
+        except (sd.PortAudioError, RuntimeError):
+            return index
+
+        def matches(i: int) -> bool:
+            return (
+                0 <= i < len(devices)
+                and devices[i].get("max_input_channels", 0) > 0
+                and devices[i].get("name", "") == name
+            )
+
+        # Indices move when a headset or monitor comes or goes between launches.
+        if not name or matches(index):
+            return index
+        for i in range(len(devices)):
+            if matches(i):
+                logger.warning(f"Input device moved from index {index} to {i}: {name}")
+                return i
+        logger.warning(f"Input device {name!r} is not connected; using the default")
+        return None
 
     def _capture_asr_config(self) -> None:
         """Copy the recognizer settings out of Tk. Main thread only."""

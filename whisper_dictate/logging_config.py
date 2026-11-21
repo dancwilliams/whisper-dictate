@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 # Create logs directory in user's home
@@ -39,7 +40,9 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
 
     # File handler
     try:
-        file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+        file_handler = RotatingFileHandler(
+            LOG_FILE, maxBytes=2_000_000, backupCount=3, encoding="utf-8"
+        )
         file_handler.setLevel(logging.DEBUG)
         file_formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
