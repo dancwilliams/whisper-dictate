@@ -15,7 +15,7 @@ from whisper_dictate.glossary import (
     phonetic_rejection,
     propose_rules,
 )
-from whisper_dictate.gui_components import px
+from whisper_dictate.gui_components import configure_treeview_rowheight, px
 
 
 class GlossaryDialog(Toplevel):
@@ -44,6 +44,7 @@ class GlossaryDialog(Toplevel):
             justify="left",
         ).grid(row=0, column=0, sticky="we", padx="9p", pady=("9p", "6p"))
 
+        configure_treeview_rowheight(self)
         self.tree = ttk.Treeview(
             self,
             columns=("trigger", "replacement", "type", "case", "boundary"),
@@ -62,8 +63,7 @@ class GlossaryDialog(Toplevel):
         self.tree.grid(row=1, column=0, sticky="nsew", padx="9p")
 
         btns = ttk.Frame(self)
-        btns.grid(row=2, column=0, sticky="ew", padx="9p", pady="7.5p")
-        btns.columnconfigure(0, weight=1)
+        btns.grid(row=2, column=0, sticky="w", padx="9p", pady="7.5p")
 
         ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, "4.5p"))
         ttk.Button(btns, text="Edit", command=self._on_edit).grid(row=0, column=1, padx=(0, "4.5p"))

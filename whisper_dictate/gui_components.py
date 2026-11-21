@@ -59,6 +59,21 @@ def px(widget: Misc, points: float) -> int:
     return round(widget.winfo_fpixels(f"{points}p"))
 
 
+def configure_treeview_rowheight(widget: Misc) -> int:
+    """Size ttk.Treeview rows from the font so HiDPI displays do not clip text.
+
+    Tk defaults Treeview rowheight to 20 px regardless of DPI, which slices off
+    descenders once SetProcessDPIAware() scales the font up.
+    """
+    linespace = max(
+        tkfont.nametofont("TkDefaultFont").metrics("linespace"),
+        tkfont.Font(widget, family="Segoe UI", size=10).metrics("linespace"),
+    )
+    rowheight = linespace + px(widget, 4)
+    ttk.Style(widget).configure("Treeview", rowheight=rowheight)
+    return rowheight
+
+
 # Keyed out by -transparentcolor so the window is the capsule's shape and
 # nothing else. No visible element may use this colour.
 KEY = "#010203"
