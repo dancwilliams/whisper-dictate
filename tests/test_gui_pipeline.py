@@ -76,6 +76,7 @@ def mods(mocker):
     m.glossary.apply_glossary.side_effect = lambda text, _manager: text
     m.glossary.load_glossary_manager.return_value.rules = []
     m.glossary.load_glossary_manager.return_value.skipped = []
+    m.readback.run.return_value = None
     m.clipboard.snapshot.return_value = "SAVED"
     m.clipboard.send_paste.return_value = True
     return m
@@ -111,6 +112,8 @@ def make_app(mods):
         app._reported_bad_rules = set()
         app._last_entry = None
         app._deliver_lock = threading.Lock()
+        app._dictations = MagicMock()
+        app._hook_events = MagicMock()
         app._readback_stop = None
         app._settings_saved = False
         app._defaults = {
@@ -413,13 +416,43 @@ class TestTranscribeAndClean:
         run(app)
         assert app._last_entry == {"raw": "hello world", "final": "hello world", "audio_file": None}
 
-    def test_s1_failure_turns_cleanup_off_through_after(self, make_app, mods):
+    def test_s1_failure_disables_s1_for_the_session_only(self, make_app, mods):
         app = make_app(var_cleanup_backend="s1")
         app.s1.get.side_effect = RuntimeError("no model")
         run(app)
 
-        app.after.assert_any_call(0, app.var_cleanup_backend.set, "off")
+        assert app._s1_failed is True
+        app.var_cleanup_backend.set.assert_not_called()
         mods.clipboard.set_text.assert_called_once_with("hello world")
+
+    def test_s1_is_not_retried_until_cleanup_window_closes(self, make_app, mods):
+        app = make_app(var_cleanup_backend="s1")
+        app.s1.get.side_effect = RuntimeError("no model")
+        run(app)
+        app.s1.get.reset_mock()
+        app.s1.warm.reset_mock()
+
+        # A second dictation and hotkey press skip the failed model.
+        app.recorder.is_recording.return_value = False
+        app._start_recording = MagicMock()
+        app._on_hotkey_press()
+        run(app)
+        app.s1.warm.assert_not_called()
+        app.s1.get.assert_not_called()
+
+        # Closing Cleanup settings clears the flag so the next dictation retries.
+        app._llm_window = None
+        app._save_settings = MagicMock()
+        app._close_window("_llm_window")
+        assert app._s1_failed is False
+
+    def test_stop_and_transcribe_enqueues_one_dictation(self, make_app):
+        app = make_app()
+        app._stop_and_transcribe()
+
+        app._dictations.put.assert_called_once()
+        cfg = app._dictations.put.call_args.args[0]
+        assert cfg["audio"] is AUDIO
 
     def test_transcription_error(self, make_app, mods):
         app = make_app()
@@ -467,9 +500,17 @@ class TestSpeechWindowClose:
 
 
 class TestHotkey:
+    def test_post_enqueues_without_touching_tk(self, make_app):
+        """The hook thread must never wait on Tk."""
+        app = make_app()
+        app._post(app._on_hotkey_press)
+
+        app._hook_events.put.assert_called_once_with(app._on_hotkey_press)
+        app.after.assert_not_called()
+
     @pytest.mark.parametrize(("held", "warned"), [(0.2, True), (0.01, False)])
     def test_a_slow_post_is_logged(self, held, warned, make_app, mocker, caplog):
-        """Windows drops the hook at 300 ms; the log must say when we get close."""
+        """Log when Tk took long enough that the hotkey felt sluggish."""
         app = make_app()
         clock = [0.0]
         # gui's own reference only: pytest times tests with the real clock.
@@ -477,9 +518,9 @@ class TestHotkey:
         app.after = MagicMock(side_effect=lambda *_: clock.__setitem__(0, clock[0] + held))
 
         with caplog.at_level("WARNING", logger="whisper_dictate"):
-            app._post(app._on_hotkey_press)
+            app._run_on_tk(app._on_hotkey_press)
 
-        assert ("Hotkey press callback held the hook thread for 200 ms" in caplog.text) is warned
+        assert ("Tk was busy for 200 ms when hotkey press arrived" in caplog.text) is warned
 
     def test_tap_locks_recording(self, make_app, mods):
         app = make_app()

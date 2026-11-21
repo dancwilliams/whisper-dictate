@@ -1,6 +1,7 @@
 """Streamlined GUI for whisper-dictate with optional LLM cleanup."""
 
 import ctypes
+import queue
 import threading
 import time
 import winsound
@@ -93,8 +94,8 @@ BEEP_TAIL_MS = 300
 # holding the keys is the user's business, and a paste under them does nothing.
 MODIFIER_WAIT_SECONDS = 5.0
 
-# Windows drops a low-level hook that overruns LowLevelHooksTimeout, 300 ms by
-# default, and the hook thread waits on Tk in _post. Say so well before that.
+# Hotkey events leave the hook thread on a queue and wait for Tk on their own
+# thread. Log when Tk took long enough that the hotkey felt sluggish.
 SLOW_HOOK_POST_SECONDS = 0.1
 
 # Every setting that lives in a Tk variable: (settings key, variable, type). It
@@ -147,6 +148,9 @@ class App(Tk):
     RECENT_PROCESSES_MAX = 15
     # Set when this app muted the speakers, so a mute the user chose is left alone.
     _unmute_on_stop = False
+    # Set when S1 failed to load or run. Until the app restarts or the cleanup
+    # window closes, dictations go out raw; the saved setting is left alone.
+    _s1_failed = False
 
     def __init__(self):
         super().__init__()
@@ -186,6 +190,13 @@ class App(Tk):
         self._reported_bad_rules: set[str] = set()
         self._last_entry: dict | None = None
         self._deliver_lock = threading.Lock()
+        # One dictation at a time, in the order spoken: llama.cpp and the Cohere
+        # model are not thread-safe, and a short dictation must not overtake a long one.
+        self._dictations: queue.SimpleQueue[dict[str, Any]] = queue.SimpleQueue()
+        threading.Thread(target=self._dictation_loop, daemon=True).start()
+        # Hotkey events wait for Tk on this thread, so the hook thread never does.
+        self._hook_events: queue.SimpleQueue[Callable[[], None]] = queue.SimpleQueue()
+        threading.Thread(target=self._hook_event_loop, daemon=True).start()
         self._readback_stop: threading.Event | None = None
         self.llm_models: list[str] = []
         self.cmb_llm_model: ttk.Combobox | None = None
@@ -346,6 +357,7 @@ class App(Tk):
         if window_attr == "_llm_window":
             self.cmb_llm_model = None
             self.btn_llm_refresh = None
+            self._s1_failed = False
             self._capture_s1_style()
         elif window_attr == "_automation_window":
             self._apply_hotkey_change()
@@ -1339,19 +1351,26 @@ class App(Tk):
         self._register_hotkey()
 
     def _post(self, handler: Callable[[], None]) -> None:
-        """Hand a hook-thread event to the Tk thread.
+        """Queue a hook-thread event. Never touches Tk: Windows drops a low-level
+        hook whose procedure overruns LowLevelHooksTimeout."""
+        self._hook_events.put(handler)
 
-        Timed here and not in hotkeys.py: that module sees every keystroke and
-        is kept free of logging on purpose.
-        """
+    def _hook_event_loop(self) -> None:
+        """Thread target. Hands queued hotkey events to Tk, in order."""
+        while True:
+            self._run_on_tk(self._hook_events.get())
+
+    def _run_on_tk(self, handler: Callable[[], None]) -> None:
+        """after() from another thread waits until Tk is free; time the wait."""
         started = time.perf_counter()
-        self.after(0, handler)
+        try:
+            self.after(0, handler)
+        except (RuntimeError, TclError):
+            return  # the window is gone; the app is closing
         elapsed = time.perf_counter() - started
         if elapsed > SLOW_HOOK_POST_SECONDS:
             event = handler.__name__.removeprefix("_on_hotkey_")
-            logger.warning(
-                f"Hotkey {event} callback held the hook thread for {elapsed * 1000:.0f} ms"
-            )
+            logger.warning(f"Tk was busy for {elapsed * 1000:.0f} ms when hotkey {event} arrived")
 
     def _on_hotkey_press(self) -> None:
         """Chord went down: start recording, or end a recording locked by a tap."""
@@ -1360,7 +1379,7 @@ class App(Tk):
         # here, on the Tk thread, because the loader thread must not touch Tk.
         self._capture_asr_config()
         self.asr.warm()
-        if self.var_cleanup_backend.get().strip() == "s1":
+        if self.var_cleanup_backend.get().strip() == "s1" and not self._s1_failed:
             self._capture_s1_style()
             self.s1.warm()
         if self.recorder.is_recording():
@@ -1453,7 +1472,7 @@ class App(Tk):
         self.btn_toggle.config(text="Start recording")
         # Settings are read here, on the Tk thread; the worker gets the copy.
         cfg = self._capture_dictation_config()
-        threading.Thread(target=self._dictation_worker, args=(cfg,), daemon=True).start()
+        self._dictations.put(cfg)
 
     def _capture_dictation_config(self) -> dict[str, Any]:
         """Copy every setting, and the audio, a dictation uses out of Tk. Main thread only.
@@ -1471,6 +1490,11 @@ class App(Tk):
         """Add a line to the transcript box. Main thread only."""
         self.txt_out.insert(END, text)
         self.txt_out.see(END)
+
+    def _dictation_loop(self) -> None:
+        """Thread target. Runs queued dictations one at a time."""
+        while True:
+            self._dictation_worker(self._dictations.get())
 
     def _dictation_worker(self, cfg: dict[str, Any]) -> None:
         """Thread target. Nothing escapes: an unhandled error would leave the
@@ -1559,7 +1583,7 @@ class App(Tk):
         cleanup_started = time.monotonic()
         cleaned_text: str | None = None
         backend = cfg["cleanup_backend"]
-        if backend == "s1":
+        if backend == "s1" and not self._s1_failed:
             cleaned_text = self._clean_with_s1(normalized_text, active_context)
             final_text = cleaned_text or final_text
         elif backend == "endpoint" and cfg["llm_endpoint"] and cfg["llm_model"]:
@@ -1660,7 +1684,7 @@ class App(Tk):
             cleaned: str | None = cleaner.clean(text, **self._s1_style_for(context))
         except (OSError, RuntimeError, ValueError, ImportError) as e:
             # No cleanup model is a degraded dictation, not a lost one.
-            self.after(0, self.var_cleanup_backend.set, "off")
+            self._s1_failed = True
             self._set_status("warning", "No cleanup; used raw text")
             logger.warning(f"S1 cleanup failed, backend off for this session: {e}")
             return None

@@ -87,6 +87,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+filterwarnings = ["error::pytest.PytestUnhandledThreadExceptionWarning"]
 addopts = [
     "--strict-markers",
     "--cov=whisper_dictate",
