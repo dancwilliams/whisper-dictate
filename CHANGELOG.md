@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model list; unused ones expire after 30 days.
 
 ### Fixed
+- Hotkey callbacks no longer wait on the Tk thread: events leave the low-level
+  keyboard hook on a queue so a busy UI cannot cause Windows to drop the hook.
+- Dictations now run one at a time in the order spoken on a single worker queue
+  instead of spawning overlapping threads, keeping non-thread-safe models safe
+  and preventing a short dictation from pasting ahead of a long one.
+- A failed S1 cleanup no longer overwrites the saved cleanup backend setting to
+  `off`. Dictations fall back to raw text for the session until Cleanup settings
+  are closed or the app restarts.
 - A glossary rule that could not be applied was named in the log and nowhere
   else. The first dictation that skips it now shows a warning naming the
   rule; later ones stay quiet.
