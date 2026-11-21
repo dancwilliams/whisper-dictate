@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -20,7 +21,7 @@ class TestSetupLogging:
             mock_logger.handlers = []
             mock_get_logger.return_value = mock_logger
 
-            with patch("whisper_dictate.logging_config.logging.FileHandler"):
+            with patch("whisper_dictate.logging_config.RotatingFileHandler"):
                 logger = setup_logging()
 
             assert logger == mock_logger
@@ -34,7 +35,7 @@ class TestSetupLogging:
             mock_logger.handlers = []
             mock_get_logger.return_value = mock_logger
 
-            with patch("whisper_dictate.logging_config.logging.FileHandler"):
+            with patch("whisper_dictate.logging_config.RotatingFileHandler"):
                 setup_logging(level=logging.DEBUG)
 
             mock_logger.setLevel.assert_called_once_with(logging.DEBUG)
@@ -47,7 +48,7 @@ class TestSetupLogging:
             mock_get_logger.return_value = mock_logger
 
             with patch("whisper_dictate.logging_config.logging.StreamHandler") as mock_stream:
-                with patch("whisper_dictate.logging_config.logging.FileHandler"):
+                with patch("whisper_dictate.logging_config.RotatingFileHandler"):
                     mock_console_handler = MagicMock()
                     mock_stream.return_value = mock_console_handler
 
@@ -67,32 +68,30 @@ class TestSetupLogging:
                     # Verify handler was added to logger
                     mock_logger.addHandler.assert_any_call(mock_console_handler)
 
-    def test_setup_logging_adds_file_handler(self):
-        """Test that setup_logging adds a file handler with DEBUG level."""
-        with patch("whisper_dictate.logging_config.logging.getLogger") as mock_get_logger:
-            mock_logger = MagicMock(spec=logging.Logger)
-            mock_logger.handlers = []
-            mock_get_logger.return_value = mock_logger
-
-            with patch("whisper_dictate.logging_config.logging.FileHandler") as mock_file:
-                mock_file_handler = MagicMock()
-                mock_file.return_value = mock_file_handler
-
+    def test_setup_logging_adds_rotating_file_handler(self, tmp_path):
+        """Test that setup_logging attaches a RotatingFileHandler with DEBUG level."""
+        test_logger = logging.Logger("test_rotating")
+        log_file = tmp_path / "whisper_dictate.log"
+        with (
+            patch("whisper_dictate.logging_config.logging.getLogger", return_value=test_logger),
+            patch("whisper_dictate.logging_config.LOG_FILE", log_file),
+        ):
+            try:
                 setup_logging()
-
-                # Verify FileHandler was created with correct path and encoding
-                mock_file.assert_called_once_with(LOG_FILE, encoding="utf-8")
-
-                # Verify file handler always uses DEBUG level
-                mock_file_handler.setLevel.assert_called_once_with(logging.DEBUG)
-
-                # Verify formatter was set
-                assert mock_file_handler.setFormatter.called
-                formatter = mock_file_handler.setFormatter.call_args[0][0]
-                assert isinstance(formatter, logging.Formatter)
-
-                # Verify handler was added to logger
-                mock_logger.addHandler.assert_any_call(mock_file_handler)
+                file_handlers = [
+                    h for h in test_logger.handlers if isinstance(h, logging.FileHandler)
+                ]
+                assert len(file_handlers) == 1
+                handler = file_handlers[0]
+                assert isinstance(handler, RotatingFileHandler)
+                assert handler.maxBytes == 2_000_000
+                assert handler.backupCount == 3
+                assert handler.level == logging.DEBUG
+                assert handler.formatter is not None
+            finally:
+                for handler in list(test_logger.handlers):
+                    test_logger.removeHandler(handler)
+                    handler.close()
 
     def test_setup_logging_console_formatter_format(self):
         """Test that console handler uses correct formatter with short time format."""
@@ -102,7 +101,7 @@ class TestSetupLogging:
             mock_get_logger.return_value = mock_logger
 
             with patch("whisper_dictate.logging_config.logging.StreamHandler") as mock_stream:
-                with patch("whisper_dictate.logging_config.logging.FileHandler"):
+                with patch("whisper_dictate.logging_config.RotatingFileHandler"):
                     mock_console_handler = MagicMock()
                     mock_stream.return_value = mock_console_handler
 
@@ -124,7 +123,7 @@ class TestSetupLogging:
             mock_logger.handlers = []
             mock_get_logger.return_value = mock_logger
 
-            with patch("whisper_dictate.logging_config.logging.FileHandler") as mock_file:
+            with patch("whisper_dictate.logging_config.RotatingFileHandler") as mock_file:
                 mock_file_handler = MagicMock()
                 mock_file.return_value = mock_file_handler
 
@@ -148,7 +147,7 @@ class TestSetupLogging:
             mock_get_logger.return_value = mock_logger
 
             with patch("whisper_dictate.logging_config.logging.StreamHandler") as mock_stream:
-                with patch("whisper_dictate.logging_config.logging.FileHandler") as mock_file:
+                with patch("whisper_dictate.logging_config.RotatingFileHandler") as mock_file:
                     logger = setup_logging()
 
                     assert logger == mock_logger
@@ -166,7 +165,7 @@ class TestSetupLogging:
             mock_logger.handlers = []
             mock_get_logger.return_value = mock_logger
 
-            with patch("whisper_dictate.logging_config.logging.FileHandler") as mock_file:
+            with patch("whisper_dictate.logging_config.RotatingFileHandler") as mock_file:
                 # Simulate file handler creation failure
                 mock_file.side_effect = PermissionError("Permission denied")
 
@@ -189,7 +188,7 @@ class TestSetupLogging:
             mock_logger.handlers = []
             mock_get_logger.return_value = mock_logger
 
-            with patch("whisper_dictate.logging_config.logging.FileHandler") as mock_file:
+            with patch("whisper_dictate.logging_config.RotatingFileHandler") as mock_file:
                 # Simulate I/O error
                 mock_file.side_effect = OSError("Disk full")
 
@@ -212,7 +211,7 @@ class TestSetupLogging:
             mock_get_logger.return_value = mock_logger
 
             with patch("whisper_dictate.logging_config.logging.StreamHandler") as mock_stream:
-                with patch("whisper_dictate.logging_config.logging.FileHandler") as mock_file:
+                with patch("whisper_dictate.logging_config.RotatingFileHandler") as mock_file:
                     mock_console_handler = MagicMock()
                     mock_file_handler = MagicMock()
                     mock_stream.return_value = mock_console_handler

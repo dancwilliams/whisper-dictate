@@ -388,9 +388,9 @@ goes by mtime.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass
-- [ ] `uv run mypy whisper_dictate` passes
+- [x] `uv run pytest` passes
+- [x] `uv run ruff check .` and `uv run ruff format --check .` pass
+- [x] `uv run mypy whisper_dictate` passes
 
 #### Manual Verification
 - [ ] Dictate into Notepad: the `notepad.exe` rule's style applies

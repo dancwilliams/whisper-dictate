@@ -314,7 +314,10 @@ class GlossaryManager:
             if rule.match_type == "phonetic":
                 continue
             try:
-                result = rule.compile_pattern().sub(rule.replacement, result)
+                # A function is used verbatim; a string would have \1 and \n expanded.
+                literal = rule.match_type != "regex"
+                repl = (lambda _m, text=rule.replacement: text) if literal else rule.replacement
+                result = rule.compile_pattern().sub(repl, result)
             except re.error as e:
                 # A hand-edited file can carry a pattern the dialog would have
                 # refused, or a replacement with a group reference that has no

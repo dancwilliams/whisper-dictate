@@ -654,6 +654,43 @@ class TestOnClose:
         mods.messagebox.showwarning.assert_not_called()
 
 
+class TestParseInputDeviceId:
+    DEVICES = [
+        {"name": "Built-in Mic", "max_input_channels": 1},
+        {"name": "Speakers", "max_input_channels": 0},
+        {"name": "USB Headset", "max_input_channels": 2},
+    ]
+
+    def test_returns_index_when_name_still_matches(self, make_app, mocker):
+        mocker.patch.object(gui.sd, "query_devices", return_value=self.DEVICES)
+        app = make_app()
+        assert app._parse_input_device_id("2: USB Headset") == 2
+
+    def test_follows_device_name_when_index_shifts(self, make_app, mocker):
+        mocker.patch.object(gui.sd, "query_devices", return_value=self.DEVICES)
+        app = make_app()
+        assert app._parse_input_device_id("5: USB Headset") == 2
+
+    def test_returns_none_when_device_is_disconnected(self, make_app, mocker):
+        mocker.patch.object(gui.sd, "query_devices", return_value=self.DEVICES)
+        app = make_app()
+        assert app._parse_input_device_id("2: Missing Mic") is None
+
+    def test_skips_output_only_device_with_same_name(self, make_app, mocker):
+        devices = [
+            {"name": "USB Headset", "max_input_channels": 0},
+            {"name": "USB Headset", "max_input_channels": 1},
+        ]
+        mocker.patch.object(gui.sd, "query_devices", return_value=devices)
+        app = make_app()
+        assert app._parse_input_device_id("0: USB Headset") == 1
+
+    def test_falls_back_to_index_if_portaudio_query_fails(self, make_app, mocker):
+        mocker.patch.object(gui.sd, "query_devices", side_effect=RuntimeError("no audio"))
+        app = make_app()
+        assert app._parse_input_device_id("2: USB Headset") == 2
+
+
 class TestSettingsTable:
     def test_every_variable_is_in_the_table(self):
         assert {name for _, name, _ in gui.SETTINGS} == set(VAR_DEFAULTS)

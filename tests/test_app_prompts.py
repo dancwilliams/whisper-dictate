@@ -31,6 +31,13 @@ def test_resolve_app_prompt_falls_back_to_process_default():
     assert result == "Word prompt"
 
 
+def test_resolve_app_prompt_matches_process_case_insensitively():
+    prompts = {"notepad.exe": [{"prompt": "Notepad prompt"}]}
+    ctx = _make_context("Notepad.exe", "Untitled - Notepad")
+
+    assert app_prompts.resolve_app_prompt(prompts, ctx) == "Notepad prompt"
+
+
 def test_resolve_app_prompt_returns_none_when_no_match():
     prompts = {"excel.exe": [{"prompt": "Excel prompt"}]}
     ctx = _make_context("notepad.exe", "Untitled - Notepad")
@@ -423,3 +430,10 @@ class TestPerAppStyle:
     def test_prompt_only_rules_contribute_no_style(self):
         rules = {"notepad.exe": [{"prompt": "just a prompt"}]}
         assert app_prompts.resolve_app_style(rules, self._context("notepad.exe")) == {}
+
+    def test_matches_process_case_insensitively(self):
+        rules = {"notepad.exe": [{"styling": "formal", "context": "notes"}]}
+        assert app_prompts.resolve_app_style(rules, self._context("Notepad.exe")) == {
+            "styling": "formal",
+            "context": "notes",
+        }

@@ -41,7 +41,8 @@ MODEL_DAYS = 30
 
 
 def _stamp() -> str:
-    return time.strftime("%Y%m%dT%H%M%S")
+    now = time.time()
+    return time.strftime("%Y%m%dT%H%M%S", time.localtime(now)) + f"{int(now * 1000) % 1000:03d}"
 
 
 def save_audio(
