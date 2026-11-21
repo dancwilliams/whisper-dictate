@@ -7,9 +7,11 @@ check was covered by hand only until now.
 import pytest
 
 tkinter = pytest.importorskip("tkinter")
+ttk = pytest.importorskip("tkinter.ttk")
+tkfont = pytest.importorskip("tkinter.font")
 
 from whisper_dictate import app_prompt_dialog  # noqa: E402
-from whisper_dictate.app_prompt_dialog import AppPromptEntryDialog  # noqa: E402
+from whisper_dictate.app_prompt_dialog import AppPromptDialog, AppPromptEntryDialog  # noqa: E402
 
 
 @pytest.fixture
@@ -69,3 +71,30 @@ class TestSave:
         assert dialog.result is not None
         assert dialog.result["window_title_regex"] == r"(\w+ )?Report - Word"
         assert not dialog.winfo_exists()
+
+
+class TestDialogLayout:
+    def test_treeview_rowheight_clears_font_linespace_and_buttons_stay_grouped(self, root):
+        dialog = AppPromptDialog(root, {"notepad.exe": [{"prompt": "Hello"}]})
+        try:
+            rowheight = int(ttk.Style(dialog).lookup("Treeview", "rowheight"))
+            linespace = tkfont.Font(dialog, family="Segoe UI", size=10).metrics("linespace")
+            assert rowheight > linespace
+
+            root.update_idletasks()
+            buttons = {
+                w.cget("text"): w
+                for frame in dialog.winfo_children()
+                if isinstance(frame, ttk.Frame)
+                for w in frame.winfo_children()
+                if isinstance(w, ttk.Button)
+            }
+            gap_add_edit = buttons["Edit"].winfo_x() - (
+                buttons["Add"].winfo_x() + buttons["Add"].winfo_width()
+            )
+            gap_edit_delete = buttons["Delete"].winfo_x() - (
+                buttons["Edit"].winfo_x() + buttons["Edit"].winfo_width()
+            )
+            assert abs(gap_add_edit - gap_edit_delete) <= 2
+        finally:
+            dialog.destroy()

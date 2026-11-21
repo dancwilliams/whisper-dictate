@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import StringVar, Toplevel, messagebox, ttk
 
 from whisper_dictate import app_prompts, s1
-from whisper_dictate.gui_components import px
+from whisper_dictate.gui_components import configure_treeview_rowheight, px
 
 
 class AppPromptDialog(Toplevel):
@@ -44,6 +44,7 @@ class AppPromptDialog(Toplevel):
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
 
+        configure_treeview_rowheight(self)
         self.tree = ttk.Treeview(
             content,
             columns=("process", "window_regex", "prompt"),
@@ -67,7 +68,7 @@ class AppPromptDialog(Toplevel):
             if entry.get("window_title"):
                 label = f"{label} — {entry['window_title']}"
             self.lst_recent.insert("end", label)
-        self.lst_recent.grid(row=0, column=0, sticky="nsew", padx="6p", pady=("4.5p", "3p"))
+        self.lst_recent.grid(row=0, column=0, sticky="nsew", padx="6p", pady=("4.5p", "6p"))
         self.lst_recent.bind("<Double-Button-1>", lambda event: self._on_add_from_recent())
         ttk.Button(recent_frame, text="Add from recent", command=self._on_add_from_recent).grid(
             row=1, column=0, padx="6p", pady=(0, "6p")
@@ -76,8 +77,7 @@ class AppPromptDialog(Toplevel):
         recent_frame.rowconfigure(0, weight=1)
 
         btns = ttk.Frame(self)
-        btns.grid(row=2, column=0, columnspan=2, sticky="ew", padx="9p", pady="7.5p")
-        btns.columnconfigure(0, weight=1)
+        btns.grid(row=2, column=0, columnspan=2, sticky="w", padx="9p", pady="7.5p")
 
         ttk.Button(btns, text="Add", command=self._on_add).grid(row=0, column=0, padx=(0, "4.5p"))
         ttk.Button(btns, text="Edit", command=self._on_edit).grid(row=0, column=1, padx=(0, "4.5p"))

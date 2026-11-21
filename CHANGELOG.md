@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model list; unused ones expire after 30 days.
 
 ### Fixed
+- Per-app prompts and Glossary dialogs now size Treeview row height from the display font so HiDPI scaling does not clip descenders, and left-align the Add/Edit/Delete button bar evenly under the table instead of stranding Add in the middle.
 - Per-app prompt and S1 style matching now compares process names case-insensitively, so a saved `notepad.exe` rule matches `Notepad.exe`.
 - Saved audio input devices are now matched by name when PortAudio indices shift between launches, falling back to the default input if the device is disconnected.
 - Non-regex glossary rules and read-back corrections now insert replacement text literally instead of expanding backslash escapes such as `\1` or `\n`.
