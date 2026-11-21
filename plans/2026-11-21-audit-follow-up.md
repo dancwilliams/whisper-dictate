@@ -255,11 +255,19 @@ hotkey response, not a risk to the hook.
 - [x] `uv run mypy whisper_dictate` passes
 
 #### Manual Verification
-- [ ] Twenty tap-to-lock dictations: the hotkey answers every time
-- [ ] Dictate a long sentence, then a short one before the first has pasted: both paste,
+- [x] Twenty tap-to-lock dictations: the hotkey answers every time
+- [x] Dictate a long sentence, then a short one before the first has pasted: both paste,
       in the order spoken
 - [ ] After a day of use the log has no `held the hook thread` line. `Tk was busy`
       lines may appear; send them back, they name what to fix next
+
+Manual checks 1 and 2 passed 2026-11-21. During the 20-dictation run, the log
+recorded zero `held the hook thread` lines and two `Tk was busy` warnings
+(`443 ms` and `491 ms` on `release`, both while `recorder.stop()` was running on
+Tk), confirming the hook thread stayed clear. Pre-existing UI race observed on
+tap-to-lock: `_on_first_audio` arrives after tap release (~263 ms) and
+overwrites `Locked; press again to stop` with `Recording; release to stop`;
+deferred to Phase 3 where `locked` is added.
 
 **Implementation Note**: after automated verification passes, stop for Dan's manual
 confirmation before Phase 2.
@@ -495,6 +503,9 @@ prompt there may rightly expand or summarize.
 
 - `_on_hotkey_release`, the tap branch (line 1377): set `self.hotkey_manager.locked = True`
   (guard for `None`) and change the message to `"Locked; press again to stop, Esc to cancel"`.
+- `_on_first_audio`: if `self.hotkey_manager` and `self.hotkey_manager.locked`, keep the
+  locked message instead of overwriting it with `"Recording; release to stop"` (a quick
+  tap releases before PortAudio delivers the first audio block at ~263 ms).
 - `_stop_and_transcribe` and `_on_hotkey_cancel`: set it back to `False`.
 
 #### 4. Copy last dictation
