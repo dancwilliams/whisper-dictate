@@ -54,8 +54,8 @@ package = true
 default-groups = ["dev", "ml"]
 
 [[tool.uv.index]]
-name = "pytorch-cu130"
-url = "https://download.pytorch.org/whl/cu130"
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
 explicit = true
 
 [[tool.uv.index]]
@@ -64,8 +64,23 @@ url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
 explicit = true
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32'" }]
+torch = [{ index = "pytorch-cu132", marker = "sys_platform == 'win32'" }]
 llama-cpp-python = [{ index = "llama-cu124", marker = "sys_platform == 'win32'" }]
+
+# abetlen's cu124 index serves links to GitHub Release assets without PEP 658
+# .metadata files. Without static metadata here, `uv lock` sends a HEAD request
+# to github.com/.../releases/download/...; Dependabot's proxy injects git auth
+# and the redirected presigned URL on objects.githubusercontent.com rejects it
+# with 401 (dependabot/proxy#348), breaking every uv update job.
+[[tool.uv.dependency-metadata]]
+name = "llama-cpp-python"
+requires-python = ">=3.8"
+requires-dist = [
+    "typing-extensions>=4.5.0",
+    "numpy>=1.20.0",
+    "diskcache>=5.6.1",
+    "jinja2>=2.11.3",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
