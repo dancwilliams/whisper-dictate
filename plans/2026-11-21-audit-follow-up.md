@@ -551,19 +551,25 @@ In `_setup_status_indicator` (line 931), after "Fix last dictation...":
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass
-- [ ] `uv run mypy whisper_dictate` passes
+- [x] `uv run pytest` passes
+- [x] `uv run ruff check .` and `uv run ruff format --check .` pass
+- [x] `uv run mypy whisper_dictate` passes
 
 #### Manual Verification
-- [ ] Tap the hotkey twice quickly with nothing said: nothing is pasted
-- [ ] Mute the mic at the hardware, dictate: pill says "No sound from the microphone"
-- [ ] Tap to lock, press Esc: pill says "Cancelled", nothing pastes, and the focused
+- [x] Tap the hotkey twice quickly with nothing said: nothing is pasted
+- [x] Mute the mic at the hardware, dictate: pill says "No sound from the microphone"
+- [x] Tap to lock, press Esc: pill says "Cancelled", nothing pastes, and the focused
       app does not react to the Esc
-- [ ] Esc still works normally everywhere when no recording is locked
-- [ ] "Copy last dictation" on the pill puts the last text on the clipboard
+- [x] Esc still works normally everywhere when no recording is locked
+- [x] "Copy last dictation" on the pill puts the last text on the clipboard
 - [ ] A week of use shows no false "Cleanup looked wrong"; if one appears, send the
       word counts from the log
+
+Manual checks 1 through 5 passed 2026-11-21 (quick double-tap showed "No audio
+captured" and pasted nothing; hardware mute showed "No sound from the
+microphone"; tap-to-lock + Esc cancelled without passing Esc through; Esc worked
+normally when unlocked; "Copy last dictation" restored the last dictation to
+the clipboard).
 
 **Implementation Note**: stop for Dan's confirmation before Phase 4.
 

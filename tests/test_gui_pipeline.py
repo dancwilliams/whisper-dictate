@@ -16,7 +16,7 @@ import pytest
 
 from whisper_dictate import clipboard, gui, llm_cleanup
 
-AUDIO = np.zeros(1600, dtype=np.float32)
+AUDIO = np.full(16000, 0.1, dtype=np.float32)
 
 VAR_DEFAULTS = {
     "var_model": "small",
@@ -95,6 +95,7 @@ def make_app(mods):
             setattr(app, name, var)
         for widget in ("txt_out", "btn_toggle", "lbl_status", "indicator", "hotkey_manager"):
             setattr(app, widget, MagicMock())
+        app.hotkey_manager.locked = False
         # The worker hands widget work to after(); run it on the spot.
         app.after = MagicMock(side_effect=lambda _ms, fn, *args: fn(*args))
         app.asr = MagicMock()
@@ -352,6 +353,26 @@ class TestTranscribeAndClean:
         assert states(app) == ["warning"]
         mods.clipboard.set_text.assert_not_called()
 
+    def test_short_clip_skips_asr(self, make_app, mods):
+        app = make_app()
+        app.recorder.get_buffer.return_value = np.full(4800, 0.1, dtype=np.float32)  # 0.3 s
+        run(app)
+
+        assert states(app) == ["warning"]
+        assert messages(app) == ["Too short; nothing dictated"]
+        app.asr.get.assert_not_called()
+        mods.clipboard.set_text.assert_not_called()
+
+    def test_silent_clip_reports_no_sound(self, make_app, mods):
+        app = make_app()
+        app.recorder.get_buffer.return_value = np.zeros(32000, dtype=np.float32)  # 2.0 s silent
+        run(app)
+
+        assert states(app) == ["warning"]
+        assert "No sound" in messages(app)[-1]
+        app.asr.get.assert_not_called()
+        mods.clipboard.set_text.assert_not_called()
+
     def test_empty_transcript(self, make_app, mods):
         app = make_app()
         app.asr.get.return_value.transcribe.return_value = ""
@@ -359,6 +380,29 @@ class TestTranscribeAndClean:
 
         assert states(app)[-1] == "warning"
         mods.clipboard.set_text.assert_not_called()
+
+    def test_silence_hallucination_word_is_not_delivered(self, make_app, mods):
+        app = make_app()
+        app.asr.get.return_value.transcribe.return_value = "You."
+        run(app)
+
+        assert states(app)[-1] == "warning"
+        mods.clipboard.set_text.assert_not_called()
+
+    def test_implausible_s1_result_falls_back_to_raw(self, make_app, mods, caplog):
+        raw = "one two three four five six seven eight nine ten"
+        app = make_app(var_cleanup_backend="s1")
+        app.asr.get.return_value.transcribe.return_value = raw
+        app.s1.get.return_value.clean.return_value = "Sure, I can help."
+        with caplog.at_level("WARNING", logger="whisper_dictate"):
+            run(app)
+
+        assert states(app)[-1] == "warning"
+        assert messages(app)[-1] == "Cleanup looked wrong; used raw text"
+        assert app._s1_failed is False
+        mods.clipboard.set_text.assert_called_once_with(raw)
+        assert "10 words in, 4 out" in caplog.text
+        assert raw not in caplog.text
 
     def test_happy_path_delivers_transcript(self, make_app, mods):
         app = make_app()
@@ -448,8 +492,10 @@ class TestTranscribeAndClean:
 
     def test_stop_and_transcribe_enqueues_one_dictation(self, make_app):
         app = make_app()
+        app.hotkey_manager.locked = True
         app._stop_and_transcribe()
 
+        assert app.hotkey_manager.locked is False
         app._dictations.put.assert_called_once()
         cfg = app._dictations.put.call_args.args[0]
         assert cfg["audio"] is AUDIO
@@ -531,7 +577,19 @@ class TestHotkey:
 
         app._stop_and_transcribe.assert_not_called()
         app.recorder.stop.assert_not_called()
-        assert messages(app)[-1].startswith("Locked")
+        assert app.hotkey_manager.locked is True
+        assert messages(app)[-1] == "Locked; press again to stop, Esc to cancel"
+
+    def test_first_audio_preserves_locked_status(self, make_app, mocker):
+        mocker.patch.object(gui.threading, "Thread")  # skip winsound.Beep thread
+        app = make_app()
+        app.hotkey_manager.locked = True
+        app._on_first_audio()
+        assert messages(app)[-1] == "Locked; press again to stop, Esc to cancel"
+
+        app.hotkey_manager.locked = False
+        app._on_first_audio()
+        assert messages(app)[-1] == "Recording; release to stop"
 
     def test_hold_transcribes_on_release(self, make_app, mods):
         app = make_app()
@@ -545,8 +603,10 @@ class TestHotkey:
     def test_cancel_discards_buffer(self, make_app, mods):
         app = make_app()
         app.recorder.is_recording.return_value = True
+        app.hotkey_manager.locked = True
         app._on_hotkey_cancel()
 
+        assert app.hotkey_manager.locked is False
         app.recorder.stop.assert_called_once()
         app.recorder.get_buffer.assert_called_once()
         assert messages(app)[-1] == "Cancelled"
@@ -563,6 +623,44 @@ class TestHotkey:
 
         expected = [mocker.call(True)] + ([] if already_muted else [mocker.call(False)])
         assert set_mute.call_args_list == expected
+
+
+class TestCopyLastDictation:
+    def test_copies_last_entry_and_prefers_pasted_key(self, make_app, mods):
+        app = make_app()
+        app._last_entry = {"raw": "r", "final": "Hello world.", "audio_file": None}
+        app._copy_last_dictation()
+
+        mods.clipboard.set_text.assert_called_once_with("Hello world.")
+        assert states(app)[-1] == "ready"
+        assert messages(app)[-1] == "Last dictation copied"
+
+        mods.clipboard.set_text.reset_mock()
+        app._last_entry = {
+            "raw": "make shorter",
+            "final": "make shorter",
+            "pasted": "Short version.",
+            "audio_file": None,
+        }
+        app._copy_last_dictation()
+        mods.clipboard.set_text.assert_called_once_with("Short version.")
+
+    def test_without_entry_reports_nothing_dictated(self, make_app, mods):
+        app = make_app()
+        app._copy_last_dictation()
+
+        mods.clipboard.set_text.assert_not_called()
+        assert states(app)[-1] == "ready"
+        assert messages(app)[-1] == "Nothing dictated yet"
+
+    def test_clipboard_error_reports_locked(self, make_app, mods):
+        mods.clipboard.set_text.side_effect = clipboard.ClipboardError("busy")
+        app = make_app()
+        app._last_entry = {"raw": "r", "final": "Hello world.", "audio_file": None}
+        app._copy_last_dictation()
+
+        assert states(app)[-1] == "error"
+        assert messages(app)[-1] == "Clipboard locked"
 
 
 class TestRecentProcesses:

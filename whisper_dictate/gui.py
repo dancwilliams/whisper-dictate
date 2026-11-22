@@ -23,6 +23,7 @@ from tkinter import (
 )
 from typing import Any
 
+import numpy as np
 import sounddevice as sd
 
 from whisper_dictate import (
@@ -83,6 +84,15 @@ ERROR_ALREADY_EXISTS = 183
 # A chord held for less than this is a tap: recording locks on and the next press
 # ends it. Anything longer is hold-to-talk, ended by the release.
 TAP_SECONDS = 0.3
+
+# Whisper turns a bumped hotkey into the word "you". The 8 such clips on record
+# have a median length of 0.4 s; the shortest real dictation is 0.9 s.
+MIN_CLIP_SECONDS = 0.5
+# Loudest 100 ms of the clip, as RMS. This is the muted-mic check, not the
+# hallucination check: a dead input measures 0.0 and the quietest real dictation
+# 0.0027, so the mark sits five-fold under speech.
+SILENT_PEAK = 0.0005
+SILENCE_WORDS = {"you"}
 
 # The cue that says capture is live. Short enough not to bleed into the first word.
 BEEP_HZ, BEEP_MS = 880, 60
@@ -941,6 +951,7 @@ class App(Tk):
             menu_items=(
                 ("Show window", self.show_window),
                 ("Fix last dictation...", self._open_correction_dialog),
+                ("Copy last dictation", self._copy_last_dictation),
                 ("Cleanup settings...", self._open_llm_settings),
                 ("-", lambda: None),
                 ("Quit", self._on_close),
@@ -1159,6 +1170,21 @@ class App(Tk):
             messagebox.showerror("Glossary", f"Could not save glossary to {glossary.GLOSSARY_FILE}")
             return
         self._set_status("ready", f"Correction saved, {len(rules)} glossary rule(s) added")
+
+    def _copy_last_dictation(self) -> None:
+        """For the paste that landed nowhere: focus moved, or the app ate it."""
+        entry = self._last_entry
+        if not entry:
+            self._set_status("ready", "Nothing dictated yet")
+            return
+        try:
+            # "pasted" is set only for a voice edit (Phase 6) and never reaches disk.
+            clipboard.set_text(entry.get("pasted", entry["final"]))
+        except clipboard.ClipboardError as e:
+            self._set_status("error", "Clipboard locked")
+            logger.warning(f"Could not copy the last dictation: {e}")
+            return
+        self._set_status("ready", "Last dictation copied")
 
     def _open_app_prompt_dialog(self) -> None:
         """Open application-specific prompt dialog."""
@@ -1414,12 +1440,16 @@ class App(Tk):
         if not self.recorder.is_recording():
             return
         if time.monotonic() - self._press_at < TAP_SECONDS:
-            self._set_status("listening", "Locked; press again to stop")
+            if self.hotkey_manager is not None:
+                self.hotkey_manager.locked = True
+            self._set_status("listening", "Locked; press again to stop, Esc to cancel")
             return
         self._stop_and_transcribe()
 
     def _on_hotkey_cancel(self) -> None:
-        """Another key joined the chord: throw the audio away."""
+        """Another key joined the chord, or Esc ended a locked recording: throw the audio away."""
+        if self.hotkey_manager is not None:
+            self.hotkey_manager.locked = False
         if not self.recorder.is_recording():
             return
         self.recorder.stop()
@@ -1458,7 +1488,10 @@ class App(Tk):
         """Runs on the audio thread the instant capture is live."""
         # winsound.Beep blocks for its full duration; never on the audio thread.
         threading.Thread(target=self._beep_then_mute, daemon=True).start()
-        self._set_status("listening", "Recording; release to stop")
+        if self.hotkey_manager and self.hotkey_manager.locked:
+            self._set_status("listening", "Locked; press again to stop, Esc to cancel")
+        else:
+            self._set_status("listening", "Recording; release to stop")
 
     def _beep_then_mute(self) -> None:
         """Muting first would silence the beep: the speakers are the beep's output."""
@@ -1487,6 +1520,8 @@ class App(Tk):
 
     def _stop_and_transcribe(self) -> None:
         """Close the microphone and hand the buffer to the pipeline."""
+        if self.hotkey_manager is not None:
+            self.hotkey_manager.locked = False
         self.recorder.stop()
         self._restore_speakers()
         self._set_status("transcribing", "Transcribing...")
@@ -1535,6 +1570,14 @@ class App(Tk):
         audio_data = cfg["audio"]
         if audio_data is None:
             self._set_status("warning", "No audio captured")
+            return
+        if len(audio_data) < MIN_CLIP_SECONDS * asr.SAMPLE_RATE:
+            self._set_status("warning", "Too short; nothing dictated")
+            return
+        blocks = audio_data[: len(audio_data) // 1600 * 1600].reshape(-1, 1600)
+        if np.sqrt((blocks**2).mean(axis=1)).max() < SILENT_PEAK:
+            # Says what a level meter would: the wrong input, or a muted one.
+            self._set_status("warning", "No sound from the microphone")
             return
 
         active_context = app_context.get_active_context()
@@ -1589,7 +1632,7 @@ class App(Tk):
 
         asr_ms = int((time.monotonic() - started) * 1000)
 
-        if not text:
+        if not text or text.strip(" .!?").lower() in SILENCE_WORDS:
             self._set_status("warning", "No speech detected")
             return
 
@@ -1711,6 +1754,12 @@ class App(Tk):
             return None
         if not cleaned:
             self._set_status("warning", "Cleanup empty; used raw text")
+            return None
+        if not s1.plausible(text, cleaned):
+            self._set_status("warning", "Cleanup looked wrong; used raw text")
+            logger.warning(
+                f"S1 output rejected: {len(text.split())} words in, {len(cleaned.split())} out"
+            )
             return None
         logger.info(
             f"S1 cleanup on {'GPU' if cleaner.on_gpu else 'CPU'} "

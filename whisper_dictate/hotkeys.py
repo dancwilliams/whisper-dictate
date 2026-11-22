@@ -34,6 +34,7 @@ MODIFIER_VKS = {
     "WIN": {0x5B, 0x5C},
 }
 NAMED_VKS = {"SPACE": 0x20}
+VK_ESCAPE = 0x1B
 ALL_MODIFIERS: set[int] = set().union(*MODIFIER_VKS.values())
 
 # The modifiers Windows folds into any keystroke, left/right agnostic:
@@ -198,6 +199,7 @@ class HotkeyManager:
         self.on_press = on_press
         self.on_release = on_release
         self.on_cancel = on_cancel
+        self.locked = False  # set by the app while a tap has locked recording on
         self.chord: Chord | None = None
         self.chord_string: str | None = None  # what is live, so callers can spot a change
         self.msg_thread: threading.Thread | None = None
@@ -258,10 +260,14 @@ class HotkeyManager:
         """
         return not modifiers_held()
 
-    def _handle(self, vk: int, is_down: bool) -> None:
+    def _handle(self, vk: int, is_down: bool) -> bool:
         """Feed one transition to the chord and dispatch the matching callback."""
+        if self.locked and is_down and vk == VK_ESCAPE and self.on_cancel:
+            self.locked = False
+            self.on_cancel()
+            return True
         if not self.chord:
-            return
+            return False
         self.chord.resync(key_held)
         event = self.chord.feed(vk, is_down)
         if event == "press":
@@ -270,6 +276,7 @@ class HotkeyManager:
             self.on_release()
         elif event == "cancel" and self.on_cancel:
             self.on_cancel()
+        return False
 
     def _hook_proc(self, n_code: int, w_param: int, l_param: int) -> int:
         """The low-level hook procedure. Must return fast; does nothing else."""
@@ -281,8 +288,9 @@ class HotkeyManager:
             if not kb.flags & LLKHF_INJECTED:
                 is_down = w_param in (WM_KEYDOWN, WM_SYSKEYDOWN)
                 if is_down or w_param in (WM_KEYUP, WM_SYSKEYUP):
-                    self._handle(kb.vkCode, is_down)
-                    swallow = self.chord is not None and self.chord.swallows(kb.vkCode)
+                    swallow = self._handle(kb.vkCode, is_down) or (
+                        self.chord is not None and self.chord.swallows(kb.vkCode)
+                    )
         if swallow:
             return 1
         return int(user32.CallNextHookEx(None, n_code, w_param, l_param))

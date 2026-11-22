@@ -20,10 +20,10 @@ It supports a **GUI**, global hotkeys, and automatic pasting into the active win
   `~/.whisper_dictate/whisper_dictate_glossary.json`
 - **Saves your settings** (model, device, hotkey, LLM config, paste delay) to `~/.whisper_dictate/whisper_dictate_settings.json`
 - **Advanced transcription settings** including VAD, hallucination prevention, beam size, temperature, and initial prompts
-- **Global hotkey** for push-to-talk from any application
+- **Global hotkey** for push-to-talk or tap-to-lock dictation from any application (press `Esc` to cancel a locked recording)
 - **Auto-paste** into the focused window (`Shift+Insert`), with a configurable delay
 - **Fetch available LLM models** from your endpoint directly inside the LLM settings window
-- **Floating status indicator** that mirrors the app state (idle, listening, cleaning, etc.)
+- **Floating status indicator** that mirrors the app state (idle, listening, cleaning, etc.) with a right-click menu including **Fix last dictation...** and **Copy last dictation**
 - **Reset floating status indicator** button if you drag the indicator off screen
 - **GPU or CPU** execution
 - **One-command setup** using [`uv`](https://docs.astral.sh/uv/)
@@ -59,8 +59,8 @@ The GUI provides:
 * **Auto-paste** checkbox and delay setting
 * Transcript view with timestamped results
 
-Use **Load model**, then **Register hotkey** (e.g., `CTRL+WIN+G`), and press the hotkey anywhere to dictate.
-If "Auto-paste" is enabled, the result pastes automatically into the app you were using.
+Use **Load model**, then **Register hotkey** (e.g., `CTRL+WIN+G`), and hold the hotkey anywhere to dictate (or tap to lock recording on, press again to stop, or press `Esc` to cancel).
+If "Auto-paste" is enabled, the result pastes automatically into the app you were using. If a paste misses, right-click the floating status pill and choose **Copy last dictation**.
 
 ### 3. Configure (optional)
 

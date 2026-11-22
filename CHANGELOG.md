@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Press `Esc` while a tap-locked recording is active to cancel and discard it; the keystroke is swallowed so the focused app does not react to it.
+- Right-click the floating status pill and choose **Copy last dictation** to put the last dictated text back on the clipboard if a paste missed.
+- Short-clip, muted-microphone, and single-word `"you"` silence guards keep bumped hotkeys and dead inputs from pasting hallucinated text onto the page.
+- S1 cleanup now validates output length (0.5x to 1.5x word count) and word overlap on dictations of 8 or more words, falling back to raw text with a warning if the model runs away.
 - After a paste, the app can read the box it pasted into and keep a changed
   word as a correction (Settings → Automation → History).
 - Fixing a dictation now keeps the correction and its recording as training
@@ -18,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model list; unused ones expire after 30 days.
 
 ### Fixed
+- Tap-to-lock recordings no longer lose their locked status message when the first audio block arrives after the hotkey is released.
 - Per-app prompts and Glossary dialogs now size Treeview row height from the display font so HiDPI scaling does not clip descenders, and left-align the Add/Edit/Delete button bar evenly under the table instead of stranding Add in the middle.
 - Per-app prompt and S1 style matching now compares process names case-insensitively, so a saved `notepad.exe` rule matches `Notepad.exe`.
 - Saved audio input devices are now matched by name when PortAudio indices shift between launches, falling back to the default input if the device is disconnected.
