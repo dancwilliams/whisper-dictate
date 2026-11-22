@@ -23,6 +23,12 @@ def as_match_type(value: object) -> MatchType:
     return cast(MatchType, value) if value in get_args(MatchType) else "phrase"
 
 
+def app_stems(names: Iterable[object]) -> tuple[str, ...]:
+    """Process names as the stems a rule is scoped by: `Code.exe` and `code` alike."""
+    stems = (str(n).strip().lower().removesuffix(".exe").strip() for n in names)
+    return tuple(dict.fromkeys(s for s in stems if s))
+
+
 # Tokens for phonetic matching. Internal dots and apostrophes keep hostnames and
 # contractions whole; trailing punctuation is never part of a word.
 WORD = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9'._-]*[A-Za-z0-9])?")
@@ -63,6 +69,8 @@ class GlossaryRule:
     case_sensitive: bool = False
     word_boundary: bool = True
     description: str | None = None
+    # Process stems this rule applies in; empty means everywhere.
+    apps: tuple[str, ...] = ()
     _compiled: re.Pattern[str] | None = field(init=False, default=None, repr=False)
     _code: str | None = field(init=False, default=None, repr=False)
 
@@ -76,6 +84,7 @@ class GlossaryRule:
             "case_sensitive": self.case_sensitive,
             "word_boundary": self.word_boundary,
             "description": self.description,
+            "apps": list(self.apps),
         }
 
     @classmethod
@@ -89,6 +98,8 @@ class GlossaryRule:
             case_sensitive=bool(data.get("case_sensitive", False)),
             word_boundary=bool(data.get("word_boundary", True)),
             description=data.get("description"),
+            # A hand-edited file may hold one name rather than a list.
+            apps=app_stems(apps if isinstance(apps := data.get("apps") or [], list) else [apps]),
         )
 
     def phonetic_code(self) -> str:
@@ -217,6 +228,12 @@ class GlossaryManager:
             logger.error(f"Could not save glossary: {e}")
             return False
 
+    def for_app(self, process_name: str | None) -> GlossaryManager:
+        """The rules that apply in this application: unscoped ones, and those
+        naming it. With no application known, only the unscoped ones."""
+        stem = app_stems([process_name])[0] if process_name and process_name.strip() else None
+        return GlossaryManager(r for r in self.rules if not r.apps or stem in r.apps)
+
     # ------------------------------------------------------------------
     # Rule manipulation
     # ------------------------------------------------------------------
@@ -238,7 +255,8 @@ class GlossaryManager:
         self.rules = [rule for rule in self.rules if rule.trigger.lower() != lowered]
 
     def import_csv(self, csv_text: str) -> None:
-        """Import rules from CSV text (trigger,replacement,match_type,case_sensitive,word_boundary)."""
+        """Import rules from CSV text
+        (trigger,replacement,match_type,case_sensitive,word_boundary,description,apps)."""
 
         reader = csv.DictReader(csv_text.splitlines())
         for row in reader:
@@ -252,6 +270,8 @@ class GlossaryManager:
                 match_type=as_match_type(row.get("match_type")),
                 case_sensitive=str(row.get("case_sensitive", "")).lower() == "true",
                 word_boundary=str(row.get("word_boundary", "true")).lower() != "false",
+                description=(row.get("description") or "").strip() or None,
+                apps=app_stems((row.get("apps") or "").split(";")),
             )
             self.upsert_rule(rule)
 
@@ -271,6 +291,7 @@ class GlossaryManager:
                 "case_sensitive",
                 "word_boundary",
                 "description",
+                "apps",
             ],
         )
         writer.writeheader()
@@ -283,6 +304,7 @@ class GlossaryManager:
                     "case_sensitive": str(rule.case_sensitive).lower(),
                     "word_boundary": str(rule.word_boundary).lower(),
                     "description": rule.description or "",
+                    "apps": ";".join(rule.apps),
                 }
             )
         return buffer.getvalue().strip()

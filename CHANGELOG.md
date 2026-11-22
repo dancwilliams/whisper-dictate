@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Glossary rules can be limited to the applications they name (**Only in apps** in the rule editor, an `apps` column in CSV). Blank means everywhere, as before.
 - Press `Esc` while a tap-locked recording is active to cancel and discard it; the keystroke is swallowed so the focused app does not react to it.
 - Right-click the floating status pill and choose **Copy last dictation** to put the last dictated text back on the clipboard if a paste missed.
 - Short-clip, muted-microphone, and single-word `"you"` silence guards keep bumped hotkeys and dead inputs from pasting hallucinated text onto the page.

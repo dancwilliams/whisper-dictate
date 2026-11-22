@@ -72,6 +72,28 @@ class TestSave:
         assert not dialog.winfo_exists()
 
 
+class TestApps:
+    def test_apps_round_trip_through_the_editor(self, root, errors):
+        rule = glossary_dialog.GlossaryRule(
+            trigger="cloud", replacement="Claude", apps=("code", "windowsterminal")
+        )
+        dialog = GlossaryRuleDialog(root, rule)
+        assert dialog.var_apps.get() == "code, windowsterminal"
+        dialog.var_apps.set("Code.exe, WindowsTerminal.exe,")
+
+        dialog._on_save()
+
+        assert errors == []
+        assert dialog.result.apps == ("code", "windowsterminal")
+
+    def test_blank_apps_means_everywhere(self, root, errors):
+        dialog = make(root, r"gpt-?4")
+
+        dialog._on_save()
+
+        assert dialog.result.apps == ()
+
+
 class TestCorrectionDialog:
     def test_find_then_save_returns_ticked_rules(self, root) -> None:
         dialog = glossary_dialog.CorrectionDialog(root, "meet me at valida tech, near git hub")

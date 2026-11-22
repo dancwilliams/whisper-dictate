@@ -76,6 +76,9 @@ def mods(mocker):
     m.glossary.apply_glossary.side_effect = lambda text, _manager: text
     m.glossary.load_glossary_manager.return_value.rules = []
     m.glossary.load_glossary_manager.return_value.skipped = []
+    # Scoping hands back the same manager, so the tests' rules and skips still apply.
+    manager = m.glossary.load_glossary_manager.return_value
+    manager.for_app.return_value = manager
     m.readback.run.return_value = None
     m.clipboard.snapshot.return_value = "SAVED"
     m.clipboard.send_paste.return_value = True
@@ -168,6 +171,16 @@ class TestGlossarySkips:
 
         assert "warning" not in states(app)
         assert states(app)[-1] == "ready"
+
+
+class TestGlossaryScope:
+    def test_rules_are_scoped_to_the_focused_app(self, make_app, mods):
+        mods.app_context.get_active_context.return_value = MagicMock(process_name="Code.exe")
+        app = make_app(var_glossary_enable=True)
+
+        run(app)
+
+        app.glossary_manager.for_app.assert_called_with("Code.exe")
 
 
 class TestDeliver:

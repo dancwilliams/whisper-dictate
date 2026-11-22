@@ -119,6 +119,9 @@ Use the glossary to keep acronyms, brand names, or domain-specific terms intact 
 - Each rule supports **Match** (word, phrase, regex), **Case sensitive**, and **Whole words only** to fine-tune how
   replacements are applied. Use **Add**, **Edit**, or **Delete** to maintain the list, or **Import CSV** / **Export CSV** to
   bulk-manage rules. An optional description can remind you why a term matters.
+- **Only in apps** limits a rule to the applications you list, by process name without `.exe` and separated by commas
+  (`code, windowsterminal`). Blank means everywhere. This keeps a rule like `cloud → Claude` on in VS Code and off in
+  WhatsApp. One trigger holds one rule, so a word cannot be replaced differently in two apps.
 - Entries are saved to `~/.whisper_dictate/whisper_dictate_glossary.json` and loaded automatically on startup.
 - **Edit → Fix last dictation…** (also on the pill's right-click menu) shows what Whisper heard in an editable box,
   with the text that was pasted after cleanup in gray underneath. Fix only the misheard words and press **Save**: the

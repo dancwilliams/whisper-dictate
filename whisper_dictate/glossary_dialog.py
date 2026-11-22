@@ -10,6 +10,7 @@ from tkinter import BooleanVar, StringVar, Toplevel, filedialog, messagebox, ttk
 from whisper_dictate.glossary import (
     GlossaryManager,
     GlossaryRule,
+    app_stems,
     as_match_type,
     phonetic_code,
     phonetic_rejection,
@@ -47,7 +48,7 @@ class GlossaryDialog(Toplevel):
         configure_treeview_rowheight(self)
         self.tree = ttk.Treeview(
             self,
-            columns=("trigger", "replacement", "type", "case", "boundary"),
+            columns=("trigger", "replacement", "type", "case", "boundary", "apps"),
             show="headings",
             height=8,
         )
@@ -57,6 +58,7 @@ class GlossaryDialog(Toplevel):
             ("type", "Match", 52.5),
             ("case", "Case", 52.5),
             ("boundary", "Whole words", 75),
+            ("apps", "Apps", 90),
         ):
             self.tree.heading(col, text=heading)
             self.tree.column(col, width=px(self, width), anchor="w")
@@ -104,6 +106,7 @@ class GlossaryDialog(Toplevel):
                     rule.match_type,
                     "Yes" if rule.case_sensitive else "No",
                     "Yes" if rule.word_boundary else "No",
+                    ", ".join(rule.apps) or "All",
                 ),
             )
 
@@ -212,6 +215,7 @@ class GlossaryRuleDialog(Toplevel):
         self.var_description = StringVar(
             value=rule.description if rule and rule.description else ""
         )
+        self.var_apps = StringVar(value=", ".join(rule.apps) if rule else "")
 
         frame = ttk.Frame(self, padding="9p")
         frame.grid(row=0, column=0, sticky="nsew")
@@ -256,8 +260,15 @@ class GlossaryRuleDialog(Toplevel):
             row=6, column=0, sticky="we", pady=(0, "7.5p")
         )
 
+        ttk.Label(
+            frame, text="Only in apps (blank for everywhere), e.g. code, windowsterminal"
+        ).grid(row=8, column=0, sticky="w")
+        ttk.Entry(frame, textvariable=self.var_apps, width=46).grid(
+            row=9, column=0, sticky="we", pady=(0, "7.5p")
+        )
+
         actions = ttk.Frame(frame)
-        actions.grid(row=8, column=0, sticky="e")
+        actions.grid(row=10, column=0, sticky="e")
         ttk.Button(actions, text="Cancel", command=self._on_cancel).grid(
             row=0, column=0, padx=(0, "6p")
         )
@@ -307,6 +318,7 @@ class GlossaryRuleDialog(Toplevel):
             case_sensitive=bool(self.var_case_sensitive.get()),
             word_boundary=bool(self.var_word_boundary.get()),
             description=self.var_description.get().strip() or None,
+            apps=app_stems(self.var_apps.get().split(",")),
         )
         self.destroy()
 
