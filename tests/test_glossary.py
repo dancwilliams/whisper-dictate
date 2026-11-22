@@ -636,3 +636,54 @@ class TestProposeRules:
         assert glossary.propose_rules(heard, "hello world this is really fine") == []
         assert glossary.propose_rules(heard, "hello this is fine") == []
         assert glossary.propose_rules(heard, heard) == []
+
+
+class TestAppScope:
+    """A rule may name the applications it applies in; blank means everywhere."""
+
+    def manager(self) -> GlossaryManager:
+        return GlossaryManager(
+            [
+                GlossaryRule(trigger="cloud", replacement="Claude", apps=("code",)),
+                GlossaryRule(trigger="git hub", replacement="GitHub"),
+            ]
+        )
+
+    @pytest.mark.parametrize("process", ["Code.exe", "code", " CODE.EXE "])
+    def test_a_scoped_rule_fires_in_its_app(self, process: str) -> None:
+        scoped = self.manager().for_app(process)
+        assert scoped.apply("the cloud on git hub") == "the Claude on GitHub"
+
+    def test_a_scoped_rule_stays_out_of_other_apps(self) -> None:
+        scoped = self.manager().for_app("WhatsApp.exe")
+        assert scoped.apply("the cloud on git hub") == "the cloud on GitHub"
+
+    def test_no_app_keeps_only_unscoped_rules(self) -> None:
+        assert [r.trigger for r in self.manager().for_app(None).rules] == ["git hub"]
+
+    def test_a_file_without_apps_loads_as_before(self) -> None:
+        rule = GlossaryRule.from_dict({"trigger": "a", "replacement": "b"})
+        assert rule.apps == ()
+
+    def test_from_dict_normalizes_names(self) -> None:
+        rule = GlossaryRule.from_dict(
+            {"trigger": "a", "replacement": "b", "apps": ["Code.exe", "code", " "]}
+        )
+        assert rule.apps == ("code",)
+        assert GlossaryRule.from_dict(
+            {"trigger": "a", "replacement": "b", "apps": "Olk.exe"}
+        ).apps == ("olk",)
+
+    def test_json_round_trip(self, tmp_path: Path) -> None:
+        path = tmp_path / "glossary.json"
+        assert self.manager().save(path)
+        loaded = GlossaryManager.load(path)
+        assert {r.trigger: r.apps for r in loaded.rules} == {"cloud": ("code",), "git hub": ()}
+
+    def test_csv_round_trip(self) -> None:
+        manager = GlossaryManager(
+            [GlossaryRule(trigger="cloud", replacement="Claude", apps=("code", "windowsterminal"))]
+        )
+        imported = GlossaryManager()
+        imported.import_csv(manager.export_csv())
+        assert imported.rules[0].apps == ("code", "windowsterminal")

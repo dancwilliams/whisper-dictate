@@ -635,16 +635,20 @@ trigger has one rule. A word cannot mean two things in two apps.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass
-- [ ] `uv run mypy whisper_dictate` passes
+- [x] `uv run pytest` passes
+- [x] `uv run ruff check .` and `uv run ruff format --check .` pass
+- [x] `uv run mypy whisper_dictate` passes
 
 #### Manual Verification
-- [ ] Add `cloud → Claude` scoped to `code`. Dictate "the cloud" in VS Code and in
+- [x] Add `cloud → Claude` scoped to `code`. Dictate "the cloud" in VS Code and in
       WhatsApp: only VS Code changes it
-- [ ] Existing rules behave as before
-- [ ] The glossary file on disk still loads after a downgrade to `main` (unknown keys
+- [x] Existing rules behave as before
+- [x] The glossary file on disk still loads after a downgrade to `main` (unknown keys
       are ignored by `from_dict`)
+
+Manual checks passed 2026-11-22: the `code`-scoped `cloud → Claude` rule fired in VS
+Code and not in WhatsApp, existing rules showed Apps = All and applied as before, and
+`main` loaded the file with the new `apps` key.
 
 **Implementation Note**: stop for Dan's confirmation before Phase 5.
 

@@ -1589,10 +1589,11 @@ class App(Tk):
         app_prompt = app_prompts.resolve_app_prompt(self.app_prompts, active_context)
 
         was_cold = not self.asr.is_loaded()
+        process_name = active_context.process_name if active_context else None
         hotwords = glossary.hotwords_for_app(
-            active_context.process_name if active_context else None,
+            process_name,
             self.hotwords_by_app,
-            self.glossary_manager,
+            self.glossary_manager.for_app(process_name),
         )
         if hotwords:
             logger.debug(f"Hotwords for this dictation: {len(hotwords)} chars")
@@ -1637,11 +1638,10 @@ class App(Tk):
             return
 
         self._refresh_glossary_cache()
-        glossary_enabled = bool(cfg["glossary_enable"] and self.glossary_manager.rules)
+        scoped = self.glossary_manager.for_app(process_name)
+        glossary_enabled = bool(cfg["glossary_enable"] and scoped.rules)
 
-        normalized_text = glossary.apply_glossary(
-            text, self.glossary_manager if glossary_enabled else None
-        )
+        normalized_text = glossary.apply_glossary(text, scoped if glossary_enabled else None)
         final_text = normalized_text
 
         cleanup_started = time.monotonic()
@@ -1659,7 +1659,7 @@ class App(Tk):
                     model=cfg["llm_model"],
                     api_key=cfg["llm_key"],
                     prompt=self.prompt_content or DEFAULT_LLM_PROMPT,
-                    glossary=self.glossary_manager if glossary_enabled else None,
+                    glossary=scoped if glossary_enabled else None,
                     temperature=cfg["llm_temp"],
                     app_prompt=app_prompt,
                     prompt_context=prompt_context,
@@ -1678,7 +1678,7 @@ class App(Tk):
         cleanup_ms = int((time.monotonic() - cleanup_started) * 1000)
 
         if glossary_enabled:
-            final_text = glossary.apply_glossary(final_text, self.glossary_manager)
+            final_text = glossary.apply_glossary(final_text, scoped)
 
         entry = None
         if cfg["history_enable"]:
@@ -1686,7 +1686,7 @@ class App(Tk):
                 raw=text,
                 cleaned=cleaned_text,
                 final=final_text,
-                process_name=active_context.process_name if active_context else None,
+                process_name=process_name,
                 asr_backend=cfg["asr_backend"],
                 cleanup_backend=backend,
                 asr_ms=asr_ms,
@@ -1707,7 +1707,7 @@ class App(Tk):
         # log is not where a user looks. Say so once; the log has it every time.
         # Raised here, after cleanup's own "Cleaned" status, so it stands: only
         # a warning that is current when delivery starts survives it.
-        for trigger in self.glossary_manager.skipped:
+        for trigger in scoped.skipped:
             if trigger not in self._reported_bad_rules:
                 self._reported_bad_rules.add(trigger)
                 self._set_status("warning", f"Glossary rule skipped: {trigger}")
