@@ -142,6 +142,37 @@ def test_the_documented_settings_are_the_ones_offered():
     assert s1.DEFAULT_CONTEXT in s1.CONTEXT
 
 
+class TestPlausible:
+    """S1 normalizes transcripts; it should not summarize, expand, or invent content."""
+
+    def test_short_transcript_under_eight_words_is_always_plausible(self):
+        raw = "one two three four five six seven"
+        assert s1.plausible(raw, "completely different") is True
+        assert s1.plausible(raw, "") is True
+
+    def test_output_below_half_word_count_is_rejected(self):
+        raw = "one two three four five six seven eight nine ten"
+        cleaned = "one two three four"  # 0.4x
+        assert s1.plausible(raw, cleaned) is False
+
+    def test_output_above_one_point_five_word_count_is_rejected(self):
+        raw = "one two three four five six seven eight nine ten"
+        cleaned = " ".join(
+            raw.split() + ["extra1", "extra2", "extra3", "extra4", "extra5", "extra6"]
+        )  # 1.6x
+        assert s1.plausible(raw, cleaned) is False
+
+    def test_output_made_mostly_of_new_words_is_rejected(self):
+        raw = "please check the quarterly revenue numbers before the board meeting"
+        cleaned = "Sure, I would be happy to assist you with that today."
+        assert s1.plausible(raw, cleaned) is False
+
+    def test_normal_filler_removal_and_punctuation_is_plausible(self):
+        raw = "so um i need to like send the report by uh friday please"
+        cleaned = "I need to send the report by Friday, please."
+        assert s1.plausible(raw, cleaned) is True
+
+
 @pytest.mark.skipif("--runslow" not in sys.argv, reason="downloads and runs the real model")
 def test_real_model_cleans_a_dictation():
     from whisper_dictate.config import set_cuda_paths

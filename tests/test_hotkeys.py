@@ -254,6 +254,45 @@ class TestHotkeyManager:
         monkeypatch.setattr(hotkeys, "modifiers_held", lambda: True)
         assert manager.modifiers_up() is False
 
+    def test_escape_while_locked_cancels_consumes_and_clears_lock(self, monkeypatch):
+        events = []
+        manager = HotkeyManager(
+            lambda: events.append("press"),
+            lambda: events.append("release"),
+            lambda: events.append("cancel"),
+        )
+        manager.chord = chord("CTRL+WIN")
+        self._keyboard(monkeypatch, manager)
+        manager.locked = True
+
+        assert manager._handle(hotkeys.VK_ESCAPE, True) is True
+        assert events == ["cancel"]
+        assert manager.locked is False
+
+        # A second Esc after unlocking is not consumed and does not cancel again.
+        assert manager._handle(hotkeys.VK_ESCAPE, True) is False
+        assert events == ["cancel"]
+
+    def test_escape_while_unlocked_reaches_chord_feed(self, monkeypatch):
+        events = []
+        manager = HotkeyManager(
+            lambda: events.append("press"),
+            lambda: events.append("release"),
+            lambda: events.append("cancel"),
+        )
+        manager.chord = chord("CTRL+WIN")
+        key = self._keyboard(monkeypatch, manager)
+
+        # Idle: Esc is not swallowed and does not cancel.
+        assert manager._handle(hotkeys.VK_ESCAPE, True) is False
+        assert events == []
+
+        # While the chord is physically held, Esc still reaches Chord.feed as a foreign key.
+        key(LCTRL, True)
+        key(LWIN, True)
+        assert manager._handle(hotkeys.VK_ESCAPE, True) is False
+        assert events == ["press", "cancel"]
+
 
 class TestModifiersHeld:
     """Physical modifier state, read from Windows."""
