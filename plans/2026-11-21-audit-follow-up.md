@@ -945,9 +945,9 @@ privacy note in `history.py`. A fail closes the idea, in writing.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` and `uv run ruff check .` pass
-- [ ] Both bench commands complete and write their tables
-- [ ] `--corpus corrections` with no `--candidates` still gives one row per `--model`
+- [x] `uv run pytest` and `uv run ruff check .` pass
+- [x] Both bench commands complete and write their tables
+- [x] `--corpus corrections` with no `--candidates` still gives one row per `--model`
 
 #### Manual Verification
 - [ ] Both tables and the decision are in `research/asr-benchmark-oracle-hotwords.md`
