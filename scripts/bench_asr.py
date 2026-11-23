@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import random
 import re
 import statistics
 import time
@@ -277,6 +278,32 @@ class WhisperCandidate:
         self.model = None
 
 
+class OracleHotwordsCandidate(WhisperCandidate):
+    """The best case for hotwords read off the screen: each clip gets the domain
+    terms its reference really contains, plus ten it does not, standing in for
+    on-screen words nobody says. Real screen words can only do worse."""
+
+    DISTRACTORS = 10
+
+    def __init__(self, model_name: str, terms: list[str]):
+        super().__init__(model_name=model_name)
+        self.terms = terms
+
+    def prepare(self, clip: Clip) -> None:
+        # The same substring test term_recall scores by, so the oracle is exact.
+        ref = " ".join(normalize(clip.reference))
+        present, absent = [], []
+        for term in self.terms:
+            needle = " ".join(normalize(term))
+            if needle:
+                (present if needle in ref else absent).append(term)
+        # Seeded by clip, so every run gives a clip the same distractors.
+        rng = random.Random(clip.path.name)
+        chosen = present + rng.sample(absent, min(self.DISTRACTORS, len(absent)))
+        rng.shuffle(chosen)
+        self.hotwords = ", ".join(chosen) or None
+
+
 class CohereCandidate:
     """CohereLabs/cohere-transcribe-03-2026. No vocabulary biasing API."""
 
@@ -319,13 +346,17 @@ class CohereCandidate:
         self.model = self.processor = None
 
 
-def build(name: str, hotwords: str, model: str = DEFAULT_MODEL) -> object:
+def build(
+    name: str, hotwords: str, model: str = DEFAULT_MODEL, terms: list[str] | None = None
+) -> object:
     if name == "cohere":
         return CohereCandidate()
     if name == "whisper":
         return WhisperCandidate(model_name=model)
     if name == "whisper-hotwords":
         return WhisperCandidate(model_name=model, hotwords=hotwords)
+    if name == "whisper-oracle-hotwords":
+        return OracleHotwordsCandidate(model, terms or [])
     raise SystemExit(f"unknown candidate: {name}")
 
 
@@ -357,7 +388,8 @@ def run_candidate(
     """Score one candidate. `label` names the row in the table; it defaults to
     the candidate name, and a model comparison passes the model's name instead."""
     result = Result(name=label or name)
-    candidate = build(name, hotwords, model)
+    candidate = build(name, hotwords, model, terms)
+    prepare = getattr(candidate, "prepare", None)
 
     try:
         import torch
@@ -376,6 +408,8 @@ def run_candidate(
 
     for index, clip in enumerate(clips):
         audio = read_wav(clip.path)
+        if prepare:
+            prepare(clip)
         started = time.monotonic()
         try:
             text = candidate.transcribe(audio)
@@ -504,7 +538,11 @@ def main() -> int:
         action="append",
         help="Whisper size name or CTranslate2 folder; repeatable (default large-v3-turbo)",
     )
-    parser.add_argument("--candidates", default="cohere,whisper,whisper-hotwords")
+    parser.add_argument(
+        "--candidates",
+        help="comma-separated; default cohere,whisper,whisper-hotwords on the Wispr export, "
+        "and one plain whisper run per --model on the corrections bank",
+    )
     parser.add_argument("--limit", type=int, default=None, help="use only the first N clips")
     parser.add_argument(
         "--hotword-chars",
@@ -537,11 +575,13 @@ def main() -> int:
         f"given to the recognizer\n"
     )
 
-    # The corrections corpus compares models, so each row is named after its model.
-    if args.corpus == "corrections":
+    # Left to itself the corrections corpus compares models, so each row is named
+    # after its model.
+    if args.corpus == "corrections" and args.candidates is None:
         runs = [("whisper", model, Path(model).name) for model in models]
     else:
-        candidates = [n.strip() for n in args.candidates.split(",") if n.strip()]
+        names = args.candidates or "cohere,whisper,whisper-hotwords"
+        candidates = [n.strip() for n in names.split(",") if n.strip()]
         runs = [
             (name, model, name if model == DEFAULT_MODEL else f"{name}:{Path(model).name}")
             for name in candidates
