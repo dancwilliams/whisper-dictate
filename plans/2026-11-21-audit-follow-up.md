@@ -950,7 +950,11 @@ privacy note in `history.py`. A fail closes the idea, in writing.
 - [x] `--corpus corrections` with no `--candidates` still gives one row per `--model`
 
 #### Manual Verification
-- [ ] Both tables and the decision are in `research/asr-benchmark-oracle-hotwords.md`
+- [x] Both tables and the decision are in `research/asr-benchmark-oracle-hotwords.md`
+
+Gate failed as written (11.3 WER against the 9.0 bar), almost all of it two repetition
+loops. Dan closed the screen-word feature 2026-11-22; a loop guard with the static
+hotword list, 7.3 WER when scored from the September rows, is left for its own plan.
 
 ---
 
@@ -997,9 +1001,13 @@ not carry over. Speed is not a reason: Whisper's p50 on this corpus is 0.09 s.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` and `uv run ruff check .` pass (the candidate imports nothing at
+- [x] `uv run pytest` and `uv run ruff check .` pass (the candidate imports nothing at
       module level)
-- [ ] Both bench commands complete
+- [x] Both bench commands complete
+
+Run 2026-11-22 with Parakeet only: with `onnx-asr` overlaid, Whisper stalled on its first
+encode, so the Whisper rows are Phase 7's from the same day. `onnxruntime-gpu` 1.32 needs
+CUDA 13; it runs on the GPU by importing the `ml` group's torch first.
 
 #### Manual Verification
 - [ ] Both tables, the decision and the reasoning are in

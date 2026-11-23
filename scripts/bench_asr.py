@@ -9,6 +9,7 @@ reload costs, and how often it emits garbage.
     uv run python scripts/bench_asr.py
     uv run python scripts/bench_asr.py --candidates whisper,whisper-hotwords
     uv run python scripts/bench_asr.py --limit 20        # a quick pass
+    uv run --with "onnx-asr[gpu,hub]" python scripts/bench_asr.py --candidates parakeet-v3
 
 The second corpus is your own corrections bank (Fix last dictation), scored on
 the hold-out split that finetune_whisper.py never trains on. --model takes a
@@ -346,11 +347,39 @@ class CohereCandidate:
         self.model = self.processor = None
 
 
+class ParakeetCandidate:
+    """NVIDIA Parakeet TDT 0.6B through onnx-asr, which needs no NeMo build. Not a
+    project dependency: run with `uv run --with "onnx-asr[gpu,hub]"`. No hotwords."""
+
+    def __init__(self, version: str) -> None:
+        self.model_id = f"nemo-parakeet-tdt-0.6b-{version}"
+        self.model = None
+
+    def load(self) -> None:
+        # onnxruntime-gpu 1.32 wants CUDA 13 and cuDNN 9; the ml group's torch ships both.
+        import onnx_asr
+        import torch  # noqa: F401
+
+        self.model = onnx_asr.load_model(
+            self.model_id, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
+        )
+        # onnxruntime falls back to CPU without raising; say which one ran.
+        print(f"  providers: {self.model.asr._encoder.get_providers()}")
+
+    def transcribe(self, audio: np.ndarray) -> str:
+        return self.model.recognize(audio, sample_rate=SAMPLE_RATE)
+
+    def unload(self) -> None:
+        self.model = None
+
+
 def build(
     name: str, hotwords: str, model: str = DEFAULT_MODEL, terms: list[str] | None = None
 ) -> object:
     if name == "cohere":
         return CohereCandidate()
+    if name in ("parakeet-v2", "parakeet-v3"):
+        return ParakeetCandidate(name.removeprefix("parakeet-"))
     if name == "whisper":
         return WhisperCandidate(model_name=model)
     if name == "whisper-hotwords":
