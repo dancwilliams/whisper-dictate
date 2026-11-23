@@ -55,6 +55,10 @@ DEFAULT_READBACK_ENABLE = True
 # space when the dictation would otherwise run into the text already there.
 DEFAULT_SMART_JOIN = True
 
+# With text selected, a dictation is an instruction for the endpoint model to
+# rewrite the selection. Off by default: it sends the selected text out.
+DEFAULT_VOICE_EDIT = False
+
 # Fine-tuned models from scripts/finetune_whisper.py land here, one
 # CTranslate2 folder each, and are offered in the model dropdown by path.
 MODELS_DIR = Path.home() / ".whisper_dictate" / "models"

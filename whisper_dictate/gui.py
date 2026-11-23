@@ -66,6 +66,7 @@ from whisper_dictate.config import (
     DEFAULT_MODEL,
     DEFAULT_READBACK_ENABLE,
     DEFAULT_SMART_JOIN,
+    DEFAULT_VOICE_EDIT,
     DEVICE_COMPUTE_DEFAULTS,
     MODEL_INFO,
     get_model_choices,
@@ -141,6 +142,7 @@ SETTINGS: tuple[tuple[str, str, type], ...] = (
     ("llm_key", "var_llm_key", str),
     ("llm_temp", "var_llm_temp", float),
     ("llm_debug", "var_llm_debug", bool),
+    ("voice_edit", "var_voice_edit", bool),
     ("glossary_enable", "var_glossary_enable", bool),
     ("auto_load_model", "var_auto_load_model", bool),
     ("auto_register_hotkey", "var_auto_register_hotkey", bool),
@@ -299,6 +301,7 @@ class App(Tk):
         self.var_llm_key = StringVar(value=DEFAULT_LLM_KEY)
         self.var_llm_temp = DoubleVar(value=DEFAULT_LLM_TEMP)
         self.var_llm_debug = BooleanVar(value=DEFAULT_LLM_DEBUG)
+        self.var_voice_edit = BooleanVar(value=DEFAULT_VOICE_EDIT)
         self.var_glossary_enable = BooleanVar(value=True)
         self.var_auto_load_model = BooleanVar(value=DEFAULT_AUTO_LOAD_MODEL)
         self.var_auto_register_hotkey = BooleanVar(value=DEFAULT_AUTO_REGISTER_HOTKEY)
@@ -807,18 +810,23 @@ class App(Tk):
             ttk.Checkbutton(
                 frame, text="Use glossary before prompt", variable=self.var_glossary_enable
             ).grid(row=9, column=0, columnspan=2, sticky="w")
+            ttk.Checkbutton(
+                frame,
+                text="Speak over selected text to edit it (sends the selection to the endpoint)",
+                variable=self.var_voice_edit,
+            ).grid(row=10, column=0, columnspan=2, sticky="w")
             ttk.Label(
                 frame,
                 text=f"Cleanup prompt saved to {prompt.PROMPT_FILE} (Edit → Prompt…)",
                 wraplength="330p",
                 justify="left",
-            ).grid(row=10, column=0, columnspan=2, sticky="w", pady=("6p", 0))
+            ).grid(row=11, column=0, columnspan=2, sticky="w", pady=("6p", 0))
             ttk.Label(
                 frame,
                 text=f"Glossary saved to {glossary.GLOSSARY_FILE} (Edit → Glossary…)",
                 wraplength="330p",
                 justify="left",
-            ).grid(row=11, column=0, columnspan=2, sticky="w")
+            ).grid(row=12, column=0, columnspan=2, sticky="w")
 
         self._open_window("_llm_window", "Cleanup", build)
 
@@ -1659,7 +1667,14 @@ class App(Tk):
         cleanup_started = time.monotonic()
         cleaned_text: str | None = None
         backend = cfg["cleanup_backend"]
-        if backend == "s1" and not self._s1_failed:
+        edited: str | None = None
+        selected = self._read_selection(cfg, process_name)
+        if selected:
+            backend = "edit"
+            edited = self._edit_selection(selected, normalized_text, cfg)
+            if edited is None:
+                return
+        elif backend == "s1" and not self._s1_failed:
             cleaned_text = self._clean_with_s1(normalized_text, active_context)
             final_text = cleaned_text or final_text
         elif backend == "endpoint" and cfg["llm_endpoint"] and cfg["llm_model"]:
@@ -1723,6 +1738,17 @@ class App(Tk):
             if trigger not in self._reported_bad_rules:
                 self._reported_bad_rules.add(trigger)
                 self._set_status("warning", f"Glossary rule skipped: {trigger}")
+
+        if edited:
+            # History and the transcript hold the instruction; the rewrite stays in
+            # memory for Copy last dictation, after history.record has written its line.
+            self._last_entry["pasted"] = edited
+            final_text = edited
+            # The paste replaces a selection: no space to add, no dictation to watch.
+            cfg = {**cfg, "smart_join": False, "readback_enable": False}
+            if self._readback_stop is not None:
+                # The last watch may be on the text just rewritten: not a correction.
+                self._readback_stop.set()
 
         self._deliver(final_text, cfg, process_name or "")
 
@@ -1842,21 +1868,61 @@ class App(Tk):
         if pasted_ok:
             self._start_readback(text, cfg)
 
-    def _read_before_caret(self) -> str | None:
-        """readback.before_caret, given up on after CARET_READ_SECONDS: a UI
-        Automation call into a hung app must not hold the paste."""
+    def _bounded_read(self, read: Callable[[], str | None]) -> tuple[str | None, bool]:
+        """`read()` on its own thread, given up on after CARET_READ_SECONDS: a UI
+        Automation call into a hung app must not hold the dictation. Returns the
+        result and whether it timed out."""
         result: list[str | None] = [None]
 
-        def read() -> None:
-            result[0] = readback.before_caret()
+        def run() -> None:
+            result[0] = read()
 
-        started = time.monotonic()
-        reader = threading.Thread(target=read, daemon=True)
+        reader = threading.Thread(target=run, daemon=True)
         reader.start()
         reader.join(CARET_READ_SECONDS)
-        before = None if reader.is_alive() else result[0]
+        return (None, True) if reader.is_alive() else (result[0], False)
+
+    def _read_selection(self, cfg: dict[str, Any], app: str | None) -> str | None:
+        """The focused control's selection when voice edit applies, else None."""
+        if not (cfg["voice_edit"] and cfg["llm_endpoint"] and cfg["llm_model"]):
+            return None
+        # Monaco answers with a placeholder: an edit there would rewrite the wrong text.
+        if (app or "").lower() in readback.UNREADABLE_APPS:
+            return None
+        started = time.monotonic()
+        selected, timed_out = self._bounded_read(readback.selection)
+        found = "timed out" if timed_out else f"{len(selected or '')} chars"
+        logger.info(f"Selection read: {found} in {(time.monotonic() - started) * 1000:.0f} ms")
+        return selected
+
+    def _edit_selection(self, selected: str, instruction: str, cfg: dict[str, Any]) -> str | None:
+        """The selection rewritten as spoken, or None when the edit failed."""
+        self._set_status("processing", "Editing selection...")
+        try:
+            edited = llm_cleanup.edit_with_llm(
+                selected,
+                instruction,
+                endpoint=cfg["llm_endpoint"],
+                model=cfg["llm_model"],
+                api_key=cfg["llm_key"],
+                temperature=cfg["llm_temp"],
+            )
+        except llm_cleanup.LLMCleanupError as e:
+            logger.warning(f"Voice edit failed: {e}")
+            edited = None
+        if not edited:
+            # Pasting the instruction over the selection would destroy it.
+            self._set_status("warning", "Edit failed; selection unchanged")
+            return None
+        self._set_status("ready", "Selection edited")
+        return edited
+
+    def _read_before_caret(self) -> str | None:
+        """readback.before_caret, bounded: see _bounded_read."""
+        started = time.monotonic()
+        before, timed_out = self._bounded_read(readback.before_caret)
         # The character class, never the text: enough to tell why a join did or did not happen.
-        if reader.is_alive():
+        if timed_out:
             found = "timed out"
         elif before is None:
             found = "no answer"

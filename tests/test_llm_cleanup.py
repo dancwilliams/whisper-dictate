@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from whisper_dictate.glossary import GlossaryManager, GlossaryRule
-from whisper_dictate.llm_cleanup import LLMCleanupError, clean_with_llm, list_llm_models
+from whisper_dictate.llm_cleanup import (
+    LLMCleanupError,
+    clean_with_llm,
+    edit_with_llm,
+    list_llm_models,
+)
 
 
 class TestLLMCleanup:
@@ -151,3 +156,28 @@ class TestLLMCleanup:
         assert "Application-specific instructions" in system_prompt
         assert "App specific" in system_prompt
         assert system_prompt.endswith("Some context")
+
+
+class TestEditWithLLM:
+    def test_sends_instruction_and_selection(self):
+        chunk = MagicMock()
+        chunk.choices = [MagicMock()]
+        chunk.choices[0].delta.content = " Short. "
+        chunk.usage = None
+        client = MagicMock()
+        client.chat.completions.create.return_value = iter([chunk])
+
+        with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=client):
+            result = edit_with_llm("Long text here.", "make it shorter", "http://t", "m", None, 0.1)
+
+        assert result == "Short."
+        system, user = client.chat.completions.create.call_args.kwargs["messages"]
+        assert system["role"] == "system"
+        assert user["content"] == "Instruction: make it shorter\n\nText:\nLong text here."
+
+    def test_api_error_raises(self):
+        client = MagicMock()
+        client.chat.completions.create.side_effect = Exception("down")
+        with patch("whisper_dictate.llm_cleanup.OpenAI", return_value=client):
+            with pytest.raises(LLMCleanupError, match="LLM edit failed"):
+                edit_with_llm("t", "i", "http://t", "m", None, 0.1)

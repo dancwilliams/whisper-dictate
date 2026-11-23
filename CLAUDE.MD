@@ -110,6 +110,7 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "llm_model": "openai/gpt-oss-20b",
   "llm_temp": 0.1,
   "llm_debug": false,
+  "voice_edit": false,
   "glossary_enable": true,
   "auto_load_model": false,
   "auto_register_hotkey": false,

@@ -872,9 +872,14 @@ selected text is sent to the cleanup endpoint.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass
-- [ ] `uv run mypy whisper_dictate` passes
+- [x] `uv run pytest` passes
+- [x] `uv run ruff check .` and `uv run ruff format --check .` pass
+- [x] `uv run mypy whisper_dictate` passes
+
+Built 2026-11-22. Two choices the plan left open: the checkbox is in the Cleanup
+window (it needs the endpoint), and an edit ends the previous dictation's read-back
+watch, since rewriting that dictation is not a correction of it. The selection read is
+skipped in `UNREADABLE_APPS`, like the caret read.
 
 #### Manual Verification
 - [ ] Select a paragraph in Teams, say "make this shorter": it is replaced by a shorter one

@@ -109,84 +109,125 @@ def clean_with_llm(
         )
 
     try:
-        # The SDK retries twice by default, which turns a 15 s timeout into 45 s
-        # of "Cleaning with LLM...".
-        client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key", max_retries=0)
-
-        # Start timing
-        start_time = time.perf_counter()
-        first_token_time = None
-
-        # Use streaming to capture time to first token
-        stream = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            timeout=timeout,
-            stream=True,
-            stream_options={"include_usage": True},
-        )
-
-        # Collect response and measure first token time
-        collected_text = []
-        usage_info = None
-
-        for chunk in stream:
-            # Capture time to first token
-            if first_token_time is None and chunk.choices:
-                if chunk.choices[0].delta.content:
-                    first_token_time = time.perf_counter()
-
-            # Collect content
-            if chunk.choices:
-                content = chunk.choices[0].delta.content
-                if content:
-                    collected_text.append(content)
-
-            # Capture usage information (typically in the last chunk)
-            if hasattr(chunk, "usage") and chunk.usage is not None:
-                usage_info = chunk.usage
-
-        # Calculate total time
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        time_to_first_token = (first_token_time - start_time) if first_token_time else None
-
-        # Assemble the response text
-        text = "".join(collected_text).strip()
-
-        # Log statistics
-        if usage_info:
-            input_tokens = getattr(usage_info, "prompt_tokens", 0)
-            output_tokens = getattr(usage_info, "completion_tokens", 0)
-            total_tokens = getattr(usage_info, "total_tokens", input_tokens + output_tokens)
-
-            # Calculate token rate (tokens per second)
-            token_rate = output_tokens / total_time if total_time > 0 else 0
-
-            logger.info(
-                "LLM statistics: time_to_first_token=%.3fs total_time=%.3fs "
-                "input_tokens=%d output_tokens=%d total_tokens=%d token_rate=%.1f tok/s",
-                time_to_first_token if time_to_first_token else 0,
-                total_time,
-                input_tokens,
-                output_tokens,
-                total_tokens,
-                token_rate,
-            )
-        else:
-            # Log timing even if usage info not available
-            logger.info(
-                "LLM statistics: time_to_first_token=%.3fs total_time=%.3fs "
-                "(token usage not available)",
-                time_to_first_token if time_to_first_token else 0,
-                total_time,
-            )
-
-        # Also log the output text if debug logging is enabled
-        if debug_logging:
-            logger.info("LLM response: %s", text)
-
-        return text if text else None
+        text = _complete(messages, endpoint, model, api_key, temperature, timeout)
     except Exception as e:
         raise LLMCleanupError(f"LLM cleanup failed: {e}") from e
+    if debug_logging:
+        logger.info("LLM response: %s", text)
+    return text if text else None
+
+
+EDIT_PROMPT = (
+    "You edit text. The user message gives an instruction, then the text to edit. "
+    "Apply the instruction to the text and output only the rewritten text: no preamble, "
+    "no quotes, no explanation."
+)
+
+
+def edit_with_llm(
+    selected: str,
+    instruction: str,
+    endpoint: str,
+    model: str,
+    api_key: str | None,
+    temperature: float,
+    timeout: float = 30.0,
+) -> str | None:
+    """Rewrite `selected` as the spoken `instruction` asks. None on an empty
+    answer; raises LLMCleanupError on failure. Logs timings and token counts,
+    never the text: the selection is the user's document."""
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "system", "content": EDIT_PROMPT},
+        {"role": "user", "content": f"Instruction: {instruction}\n\nText:\n{selected}"},
+    ]
+    try:
+        text = _complete(messages, endpoint, model, api_key, temperature, timeout)
+    except Exception as e:
+        raise LLMCleanupError(f"LLM edit failed: {e}") from e
+    return text or None
+
+
+def _complete(
+    messages: "list[ChatCompletionMessageParam]",
+    endpoint: str,
+    model: str,
+    api_key: str | None,
+    temperature: float,
+    timeout: float,
+) -> str:
+    """Stream one chat completion and log its timings. Raises whatever the client raises."""
+    # The SDK retries twice by default, which turns a 15 s timeout into 45 s
+    # of "Cleaning with LLM...".
+    client = OpenAI(base_url=endpoint, api_key=api_key or "sk-no-key", max_retries=0)
+
+    # Start timing
+    start_time = time.perf_counter()
+    first_token_time = None
+
+    # Use streaming to capture time to first token
+    stream = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        timeout=timeout,
+        stream=True,
+        stream_options={"include_usage": True},
+    )
+
+    # Collect response and measure first token time
+    collected_text = []
+    usage_info = None
+
+    for chunk in stream:
+        # Capture time to first token
+        if first_token_time is None and chunk.choices:
+            if chunk.choices[0].delta.content:
+                first_token_time = time.perf_counter()
+
+        # Collect content
+        if chunk.choices:
+            content = chunk.choices[0].delta.content
+            if content:
+                collected_text.append(content)
+
+        # Capture usage information (typically in the last chunk)
+        if hasattr(chunk, "usage") and chunk.usage is not None:
+            usage_info = chunk.usage
+
+    # Calculate total time
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    time_to_first_token = (first_token_time - start_time) if first_token_time else None
+
+    # Assemble the response text
+    text = "".join(collected_text).strip()
+
+    # Log statistics
+    if usage_info:
+        input_tokens = getattr(usage_info, "prompt_tokens", 0)
+        output_tokens = getattr(usage_info, "completion_tokens", 0)
+        total_tokens = getattr(usage_info, "total_tokens", input_tokens + output_tokens)
+
+        # Calculate token rate (tokens per second)
+        token_rate = output_tokens / total_time if total_time > 0 else 0
+
+        logger.info(
+            "LLM statistics: time_to_first_token=%.3fs total_time=%.3fs "
+            "input_tokens=%d output_tokens=%d total_tokens=%d token_rate=%.1f tok/s",
+            time_to_first_token if time_to_first_token else 0,
+            total_time,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            token_rate,
+        )
+    else:
+        # Log timing even if usage info not available
+        logger.info(
+            "LLM statistics: time_to_first_token=%.3fs total_time=%.3fs "
+            "(token usage not available)",
+            time_to_first_token if time_to_first_token else 0,
+            total_time,
+        )
+
+    return text
