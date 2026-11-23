@@ -1010,8 +1010,11 @@ encode, so the Whisper rows are Phase 7's from the same day. `onnxruntime-gpu` 1
 CUDA 13; it runs on the GPU by importing the `ml` group's torch first.
 
 #### Manual Verification
-- [ ] Both tables, the decision and the reasoning are in
+- [x] Both tables, the decision and the reasoning are in
       `research/asr-benchmark-parakeet.md`
+
+v2 passed the Wispr gate as written (8.6 against 8.7), all of it one clip where Whisper
+looped, and was 3.2 points worse on the corrections bank. Dan closed Parakeet 2026-11-22.
 
 ---
 

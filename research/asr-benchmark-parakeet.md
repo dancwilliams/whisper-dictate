@@ -80,9 +80,9 @@ rule counts.
 
 ## Decision
 
-Pending Dan.
+Dan, 2026-11-22: Parakeet is closed. No backend is built.
 
-Recommended: do not build a Parakeet backend. Its pass rests on one Whisper loop, it is
+The reasoning: do not build a Parakeet backend. Its pass rests on one Whisper loop, it is
 worse on most clips in both corpora, and switching gives up hotwords and fine-tuning. The
 loop guard planned after Phase 7 addresses the same failure inside Whisper.
 
