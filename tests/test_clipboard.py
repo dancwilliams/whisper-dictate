@@ -200,6 +200,19 @@ class TestSendPaste:
             (clipboard.VK_SHIFT, up),
         ]
 
+    def test_lead_space_is_typed_first_in_the_same_batch(self, monkeypatch):
+        sent = self._capture(monkeypatch)
+        assert clipboard.send_paste(lead_space=True) is True
+
+        assert len(sent) == 1
+        keys = [(e.ki.wVk, e.ki.dwFlags) for e in sent[0][1]]
+        assert keys[:3] == [
+            (clipboard.VK_SPACE, 0),
+            (clipboard.VK_SPACE, clipboard.KEYEVENTF_KEYUP),
+            (clipboard.VK_SHIFT, 0),
+        ]
+        assert len(keys) == 6
+
     def test_reports_a_refused_injection(self, monkeypatch):
         self._capture(monkeypatch, accepted=0)
         assert clipboard.send_paste() is False

@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from whisper_dictate import clipboard, gui, llm_cleanup
+from whisper_dictate import clipboard, gui, llm_cleanup, readback
 
 AUDIO = np.full(16000, 0.1, dtype=np.float32)
 
@@ -30,6 +30,7 @@ VAR_DEFAULTS = {
     "var_input": "",
     "var_hotkey": "CTRL+SPACE",
     "var_auto_paste": True,
+    "var_smart_join": True,
     "var_mute_speakers": True,
     "var_paste_delay": 0.15,
     "var_restore_delay": 0.6,
@@ -80,6 +81,9 @@ def mods(mocker):
     manager = m.glossary.load_glossary_manager.return_value
     manager.for_app.return_value = manager
     m.readback.run.return_value = None
+    m.readback.before_caret.return_value = None
+    m.readback.needs_space.side_effect = readback.needs_space
+    m.readback.UNREADABLE_APPS = readback.UNREADABLE_APPS
     m.clipboard.snapshot.return_value = "SAVED"
     m.clipboard.send_paste.return_value = True
     return m
@@ -250,7 +254,7 @@ class TestDeliver:
         cfg = app._capture_dictation_config()
         in_paste, go = threading.Event(), threading.Event()
 
-        def paste():
+        def paste(**_):
             in_paste.set()
             go.wait(2.0)
             return True
@@ -274,6 +278,48 @@ class TestDeliver:
         ] * 2
 
 
+class TestSmartJoin:
+    def test_space_is_typed_not_pasted(self, make_app, mods):
+        """Teams strips a leading space from pasted text, so it goes in as a key."""
+        mods.readback.before_caret.return_value = "d."
+        app = make_app()
+        app._start_readback = MagicMock()
+        app._deliver("Hi.", app._capture_dictation_config(), "ms-teams.exe")
+
+        mods.clipboard.set_text.assert_called_once_with("Hi.")
+        mods.clipboard.send_paste.assert_called_once_with(lead_space=True)
+        assert app._start_readback.call_args.args[0] == "Hi."
+
+    def test_a_hung_read_does_not_hold_the_paste(self, make_app, mods, monkeypatch):
+        monkeypatch.setattr(gui, "CARET_READ_SECONDS", 0.05)
+        release = threading.Event()
+        mods.readback.before_caret.side_effect = lambda: release.wait(5) and "d."
+        app = make_app()
+        try:
+            app._deliver("Hi.", app._capture_dictation_config(), "ms-teams.exe")
+        finally:
+            release.set()
+
+        mods.clipboard.send_paste.assert_called_once_with(lead_space=False)
+        settle = gui.time.sleep.call_args_list[0].args[0]
+        assert settle <= 0.15 - 0.05
+
+    @pytest.mark.parametrize(
+        ("overrides", "app_name"),
+        [
+            ({"var_smart_join": False}, "ms-teams.exe"),
+            ({"var_auto_paste": False}, "ms-teams.exe"),
+            ({}, "Code.exe"),
+        ],
+    )
+    def test_no_read_when_off_or_unreadable(self, make_app, mods, overrides, app_name):
+        app = make_app(**overrides)
+        app._deliver("Hi.", app._capture_dictation_config(), app_name)
+
+        mods.readback.before_caret.assert_not_called()
+        assert not any(c.kwargs.get("lead_space") for c in mods.clipboard.send_paste.call_args_list)
+
+
 ENTRY = {"raw": "i met jon", "final": "I met Jon.", "app": "ms-teams.exe", "audio_file": None}
 
 
@@ -285,6 +331,12 @@ class InlineThread:
 
     def start(self):
         self.run()
+
+    def join(self, timeout=None):
+        pass
+
+    def is_alive(self):
+        return False
 
 
 class TestReadback:

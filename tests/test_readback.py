@@ -227,3 +227,127 @@ def test_run_skips_a_terminal_without_comtypes(monkeypatch, caplog):
     with caplog.at_level("INFO", logger="whisper_dictate"):
         assert readback.run("hello", threading.Event(), "WindowsTerminal.exe") is None
     assert "Read-back: WindowsTerminal.exe not readable" in caplog.text
+
+
+OBJECT = chr(0xFFFC)  # what Chromium reports for an embedded object
+
+
+@pytest.mark.parametrize(
+    ("before", "space"),
+    [
+        (None, False),
+        ("", False),
+        ("\n", False),
+        (". ", False),
+        ("d ", False),
+        ("(", False),
+        ('"', False),
+        ("\n" + OBJECT, False),
+        ("d.", True),
+        ("d,", True),
+        ("lo", True),
+    ],
+)
+def test_needs_space(before, space):
+    assert readback.needs_space(before) is space
+
+
+class FakeRange:
+    """A text range over `text` with the caret (or selection) at [start, end)."""
+
+    def __init__(self, text, start, end):
+        self.text, self.start, self.end = text, start, end
+
+    def Clone(self):
+        return FakeRange(self.text, self.start, self.end)
+
+    def _get(self, endpoint):
+        return self.start if endpoint == readback.ENDPOINT_START else self.end
+
+    def MoveEndpointByRange(self, endpoint, other, other_endpoint):
+        if endpoint == readback.ENDPOINT_START:
+            self.start = other._get(other_endpoint)
+        else:
+            self.end = other._get(other_endpoint)
+
+    def MoveEndpointByUnit(self, endpoint, unit, count):
+        assert (endpoint, unit) == (readback.ENDPOINT_START, readback.UNIT_CHARACTER)
+        self.start = max(0, self.start + count)  # like Chromium, may leave the field
+
+    def CompareEndpoints(self, endpoint, other, other_endpoint):
+        return self._get(endpoint) - other._get(other_endpoint)
+
+    def GetText(self, limit):
+        return self.text[self.start : self.end][:limit]
+
+
+class TestCaretReads:
+    @pytest.fixture
+    def focus(self, monkeypatch):
+        """Point the reads at a fake control; returns a setter for its selection."""
+        com = type("Com", (), {"CoInitialize": staticmethod(lambda: None)})
+        com.CoUninitialize = staticmethod(lambda: None)
+        monkeypatch.setitem(sys.modules, "comtypes", com)
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(readback, "_client", lambda: (None, None))
+        holder = {}
+
+        def set_focus(ranges, has_text=True, field=None):
+            pattern = type("P", (), {})()
+            pattern.DocumentRange = field or FakeRange("", 0, 0)
+            pattern.GetSelection = lambda: type(
+                "Arr", (), {"Length": len(ranges), "GetElement": lambda self, i: ranges[i]}
+            )()
+            target = type("T", (), {"text": pattern if has_text else None})()
+            holder["target"] = target
+
+        monkeypatch.setattr(readback, "_focused", lambda uia, iface: holder["target"])
+        return set_focus
+
+    def test_two_characters_ahead_of_the_caret(self, focus):
+        focus([FakeRange("Hello there.", 12, 12)])
+        assert readback.before_caret() == "e."
+
+    def test_caret_at_the_start_of_the_field(self, focus):
+        focus([FakeRange("Hello", 0, 0)])
+        assert readback.before_caret() == ""
+
+    def test_caret_read_uses_the_selection_start(self, focus):
+        focus([FakeRange("ab cd ef", 3, 5)])
+        assert readback.before_caret() == "b "
+
+    def test_empty_field_does_not_read_the_page_before_it(self, focus):
+        page = "Type a message"  # Teams: the field starts where the page text ends
+        focus([FakeRange(page, 14, 14)], field=FakeRange(page, 14, 14))
+        assert readback.before_caret() == ""
+
+    def test_one_character_into_the_field(self, focus):
+        page = "outside" + "a"
+        focus([FakeRange(page, 8, 8)], field=FakeRange(page, 7, 8))
+        assert readback.before_caret() == "a"
+
+    def test_value_only_control_has_no_caret(self, focus):
+        focus([FakeRange("x", 1, 1)], has_text=False)
+        assert readback.before_caret() is None
+        assert readback.selection() is None
+
+    def test_no_selection_ranges(self, focus):
+        focus([])
+        assert readback.before_caret() is None
+
+    def test_selection_text(self, focus):
+        focus([FakeRange("keep this part", 5, 9)])
+        assert readback.selection() == "this"
+
+    def test_empty_or_oversized_selection_is_none(self, focus):
+        focus([FakeRange("abc", 1, 1)])
+        assert readback.selection() is None
+        focus([FakeRange("x" * 50, 0, 50)])
+        assert readback.selection(limit=10) is None
+
+    def test_com_error_is_none(self, focus, monkeypatch):
+        def boom():
+            raise OSError("COM gone")
+
+        monkeypatch.setattr(readback, "_client", boom)
+        assert readback.before_caret() is None

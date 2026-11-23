@@ -4,6 +4,7 @@ import ctypes
 import queue
 import threading
 import time
+import unicodedata
 import winsound
 from collections import deque
 from collections.abc import Callable
@@ -64,6 +65,7 @@ from whisper_dictate.config import (
     DEFAULT_LLM_TEMP,
     DEFAULT_MODEL,
     DEFAULT_READBACK_ENABLE,
+    DEFAULT_SMART_JOIN,
     DEVICE_COMPUTE_DEFAULTS,
     MODEL_INFO,
     get_model_choices,
@@ -107,6 +109,9 @@ MODIFIER_WAIT_SECONDS = 5.0
 # Hotkey events leave the hook thread on a queue and wait for Tk on their own
 # thread. Log when Tk took long enough that the hotkey felt sluggish.
 SLOW_HOOK_POST_SECONDS = 0.1
+# How long the paste waits to learn what is ahead of the caret. Mostly hidden
+# inside paste_delay; past it the dictation goes in unjoined.
+CARET_READ_SECONDS = 0.25
 
 # Every setting that lives in a Tk variable: (settings key, variable, type). It
 # drives load, save and the worker's snapshot. int and float are both DoubleVars.
@@ -122,6 +127,7 @@ SETTINGS: tuple[tuple[str, str, type], ...] = (
     ("input", "var_input", str),
     ("hotkey", "var_hotkey", str),
     ("auto_paste", "var_auto_paste", bool),
+    ("smart_join", "var_smart_join", bool),
     ("mute_speakers", "var_mute_speakers", bool),
     ("paste_delay", "var_paste_delay", float),
     ("restore_delay", "var_restore_delay", float),
@@ -279,6 +285,7 @@ class App(Tk):
         self.var_input = StringVar(value="")
         self.var_hotkey = StringVar(value="CTRL+SPACE")
         self.var_auto_paste = BooleanVar(value=True)
+        self.var_smart_join = BooleanVar(value=DEFAULT_SMART_JOIN)
         self.var_mute_speakers = BooleanVar(value=True)
         self.var_paste_delay = DoubleVar(value=0.15)
         self.var_restore_delay = DoubleVar(value=0.6)
@@ -507,10 +514,15 @@ class App(Tk):
             checks.grid(row=2, column=0, sticky="w")
             ttk.Checkbutton(
                 checks, text="Auto-paste into active window", variable=self.var_auto_paste
-            ).pack(side="left")
+            ).grid(row=0, column=0, sticky="w")
             ttk.Checkbutton(
                 checks, text="Mute speakers while recording", variable=self.var_mute_speakers
-            ).pack(side="left", padx=("12p", 0))
+            ).grid(row=0, column=1, sticky="w", padx=("12p", 0))
+            ttk.Checkbutton(
+                checks,
+                text="Add a space when pasting right after other text",
+                variable=self.var_smart_join,
+            ).grid(row=1, column=0, columnspan=2, sticky="w")
 
             paste_row = ttk.Frame(frame)
             paste_row.grid(row=3, column=0, sticky="we", pady=("3p", 0))
@@ -1712,7 +1724,7 @@ class App(Tk):
                 self._reported_bad_rules.add(trigger)
                 self._set_status("warning", f"Glossary rule skipped: {trigger}")
 
-        self._deliver(final_text, cfg)
+        self._deliver(final_text, cfg, process_name or "")
 
         if self._status_state not in {"error", "warning"}:
             self._set_status("ready", "Ready")
@@ -1768,7 +1780,7 @@ class App(Tk):
         self._set_status("ready", "Cleaned")
         return cleaned
 
-    def _deliver(self, text: str, cfg: dict[str, Any]) -> None:
+    def _deliver(self, text: str, cfg: dict[str, Any], app: str = "") -> None:
         """Paste the dictation and give the clipboard back.
 
         The clipboard is borrowed, not taken: whatever was on it - text, HTML,
@@ -1778,6 +1790,16 @@ class App(Tk):
         """
         pasted_ok = False
         with self._deliver_lock:
+            started = time.monotonic()
+            lead_space = (
+                cfg["auto_paste"]
+                and cfg["smart_join"]
+                and app.lower() not in readback.UNREADABLE_APPS
+                and readback.needs_space(self._read_before_caret())
+            )
+            # The read happens while the target settles, so the paste is no later.
+            settle = max(0.0, cfg["paste_delay"] - (time.monotonic() - started))
+
             try:
                 saved = clipboard.snapshot()
             except clipboard.ClipboardError as e:
@@ -1798,10 +1820,10 @@ class App(Tk):
             try:
                 if cfg["auto_paste"]:
                     self._wait_for_modifiers_up()
-                    time.sleep(cfg["paste_delay"])
+                    time.sleep(settle)
                     # Shift+Insert, not Ctrl+V: it is what the terminal and the commercial
                     # dictation apps use.
-                    pasted_ok = clipboard.send_paste()
+                    pasted_ok = clipboard.send_paste(lead_space=lead_space)
                     if not pasted_ok:
                         self._set_status("error", "Auto-paste failed")
                         logger.error("SendInput refused the paste keystroke")
@@ -1819,6 +1841,31 @@ class App(Tk):
         # After the restore, so the watcher never overlaps the restore_delay sleep.
         if pasted_ok:
             self._start_readback(text, cfg)
+
+    def _read_before_caret(self) -> str | None:
+        """readback.before_caret, given up on after CARET_READ_SECONDS: a UI
+        Automation call into a hung app must not hold the paste."""
+        result: list[str | None] = [None]
+
+        def read() -> None:
+            result[0] = readback.before_caret()
+
+        started = time.monotonic()
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        reader.join(CARET_READ_SECONDS)
+        before = None if reader.is_alive() else result[0]
+        # The character class, never the text: enough to tell why a join did or did not happen.
+        if reader.is_alive():
+            found = "timed out"
+        elif before is None:
+            found = "no answer"
+        else:
+            found = (
+                f"{len(before)} chars, last {unicodedata.category(before[-1]) if before else '-'}"
+            )
+        logger.info(f"Caret read: {found} in {(time.monotonic() - started) * 1000:.0f} ms")
+        return before
 
     def _start_readback(self, pasted: str, cfg: dict[str, Any]) -> None:
         """Watch the pasted-into control for an edit, on its own thread. Worker thread."""

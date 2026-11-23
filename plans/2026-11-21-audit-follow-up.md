@@ -752,17 +752,45 @@ one (line 560), `VAR_DEFAULTS` in the tests, the settings block in `CLAUDE.md`,
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass
-- [ ] `uv run mypy whisper_dictate` passes
-- [ ] `uv run python -m whisper_dictate.readback` prints a caret read
+- [x] `uv run pytest` passes
+- [x] `uv run ruff check .` and `uv run ruff format --check .` pass
+- [x] `uv run mypy whisper_dictate` passes
+- [x] `uv run python -m whisper_dictate.readback` prints a caret read
 
 #### Manual Verification
-- [ ] Gate table recorded in the PR description
-- [ ] Two dictations in a row into Teams and into WhatsApp: one space between them
-- [ ] Dictate after text that already ends in a space: no second space
-- [ ] Dictate into an empty box and into VS Code: unchanged from today
-- [ ] The paste feels no slower
+- [x] Gate table recorded in the PR description
+- [x] Two dictations in a row into Teams and into WhatsApp: one space between them
+- [x] Dictate after text that already ends in a space: no second space
+- [x] Dictate into an empty box and into VS Code: unchanged from today
+- [x] The paste feels no slower
+
+Gate run 2026-11-22 by Dan with `python -m whisper_dictate.readback`. The first
+run read past the start of an empty field into the page (`'ge'`, `'rs'`, `'
+￼'`);
+the caret range is now clamped to the field's `DocumentRange`, and the re-run is
+below. `join_text` also treats a line break or U+FFFC as a line start.
+Manual checks passed 2026-11-22 after that change: one space between two dictations
+in Teams and in WhatsApp, no second space after a trailing space, no change in an empty
+WhatsApp box or in VS Code, and no felt delay. Three glued-word auto corrections
+(two Notepad 2026-11-21, one Teams 2026-11-22) were removed from the bank.
+
+Manual test 2026-11-22: the read was right in Teams (`Po`, 6-8 ms) but Teams strips a
+leading space from pasted text. The space is now typed, as a Space key in the same
+`SendInput` batch ahead of Shift+Insert (`clipboard.send_paste(lead_space=True)`), and
+`join_text` became `readback.needs_space`. The clipboard and read-back get the text unchanged.
+
+| App | After word | After `.` | Empty box | Selection |
+|---|---|---|---|---|
+| Teams | `'lo'` | `'o.'` | `'ge'` (placeholder is in the field) | ok |
+| WhatsApp | `'lo'` | `'o.'` | `''` | ok |
+| Chrome (GitHub) | `'lo'` | `'o.'` | `''` | ok |
+| Claude desktop | `'lo'` | `'o.'` | `''` | ok |
+| T3 Code | `'lo'` | `'o.'` | `''` | ok |
+
+Phase 5 passes (empty box right in 3 of the 4 named apps); Phase 6 passes (5 of 5).
+Known limit: the first dictation into an empty Teams box gets a leading space.
+The checkbox went in the Automation window's paste row, not beside read-back under
+History, since it is a paste option.
 
 **Implementation Note**: stop for Dan's confirmation before Phase 6.
 
