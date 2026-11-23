@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Select text and dictate an instruction to have the endpoint model rewrite it in place (**Speak over selected text to edit it** in Settings → Cleanup, off by default). A failed edit leaves the selection untouched; the selection and the rewrite are never written to disk.
 - A dictation pasted right after other text gets a leading space, so two in a row no longer run together (**Add a space when pasting right after other text** in Settings → Automation, on by default).
 - Glossary rules can be limited to the applications they name (**Only in apps** in the rule editor, an `apps` column in CSV). Blank means everywhere, as before.
 - Press `Esc` while a tap-locked recording is active to cancel and discard it; the keystroke is swallowed so the focused app does not react to it.

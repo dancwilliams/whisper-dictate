@@ -109,6 +109,15 @@ opening bracket or quote, and in an empty box, nothing is added; no word is ever
 quarter of a second, inside the paste delay. Teams counts its "Type a message" placeholder as text, so the first
 dictation into an empty Teams box gets a leading space. VS Code and Windows Terminal are not read.
 
+### Speak over a selection to edit it
+
+With **Speak over selected text to edit it** on (Settings → Cleanup, off by default) and an endpoint and model set,
+select some text and dictate an instruction such as "make this friendlier" or "turn this into bullets". The endpoint
+model rewrites the selection and the paste replaces it. If the edit fails, nothing is pasted and the pill says
+"Edit failed; selection unchanged". The selected text is sent to the endpoint; it is never written to history or the
+log. History records the spoken instruction, and **Copy last dictation** gives back the rewrite until the next
+dictation or a restart. VS Code and Windows Terminal are not read, so there a dictation is a dictation.
+
 If you toggle recording from inside Word, Notion, VS Code, or a chat window, the cleaned text appears directly where your cursor is.
 
 > Tip: Trigger the hotkey, don't click the GUI button — clicking steals focus and will paste into the GUI itself.
@@ -325,6 +334,7 @@ uv sync --locked
 ### Privacy-First Design
 - All transcription happens **100% locally** — your audio is never sent anywhere
 - LLM cleanup is optional. The built-in S1-mini cleanup runs locally; endpoint cleanup sends the transcript to the endpoint you configure
+- Voice edit (off by default) also sends the selected text to that endpoint
 - Your data never leaves your machine unless you point endpoint cleanup at a remote server
 
 ### Network Use

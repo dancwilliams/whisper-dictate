@@ -43,6 +43,7 @@ VAR_DEFAULTS = {
     "var_llm_key": "",
     "var_llm_temp": 0.1,
     "var_llm_debug": False,
+    "var_voice_edit": False,
     "var_glossary_enable": False,
     "var_auto_load_model": False,
     "var_auto_register_hotkey": False,
@@ -82,6 +83,7 @@ def mods(mocker):
     manager.for_app.return_value = manager
     m.readback.run.return_value = None
     m.readback.before_caret.return_value = None
+    m.readback.selection.return_value = None
     m.readback.needs_space.side_effect = readback.needs_space
     m.readback.UNREADABLE_APPS = readback.UNREADABLE_APPS
     m.clipboard.snapshot.return_value = "SAVED"
@@ -688,6 +690,91 @@ class TestHotkey:
 
         expected = [mocker.call(True)] + ([] if already_muted else [mocker.call(False)])
         assert set_mute.call_args_list == expected
+
+
+class TestVoiceEdit:
+    SELECTED = "A long paragraph about the quarterly numbers."
+    EDITED = "Numbers are up."
+
+    @pytest.fixture
+    def edit_app(self, make_app, mods):
+        mods.readback.selection.return_value = self.SELECTED
+        mods.llm_cleanup.edit_with_llm.return_value = self.EDITED
+        mods.app_context.get_active_context.return_value = SimpleNamespace(
+            process_name="ms-teams.exe", window_title="Chat"
+        )
+        mods.app_context.format_context_for_prompt.return_value = None
+        mods.history.record.side_effect = lambda **kw: (
+            {k: kw[k] for k in ("raw", "final", "cleaned")}
+            | {"audio_file": None, "app": "ms-teams.exe"}
+        )
+        app = make_app(var_voice_edit=True, var_history_enable=True)
+        app._start_readback = MagicMock()
+        return app
+
+    def test_pastes_the_rewrite_in_place_of_the_selection(self, edit_app, mods):
+        run(edit_app)
+
+        args = mods.llm_cleanup.edit_with_llm.call_args.args
+        assert args == (self.SELECTED, "hello world")
+        mods.clipboard.set_text.assert_called_once_with(self.EDITED)
+        mods.readback.before_caret.assert_not_called()  # no join over a selection
+        assert mods.clipboard.send_paste.call_args.kwargs["lead_space"] is False
+        edit_app._start_readback.assert_called_once()
+        assert edit_app._start_readback.call_args.args[1]["readback_enable"] is False
+
+    def test_ends_the_last_watch(self, edit_app, mods):
+        """Rewriting the previous dictation must not bank as its correction."""
+        edit_app._readback_stop = threading.Event()
+        stop = edit_app._readback_stop
+        run(edit_app)
+
+        assert stop.is_set()
+
+    def test_history_holds_the_instruction_only(self, edit_app, mods):
+        run(edit_app)
+
+        kw = mods.history.record.call_args.kwargs
+        assert (kw["raw"], kw["final"], kw["cleaned"]) == ("hello world", "hello world", None)
+        assert kw["cleanup_backend"] == "edit"
+        assert self.SELECTED not in repr(kw) and self.EDITED not in repr(kw)
+        # Kept in memory for Copy last dictation, added after the line was written.
+        assert edit_app._last_entry["pasted"] == self.EDITED
+        edit_app._copy_last_dictation()
+        mods.clipboard.set_text.assert_called_with(self.EDITED)
+
+    @pytest.mark.parametrize("failure", [None, llm_cleanup.LLMCleanupError("down")])
+    def test_a_failed_edit_pastes_nothing(self, edit_app, mods, failure):
+        if failure is None:
+            mods.llm_cleanup.edit_with_llm.return_value = None
+        else:
+            mods.llm_cleanup.edit_with_llm.side_effect = failure
+        run(edit_app)
+
+        mods.clipboard.set_text.assert_not_called()
+        mods.history.record.assert_not_called()
+        assert messages(edit_app)[-1] == "Edit failed; selection unchanged"
+
+    @pytest.mark.parametrize(
+        ("overrides", "selected"),
+        [({"var_voice_edit": False}, "Some text."), ({}, None), ({"var_llm_model": ""}, "x")],
+    )
+    def test_otherwise_a_normal_dictation(self, make_app, mods, overrides, selected):
+        mods.readback.selection.return_value = selected
+        app = make_app(**{"var_voice_edit": True, **overrides})
+        run(app)
+
+        mods.llm_cleanup.edit_with_llm.assert_not_called()
+        mods.clipboard.set_text.assert_called_once_with("hello world")
+
+    def test_no_selection_read_in_an_unreadable_app(self, make_app, mods):
+        mods.app_context.get_active_context.return_value = SimpleNamespace(
+            process_name="Code.exe", window_title="x"
+        )
+        app = make_app(var_voice_edit=True)
+        run(app)
+
+        mods.readback.selection.assert_not_called()
 
 
 class TestCopyLastDictation:

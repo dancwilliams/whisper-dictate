@@ -188,6 +188,7 @@ class TestRecordCorrection:
             "audio_file": None,
             "app": "olk.exe",
             "title": "Secret document",
+            "pasted": "A voice edit's rewrite, kept in memory only.",
         }
         assert self._bank(tmp_path, entry, corrected="threatfax") is True
 
