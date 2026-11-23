@@ -96,9 +96,10 @@ list already beats plain Whisper on both counts, and it needs no screen read.
 
 ## Decision
 
-Pending Dan.
+Dan, 2026-11-22: the screen-word feature is closed. The loop guard with the
+static hotword list is worth its own small plan later.
 
-Recommended: do not build the screen-word feature. Write a small plan for the
+The reasoning: do not build the screen-word feature. Write a small plan for the
 loop guard with the static hotword list first. It is a few lines in
 `transcription.py`, it would be measured with this same script, and the
 September numbers say it gains 1.7 WER points and 3.6 recall points with no
