@@ -882,12 +882,14 @@ watch, since rewriting that dictation is not a correction of it. The selection r
 skipped in `UNREADABLE_APPS`, like the caret read.
 
 #### Manual Verification
-- [ ] Select a paragraph in Teams, say "make this shorter": it is replaced by a shorter one
-- [ ] Stop Ollama, repeat: the selection is untouched and the pill says so
-- [ ] With the setting off, dictating over a selection behaves as it does today
-- [ ] `history.jsonl` for an edit holds the instruction and nothing of the paragraph
-- [ ] "Copy last dictation" after an edit gives the rewritten text
-- [ ] Time from stop to paste with Ollama warm is acceptable to Dan
+- [x] Select a paragraph in Teams, say "make this shorter": it is replaced by a shorter one
+- [x] Stop Ollama, repeat: the selection is untouched and the pill says so
+- [x] With the setting off, dictating over a selection behaves as it does today
+- [x] `history.jsonl` for an edit holds the instruction and nothing of the paragraph
+- [x] "Copy last dictation" after an edit gives the rewritten text
+- [x] Time from stop to paste with Ollama warm is acceptable to Dan
+
+Manual checks passed 2026-11-22: Dan confirmed all six.
 
 **Implementation Note**: stop for Dan's confirmation before Phase 7.
 
