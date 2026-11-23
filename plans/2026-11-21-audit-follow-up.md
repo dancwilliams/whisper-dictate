@@ -1065,14 +1065,14 @@ Runtime after Phase 8 would change the numbers and need a fresh reading.
 ### Success Criteria
 
 #### Manual Verification
-- [ ] `research/idle-vram-2026-11.md` holds the measurement, the Event Viewer result and
+- [x] `research/idle-vram-2026-11.md` holds the measurement, the Event Viewer result and
       the decision
 
 Written 2026-11-22. The Application log is circular and reached back only to that day,
 so the search used the WER archive and `CrashDumps`. It found one native crash: an
 `abort()` on 2026-10-14, during three quick tuned-model picks, with CTranslate2 frames on
-the stack and none in the 438 loads since. Recorded as not reopening the question;
-Dan's call.
+the stack and none in the 438 loads since. Dan agreed 2026-11-22: it does not reopen
+the question, and the subprocess is not built.
 
 ---
 
