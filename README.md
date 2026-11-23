@@ -111,7 +111,7 @@ dictation into an empty Teams box gets a leading space. VS Code and Windows Term
 
 ### Speak over a selection to edit it
 
-With **Speak over selected text to edit it** on (Settings → Cleanup, off by default) and an endpoint and model set,
+With **Speak over selected text to edit it** on (Settings → LLM cleanup…, off by default) and an endpoint and model set,
 select some text and dictate an instruction such as "make this friendlier" or "turn this into bullets". The endpoint
 model rewrites the selection and the paste replaces it. If the edit fails, nothing is pasted and the pill says
 "Edit failed; selection unchanged". The selected text is sent to the endpoint; it is never written to history or the
