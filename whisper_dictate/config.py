@@ -51,6 +51,10 @@ DEFAULT_HISTORY_AUDIO_DAYS = 14.0
 # word as a correction. Only the pasted span is kept; see readback.py.
 DEFAULT_READBACK_ENABLE = True
 
+# Before an auto-paste, read the two characters ahead of the caret and add a
+# space when the dictation would otherwise run into the text already there.
+DEFAULT_SMART_JOIN = True
+
 # Fine-tuned models from scripts/finetune_whisper.py land here, one
 # CTranslate2 folder each, and are offered in the model dropdown by path.
 MODELS_DIR = Path.home() / ".whisper_dictate" / "models"

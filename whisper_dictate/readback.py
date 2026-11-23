@@ -19,6 +19,7 @@ import re
 import sys
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from whisper_dictate import glossary
@@ -39,13 +40,17 @@ SLACK = 5
 # shows a placeholder after Send, so the box never reads as empty.
 GONE_POLLS = 2
 # Terminal exposes its screen buffer, not a field: the paste is in it, but
-# wrapped lines split words and would bank wrong labels.
-UNREADABLE_APPS = {"windowsterminal.exe"}
+# wrapped lines split words and would bank wrong labels. Monaco (VS Code) answers
+# with a placeholder sentence, and each read-back there waited 1.5 s to learn it.
+UNREADABLE_APPS = {"windowsterminal.exe", "code.exe"}
 
 UIA_TEXT_PATTERN = 10014
 UIA_VALUE_PATTERN = 10002
 UIA_HAS_KEYBOARD_FOCUS = 30008
 TREE_SCOPE_DESCENDANTS = 4
+ENDPOINT_START = 0
+ENDPOINT_END = 1
+UNIT_CHARACTER = 0
 
 
 def edited_span(field: str, pasted: str) -> list[str] | None:
@@ -232,6 +237,70 @@ def run(pasted: str, stop: threading.Event, app: str = "") -> str | None:
         comtypes.CoUninitialize()
 
 
+def needs_space(before: str | None) -> bool:
+    """Whether a dictation pasted after `before` needs a space ahead of it: the
+    caret sits hard against other text. A line break or an embedded object
+    (U+FFFC) ahead of the caret is the start of a line, not a word, so it gets
+    no space; nor does an opening bracket or quote."""
+    if not before or before[-1].isspace() or before[-1] in "([{\"'\ufffc":
+        return False
+    return True
+
+
+def _on_selection(read: Callable[[Any, Any], str | None]) -> str | None:
+    """`read` applied to the first selection range of the focused control and
+    the control's whole range.
+    None off Windows, for a control with only the value pattern (no caret to
+    ask about), or on any COM failure. Never raises."""
+    if sys.platform != "win32":
+        return None
+    import comtypes
+
+    comtypes.CoInitialize()
+    try:
+        uia, iface = _client()
+        target = _focused(uia, iface)
+        if target.text is None:
+            return None
+        ranges = target.text.GetSelection()
+        if not ranges.Length:
+            return None
+        return read(ranges.GetElement(0), target.text.DocumentRange)
+    except Exception as e:
+        logger.debug(f"Caret read failed: {e!r}")
+        return None
+    finally:
+        comtypes.CoUninitialize()
+
+
+def before_caret(chars: int = 2) -> str | None:
+    """The text just ahead of the caret in the focused control, "" at the start
+    of the field, None when it cannot be known. Never raises."""
+
+    def read(selected: Any, field: Any) -> str:
+        caret = selected.Clone()
+        caret.MoveEndpointByRange(ENDPOINT_END, caret, ENDPOINT_START)
+        caret.MoveEndpointByUnit(ENDPOINT_START, UNIT_CHARACTER, -chars)
+        # Chromium lets the move walk out of the field into the page before it:
+        # an empty box read 'ge' and 'rs' until clamped to the field's own start.
+        if caret.CompareEndpoints(ENDPOINT_START, field, ENDPOINT_START) < 0:
+            caret.MoveEndpointByRange(ENDPOINT_START, field, ENDPOINT_START)
+        return str(caret.GetText(chars))
+
+    return _on_selection(read)
+
+
+def selection(limit: int = 4000) -> str | None:
+    """The selected text of the focused control. None when nothing is selected,
+    the control is unreadable, or the selection is longer than `limit`. Never raises."""
+
+    def read(selected: Any, field: Any) -> str | None:
+        text = str(selected.GetText(limit + 1))
+        return text if 0 < len(text) <= limit else None
+
+    return _on_selection(read)
+
+
 def main() -> None:
     """Self-check: count down, read the focused control, say whether it is readable."""
     delay = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0
@@ -247,6 +316,8 @@ def main() -> None:
             text = target.read()
             if text is not None:
                 print(f"readable, {len(text)} chars")
+                print(f"before caret: {before_caret()!r}")
+                print(f"selection: {selection()!r}")
                 return
             time.sleep(FIRST_READ_WAIT)
         element = target.element

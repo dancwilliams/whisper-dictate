@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A dictation pasted right after other text gets a leading space, so two in a row no longer run together (**Add a space when pasting right after other text** in Settings → Automation, on by default).
 - Glossary rules can be limited to the applications they name (**Only in apps** in the rule editor, an `apps` column in CSV). Blank means everywhere, as before.
 - Press `Esc` while a tap-locked recording is active to cancel and discard it; the keystroke is swallowed so the focused app does not react to it.
 - Right-click the floating status pill and choose **Copy last dictation** to put the last dictated text back on the clipboard if a paste missed.
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model list; unused ones expire after 30 days.
 
 ### Fixed
+- Read-back no longer spends 1.5 s on every VS Code paste: its editor answers with a placeholder, so it is skipped like Windows Terminal.
 - Tap-to-lock recordings no longer lose their locked status message when the first audio block arrives after the hotkey is released.
 - Per-app prompts and Glossary dialogs now size Treeview row height from the display font so HiDPI scaling does not clip descenders, and left-align the Add/Edit/Delete button bar evenly under the table instead of stranding Add in the middle.
 - Per-app prompt and S1 style matching now compares process names case-insensitively, so a saved `notepad.exe` rule matches `Notepad.exe`.

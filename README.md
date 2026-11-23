@@ -102,6 +102,13 @@ When the **Auto-paste** checkbox (GUI) is enabled:
 1. The final text is copied to the clipboard.
 2. After a short delay (default 0.15 s), `Shift + Insert` is sent to the active window, and your previous clipboard is restored.
 
+With **Add a space when pasting right after other text** on (Settings → Automation, on by default), the app
+reads the two characters ahead of the cursor first. A dictation that would run into a word or a full stop gets one
+leading space, so two dictations in a row read `Hello there. And another thing.` After a space, a line break or an
+opening bracket or quote, and in an empty box, nothing is added; no word is ever changed. The read takes at most a
+quarter of a second, inside the paste delay. Teams counts its "Type a message" placeholder as text, so the first
+dictation into an empty Teams box gets a leading space. VS Code and Windows Terminal are not read.
+
 If you toggle recording from inside Word, Notion, VS Code, or a chat window, the cleaned text appears directly where your cursor is.
 
 > Tip: Trigger the hotkey, don't click the GUI button — clicking steals focus and will paste into the GUI itself.
@@ -131,7 +138,7 @@ Use the glossary to keep acronyms, brand names, or domain-specific terms intact 
 - When **Learn from edits you make after a paste** is on (Settings → Automation → History), the app reads the box
   it pasted into, and if you change a word before sending or moving on, the fix is kept as a correction the same
   way. Only the pasted words are read back. Works in Teams, WhatsApp, Chrome, Claude desktop and Word; VS Code does
-  not expose its editor and Windows Terminal is skipped.
+  not expose its editor (it is skipped) and Windows Terminal is skipped.
 - In **Settings → LLM cleanup…**, enable **Use glossary before prompt** to apply the glossary to transcripts and prepend the
   rules to the LLM system prompt so it takes priority over the general cleanup prompt.
 

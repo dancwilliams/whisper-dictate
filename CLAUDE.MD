@@ -98,6 +98,7 @@ Settings are stored in `~/.whisper_dictate/whisper_dictate_settings.json`:
   "input": "",
   "hotkey": "CTRL+SPACE",
   "auto_paste": true,
+  "smart_join": true,
   "mute_speakers": true,
   "paste_delay": 0.15,
   "restore_delay": 0.6,

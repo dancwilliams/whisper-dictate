@@ -145,7 +145,7 @@ def restore(items: list[tuple[int, bytes]]) -> None:
         user32.CloseClipboard()
 
 
-VK_SHIFT, VK_INSERT = 0x10, 0x2D
+VK_SHIFT, VK_INSERT, VK_SPACE = 0x10, 0x2D, 0x20
 INPUT_KEYBOARD = 1
 KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP = 0x0001, 0x0002
 
@@ -196,8 +196,11 @@ def _key(vk: int, up: bool, extended: bool) -> _INPUT:
     )
 
 
-def send_paste() -> bool:
-    """Press Shift+Insert in the focused window.
+def send_paste(lead_space: bool = False) -> bool:
+    """Press Shift+Insert in the focused window, after a Space when `lead_space`.
+
+    The space is typed, not pasted: Teams strips leading whitespace from pasted
+    text. One SendInput call keeps the two in order with nothing between them.
 
     Insert must carry KEYEVENTF_EXTENDEDKEY. Without it Windows reads the
     keystroke as the *numpad* Insert, and with NumLock on it then strips the
@@ -208,7 +211,9 @@ def send_paste() -> bool:
     Returns:
         True if Windows accepted all four events.
     """
+    space = [_key(VK_SPACE, up=False, extended=False), _key(VK_SPACE, up=True, extended=False)]
     events = [
+        *(space if lead_space else []),
         _key(VK_SHIFT, up=False, extended=False),
         _key(VK_INSERT, up=False, extended=True),
         _key(VK_INSERT, up=True, extended=True),
