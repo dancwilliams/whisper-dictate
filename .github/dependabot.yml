@@ -15,6 +15,13 @@ updates:
       # Majors stay out of the group so they arrive as their own PR and are
       # never swept into an auto-merge (see the automerge job in ci.yml).
       python: { patterns: ["*"], update-types: ["minor", "patch"] }
+    # Pinned on purpose: the CUDA 12 libs match ctranslate2 and llama-cpp (12.9 has
+    # no Windows wheel), and llama-cpp-python comes from the cu124 index, which
+    # lags PyPI, so a PyPI-only version leaves the Windows split unresolvable.
+    ignore:
+      - dependency-name: "nvidia-cublas-cu12"
+      - dependency-name: "nvidia-cuda-runtime-cu12"
+      - dependency-name: "llama-cpp-python"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule: { interval: "weekly" }
