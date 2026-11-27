@@ -13,8 +13,8 @@ dependencies = [
     # CUDA 12 cuBLAS for ctranslate2 and llama-cpp, cudart for llama-cpp. Both link
     # the *64_12 names, so these stay on 12 even though torch is on 13. cuDNN
     # comes inside the ctranslate2 wheel; nothing loads nvrtc.
-    "nvidia-cublas-cu12==12.4.5.8",
-    "nvidia-cuda-runtime-cu12==12.4.127",
+    "nvidia-cublas-cu12==12.9.3.13",
+    "nvidia-cuda-runtime-cu12==12.9.79",
     "openai>=3.16",
     # UI Automation client for reading back the control a dictation was pasted into.
     "comtypes>=1.4.17; sys_platform == 'win32'",
